@@ -1,0 +1,18 @@
+/** One locally cached lesson: paths under the app dataDir. */
+export type LibraryEntry = {
+  videoId: string;
+  title: string;
+  /** Absolute path to captions JSON, or null. */
+  captionsPath: string | null;
+  /** Absolute path to audio bytes, or null when not saved / too large. */
+  audioPath: string | null;
+  /** Remote audio URL kept for streaming when audioPath is null. */
+  audioUrl: string | null;
+  audioMimeType: string | null;
+  updatedAt: number;
+};
+
+export type LibraryIndex = {
+  version: 1;
+  entries: Record<string, LibraryEntry>;
+};

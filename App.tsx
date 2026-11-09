@@ -1,11 +1,13 @@
 import { mount, signal, Text, View, Scroll } from "nsh";
 import { Input, Button } from "nsh/base";
 import { loadLesson } from "./youtube/parse";
+import { hostFetch, isNativeHost } from "./youtube/host";
 import type { LoadedLesson, Sentence } from "./youtube/types";
 import { BlindFlow } from "./modes/BlindFlow";
 import type { BlindTag } from "./modes/blindFlow";
 import { LoopDojo } from "./modes/LoopDojo";
 import { ChromeHint } from "./ui/chrome";
+import { downloadLesson } from "./library/download";
 
 function formatMs(ms: number): string {
   const s = Math.floor(ms / 1000);
@@ -32,7 +34,9 @@ type Screen = "home" | "blind" | "loop" | "list";
 function App() {
   const url = signal("");
   const loading = signal(false);
+  const saving = signal(false);
   const error = signal<string | null>(null);
+  const status = signal<string | null>(null);
   const lesson = signal<LoadedLesson | null>(null);
   const screen = signal<Screen>("home");
   const tags = signal<Record<number, BlindTag>>({});
@@ -42,8 +46,9 @@ function App() {
     if (!value || loading()) return;
     loading.set(true);
     error.set(null);
+    status.set(null);
     try {
-      const loaded = await loadLesson(value);
+      const loaded = await loadLesson(value, hostFetch);
       lesson.set(loaded);
       tags.set({});
       if (!loaded.track) {
@@ -54,6 +59,11 @@ function App() {
         screen.set("home");
       } else {
         screen.set("blind");
+        status.set(
+          isNativeHost()
+            ? "Parsed on native host"
+            : "Unexpected: web host accepted fetch",
+        );
       }
     } catch (e) {
       lesson.set(null);
@@ -62,6 +72,26 @@ function App() {
       error.set(e instanceof Error ? e.message : String(e));
     } finally {
       loading.set(false);
+    }
+  };
+
+  const onSaveLocal = async () => {
+    const L = lesson();
+    if (!L || saving()) return;
+    saving.set(true);
+    error.set(null);
+    try {
+      const { entry, audioNote } = await downloadLesson(L, hostFetch);
+      status.set(
+        audioNote
+          ? `Saved captions → ${entry.captionsPath} (${audioNote})`
+          : `Saved library → ${entry.captionsPath}` +
+              (entry.audioPath ? ` + ${entry.audioPath}` : ""),
+      );
+    } catch (e) {
+      error.set(e instanceof Error ? e.message : String(e));
+    } finally {
+      saving.set(false);
     }
   };
 
@@ -86,7 +116,7 @@ function App() {
         <View class="gap-4 p-4">
           <Text class="text-2xl font-semibold text-foreground">Ear</Text>
           <Text class="text-sm text-muted-foreground">
-            Blind Flow · Loop Dojo · sentence list
+            Desktop-first — native host fetch + local library skeleton
           </Text>
 
           <View class="gap-2">
@@ -104,10 +134,23 @@ function App() {
                 {loading() ? "Loading…" : "Parse"}
               </Text>
             </Button>
+            <If when={lesson()}>
+              <Button
+                onPress={onSaveLocal}
+                class="items-center rounded-lg border border-border bg-card px-4 py-3"
+              >
+                <Text class="text-foreground">
+                  {saving() ? "Saving…" : "Save locally"}
+                </Text>
+              </Button>
+            </If>
           </View>
 
           <If when={error()}>
             <Text class="text-sm text-destructive">{error()}</Text>
+          </If>
+          <If when={status()}>
+            <Text class="text-sm text-muted-foreground">{status()}</Text>
           </If>
 
           <If when={tabLesson()}>
