@@ -22,6 +22,10 @@ export function audioFile(videoId: string, ext = "m4a"): string {
   return join(entryDir(videoId), `audio.${ext}`);
 }
 
+export function videoFile(videoId: string, ext = "mp4"): string {
+  return join(entryDir(videoId), `video.${ext}`);
+}
+
 export function indexFile(): string {
   return join(libraryRoot(), "index.json");
 }

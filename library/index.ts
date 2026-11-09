@@ -1,4 +1,5 @@
 import { exists, mkdir, readFile, writeFile } from "fs/promises";
+import type { CaptionCue, CaptionTrack, LoadedLesson, Sentence } from "../youtube/types";
 import type { LibraryEntry, LibraryIndex } from "./types";
 import { indexFile, libraryRoot } from "./paths";
 
@@ -18,10 +19,16 @@ export function pruneMissingPaths(
       : null;
   const audioPath =
     entry.audioPath && fileExists(entry.audioPath) ? entry.audioPath : null;
-  if (captionsPath === entry.captionsPath && audioPath === entry.audioPath) {
+  const videoPath =
+    entry.videoPath && fileExists(entry.videoPath) ? entry.videoPath : null;
+  if (
+    captionsPath === entry.captionsPath &&
+    audioPath === entry.audioPath &&
+    videoPath === (entry.videoPath ?? null)
+  ) {
     return entry;
   }
-  return { ...entry, captionsPath, audioPath, updatedAt: Date.now() };
+  return { ...entry, captionsPath, audioPath, videoPath, updatedAt: Date.now() };
 }
 
 export async function loadIndex(): Promise<LibraryIndex> {
@@ -52,9 +59,11 @@ export async function refreshEntry(
     ? await exists(entry.captionsPath)
     : false;
   const audioOk = entry.audioPath ? await exists(entry.audioPath) : false;
+  const videoOk = entry.videoPath ? await exists(entry.videoPath) : false;
   const pruned = pruneMissingPaths(entry, (p) => {
     if (p === entry.captionsPath) return captionsOk;
     if (p === entry.audioPath) return audioOk;
+    if (p === entry.videoPath) return videoOk;
     return false;
   });
 
@@ -77,5 +86,65 @@ export async function listEntries(): Promise<LibraryEntry[]> {
     const refreshed = await refreshEntry(id);
     if (refreshed) out.push(refreshed);
   }
-  return out;
+  return out.sort((a, b) => b.updatedAt - a.updatedAt);
+}
+
+export async function listEntriesSafe(): Promise<LibraryEntry[]> {
+  try {
+    return await listEntries();
+  } catch {
+    return [];
+  }
+}
+
+export async function loadLessonFromEntry(
+  entry: LibraryEntry,
+): Promise<LoadedLesson | null> {
+  if (!entry.captionsPath) return null;
+  try {
+    if (!(await exists(entry.captionsPath))) return null;
+    const raw = await readFile(entry.captionsPath, "utf8");
+    const parsed = JSON.parse(raw) as {
+      videoId: string;
+      title: string;
+      track: CaptionTrack | null;
+      cues: CaptionCue[];
+      sentences: Sentence[];
+    };
+    const lastEnd =
+      parsed.sentences.length > 0
+        ? parsed.sentences[parsed.sentences.length - 1]!.endMs
+        : null;
+    const localVideo =
+      entry.videoPath && (await exists(entry.videoPath))
+        ? `file://${entry.videoPath}`
+        : null;
+    const localAudio =
+      entry.audioPath && (await exists(entry.audioPath))
+        ? `file://${entry.audioPath}`
+        : null;
+    const mediaUrl =
+      localVideo || localAudio || entry.videoUrl || entry.audioUrl;
+
+    return {
+      video: {
+        videoId: parsed.videoId || entry.videoId,
+        title: parsed.title || entry.title,
+        audioUrl: mediaUrl,
+        audioMimeType: localVideo
+          ? "video/mp4"
+          : entry.audioMimeType || "audio/mp4",
+        videoUrl: localVideo || entry.videoUrl || null,
+        videoMimeType: localVideo ? "video/mp4" : null,
+        durationMs: lastEnd,
+        captionTracks: parsed.track ? [parsed.track] : [],
+        playerResponse: null,
+      },
+      track: parsed.track ?? null,
+      cues: parsed.cues ?? [],
+      sentences: parsed.sentences ?? [],
+    };
+  } catch {
+    return null;
+  }
 }

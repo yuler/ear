@@ -36,6 +36,8 @@ export type ParsedVideo = {
   /** Best audio/mp4 (or audio/*) progressive URL from adaptiveFormats. */
   audioUrl: string | null;
   audioMimeType: string | null;
+  videoUrl?: string | null;
+  videoMimeType?: string | null;
   durationMs: number | null;
   captionTracks: CaptionTrack[];
   /** Raw player response kept for debugging / later fields. */

@@ -1,8 +1,9 @@
-import { mkdir, writeFile } from "fs/promises";
+import { exists, mkdir, writeFile } from "fs/promises";
+import process from "process";
 import type { LoadedLesson } from "../youtube/types";
 import { hostFetch } from "../youtube/host";
 import { upsertEntry } from "./index";
-import { audioFile, captionsFile, entryDir } from "./paths";
+import { audioFile, captionsFile, entryDir, videoFile } from "./paths";
 import type { LibraryEntry } from "./types";
 
 /** nsh `fs/promises.writeFile` caps a single write at 8 MiB. */
@@ -19,13 +20,14 @@ function audioExt(mime: string | null): string {
 
 export type DownloadResult = {
   entry: LibraryEntry;
-  /** Why audioPath may be null (size / no url / fetch). */
+  /** Why audioPath or videoPath may be null (size / no url / fetch). */
   audioNote: string | null;
 };
 
 /**
- * Persist captions (+ audio when ≤ 8 MiB) under dataDir/library/<id>/.
- * Skeleton: no yt-dlp; uses host fetch of the progressive audio URL.
+ * Persist captions (+ video/audio) under dataDir/library/<id>/.
+ * Attempts to download multiplexed MP4 via yt-dlp first for video+audio offline playback;
+ * falls back to downloading audio stream via fetchImpl.
  */
 export async function downloadLesson(
   lesson: LoadedLesson,
@@ -51,12 +53,39 @@ export async function downloadLesson(
     ),
   );
 
+  let videoPath: string | null = null;
   let audioPath: string | null = null;
   let audioNote: string | null = null;
 
-  if (!video.audioUrl) {
-    audioNote = "no audio url in player response";
-  } else {
+  // 1. Check if video already exists on disk
+  const targetVideoPath = videoFile(video.videoId, "mp4");
+  try {
+    if (await exists(targetVideoPath)) {
+      videoPath = targetVideoPath;
+    } else if (typeof process.run === "function") {
+      try {
+        await process.run("yt-dlp", [
+          "-f",
+          "18/best[height<=720][ext=mp4]/best",
+          "--no-playlist",
+          "--no-warnings",
+          "-o",
+          targetVideoPath,
+          `https://www.youtube.com/watch?v=${video.videoId}`,
+        ]);
+        if (await exists(targetVideoPath)) {
+          videoPath = targetVideoPath;
+        }
+      } catch {
+        // yt-dlp error or not installed
+      }
+    }
+  } catch {
+    // ignore
+  }
+
+  // 2. If videoPath not obtained, download audio stream via fetch
+  if (!videoPath && video.audioUrl) {
     try {
       const res = await fetchImpl(video.audioUrl, {
         headers: {
@@ -72,13 +101,16 @@ export async function downloadLesson(
           audioNote = `audio ${buf.byteLength} bytes > ${MAX_AUDIO_WRITE_BYTES} write cap; keep remote url`;
         } else {
           const ext = audioExt(video.audioMimeType);
-          audioPath = audioFile(video.videoId, ext);
-          await writeFile(audioPath, buf);
+          const targetAudio = audioFile(video.videoId, ext);
+          await writeFile(targetAudio, buf);
+          audioPath = targetAudio;
         }
       }
     } catch (e) {
       audioNote = e instanceof Error ? e.message : String(e);
     }
+  } else if (!videoPath && !video.audioUrl) {
+    audioNote = "no audio url in player response";
   }
 
   const entry: LibraryEntry = {
@@ -88,6 +120,8 @@ export async function downloadLesson(
     audioPath,
     audioUrl: video.audioUrl,
     audioMimeType: video.audioMimeType,
+    videoPath,
+    videoUrl: video.videoUrl ?? null,
     updatedAt: Date.now(),
   };
   await upsertEntry(entry);

@@ -9,6 +9,10 @@ export type LibraryEntry = {
   /** Remote audio URL kept for streaming when audioPath is null. */
   audioUrl: string | null;
   audioMimeType: string | null;
+  /** Absolute path to local video MP4 (with audio), or null. */
+  videoPath?: string | null;
+  /** Remote video URL or progressive stream URL. */
+  videoUrl?: string | null;
   updatedAt: number;
 };
 
