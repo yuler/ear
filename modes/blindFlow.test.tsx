@@ -5,6 +5,7 @@ import {
   createBlindFlowSession,
   isComplete,
   revealCaption,
+  maskCaption,
   restartBlindFlow,
 } from "./blindFlow";
 
@@ -33,4 +34,10 @@ test("restart clears tags", () => {
   s = restartBlindFlow();
   expect(s.index).toBe(0);
   expect(Object.keys(s.tags).length).toBe(0);
+});
+
+test("maskCaption hides letters without CSS filter", () => {
+  const masked = maskCaption("Hello world");
+  expect(masked.includes("H") || masked.includes("w")).toBe(false);
+  expect(masked).toBe("••••• •••••");
 });

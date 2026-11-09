@@ -10,6 +10,7 @@ import {
   hideCaption,
   isComplete,
   revealCaption,
+  maskCaption,
   restartBlindFlow,
   type BlindFlowSession,
   type BlindTag,
@@ -162,16 +163,9 @@ export function BlindFlow(props: Props) {
                 {s.wpm} wpm · {s.difficulty}
               </Text>
 
-              <View
-                class="min-h-[72px] justify-center rounded-lg border border-border bg-background p-3"
-                style={
-                  revealed
-                    ? undefined
-                    : { filter: "blur(10px)" }
-                }
-              >
+              <View class="min-h-[72px] justify-center rounded-lg border border-border bg-background p-3">
                 <Text class="text-lg leading-relaxed text-foreground">
-                  {s.text}
+                  {revealed ? s.text : maskCaption(s.text)}
                 </Text>
               </View>
 

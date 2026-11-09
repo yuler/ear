@@ -80,3 +80,13 @@ export function currentSentence(
 export function restartBlindFlow(): BlindFlowSession {
   return createBlindFlowSession();
 }
+
+/**
+ * Cross-platform caption mask: never mounts real words when hidden.
+ * Replaces each non-space run with the same number of bullets so layout
+ * stays roughly stable without relying on CSS `filter` blur.
+ */
+export function maskCaption(text: string): string {
+  return text.replace(/\S/g, "•");
+}
+
