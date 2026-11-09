@@ -30,3 +30,22 @@ test("buildVideoPreview extracts YouTube URL and matches sample metadata", () =>
   expect(preview?.source).toBe("clipboard");
   expect(preview?.durationLabel).toBe("6:45");
 });
+
+test("shows Cinema screen with timeline and transport in Blind Flow", async () => {
+  const app = await open("./App.tsx", {
+    clipboard: "https://www.youtube.com/watch?v=b-6XR0rflJw",
+  });
+  await app.waitFor("Download & Practice");
+  await app.press("Download & Practice");
+  await app.waitFor("1 / 4");
+
+  // Verify video screen is rendered with initial state
+  expect(
+    app
+      .texts()
+      .some((t) => t.includes("PAUSED #1") || t.includes("PLAYING #1")),
+  ).toBe(true);
+  expect(app.texts().some((t) => t.includes("CLICK SEGMENT TO PLAY"))).toBe(
+    true,
+  );
+});

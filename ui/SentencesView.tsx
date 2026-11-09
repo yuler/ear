@@ -87,7 +87,7 @@ export function SentencesView(props: {
   tags: () => Record<number, BlindTag>;
   difficultyFilter: () => "all" | Difficulty;
   onDifficultyFilterChange: (df: "all" | Difficulty) => void;
-  onPracticeInBlind: () => void;
+  onPracticeInBlind: (sentenceIndex?: number) => void;
 }) {
   const filteredSentences = (): Sentence[] => {
     const df = props.difficultyFilter();
@@ -147,7 +147,7 @@ export function SentencesView(props: {
             <SentenceRow
               sentence={item}
               tag={() => props.tags()[item().index]}
-              onSelect={props.onPracticeInBlind}
+              onSelect={() => props.onPracticeInBlind(item().index)}
             />
           )}
         </Each>

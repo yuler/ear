@@ -69,7 +69,8 @@ type Props = {
  */
 export function LoopDojo(props: Props) {
   const sentences = () => dojoQueue(props.lesson.sentences, props.tags);
-  const audioUrl = props.lesson.video.audioUrl;
+  const mediaUrl = () =>
+    props.lesson.video.videoUrl || props.lesson.video.audioUrl || null;
   const index = signal(0);
   const rate = signal<PlaybackRate>(1);
   const looping = signal(false);
@@ -92,7 +93,7 @@ export function LoopDojo(props: Props) {
 
   const startLoop = () => {
     const s = sentence();
-    if (!s || !audioUrl || !video) return;
+    if (!s || !mediaUrl() || !video) return;
     seekToA(s);
     looping.set(true);
   };
@@ -107,7 +108,7 @@ export function LoopDojo(props: Props) {
     checkedSet.set({ ...checkedSet(), [s.index]: true });
   };
 
-  const selectQueueIndex = (nextIdx: number) => {
+  const selectQueueIndex = (nextIdx: number, autoStart = true) => {
     const q = sentences();
     stopLoop();
     diff.set(null);
@@ -115,43 +116,21 @@ export function LoopDojo(props: Props) {
     typed.set("");
     const clamped = Math.max(0, Math.min(q.length - 1, nextIdx));
     index.set(clamped);
+    if (autoStart) {
+      const s = q[clamped];
+      if (s && mediaUrl() && video) {
+        seekToA(s);
+        looping.set(true);
+      }
+    }
   };
 
   const go = (delta: number) => {
-    selectQueueIndex(index() + delta);
+    selectQueueIndex(index() + delta, true);
   };
 
   return (
     <View class="gap-3.5 md:flex-row md:items-start">
-      <If when={audioUrl}>
-        <Video
-          ref={(node) => {
-            video = node;
-          }}
-          src={audioUrl!}
-          paused={!looping()}
-          rate={rate()}
-          volume={1}
-          audioSession="playback"
-          controls={false}
-          progressUpdateInterval={80}
-          style={{ width: 1, height: 1, opacity: 0 }}
-          onProgress={(e) => {
-            const s = sentence();
-            if (!s || !looping()) return;
-            if (clipEnded(e.currentTime, s.endMs)) {
-              seekToA(s);
-            }
-          }}
-          onEnd={() => {
-            const s = sentence();
-            if (s && looping()) seekToA(s);
-            else stopLoop();
-          }}
-          onError={() => stopLoop()}
-        />
-      </If>
-
       {/* Left 2fr: Studio A–B Loop & Dictation Workbench */}
       <View class="min-w-0 flex-1 gap-3 rounded-2xl border border-line bg-panel p-4 md:flex-[2]">
         <View class="flex-row flex-wrap items-center justify-between gap-2 border-b border-line pb-2.5">
@@ -200,12 +179,12 @@ export function LoopDojo(props: Props) {
           </View>
         </View>
 
-        <If when={!audioUrl}>
+        <If when={!mediaUrl()}>
           <View class="flex-row items-center justify-between rounded-xl border border-line bg-raised px-3 py-1.5">
             <View class="flex-row items-center gap-2">
               <Icon name="keyboard" size={13} tone="amber" />
               <Text class="text-xs text-muted-foreground">
-                No audio URL — Diff still works; loop play disabled.
+                No audio URL - Diff still works; loop play disabled.
               </Text>
             </View>
             <Text class="font-mono text-[10px] uppercase tracking-wider text-dim">
@@ -217,6 +196,72 @@ export function LoopDojo(props: Props) {
         <If when={sentence()}>
           {(get) => (
             <View class="gap-3">
+              {/* Loop Video Screen */}
+              <View class="relative flex aspect-video max-h-[300px] w-full items-center justify-center overflow-hidden rounded-xl border border-line bg-black">
+                <If when={mediaUrl()}>
+                  <Video
+                    ref={(node) => {
+                      video = node;
+                    }}
+                    src={mediaUrl()!}
+                    paused={!looping()}
+                    rate={rate()}
+                    volume={1}
+                    audioSession="playback"
+                    controls={false}
+                    progressUpdateInterval={80}
+                    class="h-full w-full object-contain"
+                    onProgress={(e) => {
+                      const s = sentence();
+                      if (!s || !looping()) return;
+                      if (clipEnded(e.currentTime, s.endMs)) {
+                        seekToA(s);
+                      }
+                    }}
+                    onEnd={() => {
+                      const s = sentence();
+                      if (s && looping()) seekToA(s);
+                      else stopLoop();
+                    }}
+                    onError={() => stopLoop()}
+                  />
+                </If>
+                <If when={!mediaUrl()}>
+                  <View class="items-center justify-center gap-2 p-4">
+                    <Icon name="repeat" size={28} tone="dim" />
+                    <Text class="text-xs text-dim">
+                      No video or audio media source
+                    </Text>
+                  </View>
+                </If>
+
+                {/* Loop status overlay */}
+                <View class="absolute top-2.5 left-2.5 flex-row items-center gap-1.5 rounded-md bg-black/70 px-2 py-1 backdrop-blur">
+                  <View
+                    class={`h-2 w-2 rounded-full ${
+                      looping() ? "bg-amber" : "bg-dim"
+                    }`}
+                  />
+                  <Text class="font-mono text-[10px] font-semibold text-white">
+                    {looping()
+                      ? `LOOPING A-B (${rate()}×)`
+                      : "LOOP PAUSED"}
+                  </Text>
+                </View>
+
+                <Button
+                  onPress={() => (looping() ? stopLoop() : startLoop())}
+                  class="absolute inset-0 items-center justify-center bg-transparent active:bg-black/10"
+                  accessibilityLabel={looping() ? "Stop Loop" : "Start Loop"}
+                >
+                  <If when={!looping()}>
+                    <View class="h-12 w-12 items-center justify-center rounded-full border border-white/20 bg-black/60 shadow-lg backdrop-blur">
+                      <Icon name="play" size={20} tone="primary-foreground" />
+                    </View>
+                  </If>
+                </Button>
+              </View>
+
               {/* Studio A–B Timeline Visualizer Card */}
               <View class="gap-2.5 rounded-xl border border-line bg-well p-3.5">
                 <View class="flex-row flex-wrap items-center justify-between gap-2">
@@ -504,7 +549,7 @@ export function LoopDojo(props: Props) {
               <Each of={sentences()} key="index">
                 {(item, qIdx) => (
                   <Button
-                    onPress={() => selectQueueIndex(qIdx())}
+                    onPress={() => selectQueueIndex(qIdx(), true)}
                     class={`rounded-xl border px-3 py-2.5 transition ${
                       qIdx() === index()
                         ? "border-amber/60 bg-amber/10"

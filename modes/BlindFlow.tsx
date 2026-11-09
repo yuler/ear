@@ -1,4 +1,4 @@
-import { keymap, Scroll, signal, Text, Video, View } from "nsh";
+import { effect, keymap, Scroll, signal, Text, Video, View } from "nsh";
 import { Button } from "nsh/base";
 import {
   clipEnded,
@@ -97,6 +97,7 @@ type Props = {
   tags: Record<number, BlindTag>;
   onTagsChange: (tags: Record<number, BlindTag>) => void;
   onOpenDojo?: () => void;
+  initialIndex?: number;
 };
 
 /**
@@ -107,6 +108,13 @@ type Props = {
 export function BlindFlow(props: Props) {
   const session = signal<BlindFlowSession>({
     ...createBlindFlowSession(),
+    index:
+      props.initialIndex != null
+        ? Math.max(
+            0,
+            Math.min(props.lesson.sentences.length - 1, props.initialIndex),
+          )
+        : 0,
     tags: { ...props.tags },
   });
   const playing = signal(false);
@@ -115,10 +123,12 @@ export function BlindFlow(props: Props) {
   let video: { seek(seconds: number): void } | null = null;
 
   const sentences = props.lesson.sentences;
-  const audioUrl = props.lesson.video.audioUrl;
+  const mediaUrl = () =>
+    props.lesson.video.videoUrl || props.lesson.video.audioUrl || null;
 
   const playSentence = (s: Sentence) => {
-    if (!audioUrl || !video) {
+    const url = mediaUrl();
+    if (!url || !video) {
       playing.set(false);
       return;
     }
@@ -145,16 +155,31 @@ export function BlindFlow(props: Props) {
     props.onTagsChange({});
   };
 
-  const jumpTo = (idx: number) => {
+  const jumpTo = (idx: number, autoPlay = false) => {
     if (sentences.length === 0) return;
-    stopPlayback();
     const clamped = Math.max(0, Math.min(sentences.length - 1, idx));
     session.set({
       ...session(),
       index: clamped,
       revealed: false,
     });
+    if (autoPlay) {
+      const target = sentences[clamped];
+      if (target) {
+        playSentence(target);
+      }
+    } else {
+      stopPlayback();
+    }
   };
+
+  const jumpAndPlay = (idx: number) => jumpTo(idx, true);
+
+  effect(() => {
+    if (props.initialIndex != null && props.initialIndex !== session().index) {
+      jumpAndPlay(props.initialIndex);
+    }
+  });
 
   const toggleReveal = () => {
     const cur = session();
@@ -189,38 +214,15 @@ export function BlindFlow(props: Props) {
       "3": () => {
         if (!done()) onTag("blind");
       },
-      left: () => jumpTo(session().index - 1),
-      right: () => jumpTo(session().index + 1),
+      left: () => jumpAndPlay(session().index - 1),
+      right: () => jumpAndPlay(session().index + 1),
     },
     { when: "notEditing" },
   );
 
   return (
     <View class="gap-3.5 md:flex-row md:items-start">
-      <If when={audioUrl}>
-        <Video
-          ref={(node) => {
-            video = node;
-          }}
-          src={audioUrl!}
-          paused={!playing()}
-          rate={rate()}
-          volume={1}
-          audioSession="playback"
-          controls={false}
-          progressUpdateInterval={100}
-          style={{ width: 1, height: 1, opacity: 0 }}
-          onProgress={(e) => {
-            const end = clipEndMs();
-            if (end == null || !playing()) return;
-            if (clipEnded(e.currentTime, end)) stopPlayback();
-          }}
-          onEnd={() => stopPlayback()}
-          onError={() => stopPlayback()}
-        />
-      </If>
-
-      {/* Left 2fr: Vimpo Cinema Listening Stage */}
+      {/* Left 2fr: Cinema Listening & Video Stage */}
       <View class="min-w-0 flex-1 gap-3 rounded-2xl border border-line bg-panel p-4 md:flex-[2]">
         {/* Stage Header Bar */}
         <View class="flex-row flex-wrap items-center justify-between gap-2 border-b border-line pb-2.5">
@@ -269,12 +271,12 @@ export function BlindFlow(props: Props) {
           </View>
         </View>
 
-        <If when={!audioUrl}>
+        <If when={!mediaUrl()}>
           <View class="flex-row items-center justify-between rounded-xl border border-line bg-raised px-3 py-1.5">
             <View class="flex-row items-center gap-2">
               <Icon name="sparkles" size={13} tone="amber" />
               <Text class="text-xs text-muted-foreground">
-                No audio URL from parse — tag captions only (play disabled).
+                No audio URL from parse - tag captions only (play disabled).
               </Text>
             </View>
             <Text class="font-mono text-[10px] uppercase tracking-wider text-dim">
@@ -376,8 +378,71 @@ export function BlindFlow(props: Props) {
                   </View>
                 </View>
 
+                {/* Cinema Video Screen */}
+                <View class="relative flex aspect-video max-h-[340px] w-full items-center justify-center overflow-hidden rounded-xl border border-line bg-black">
+                  <If when={mediaUrl()}>
+                    <Video
+                      ref={(node) => {
+                        video = node;
+                      }}
+                      src={mediaUrl()!}
+                      paused={!playing()}
+                      rate={rate()}
+                      volume={1}
+                      audioSession="playback"
+                      controls={false}
+                      progressUpdateInterval={80}
+                      class="h-full w-full object-contain"
+                      onProgress={(e) => {
+                        const end = clipEndMs();
+                        if (end == null || !playing()) return;
+                        if (clipEnded(e.currentTime, end)) stopPlayback();
+                      }}
+                      onEnd={() => stopPlayback()}
+                      onError={() => stopPlayback()}
+                    />
+                  </If>
+                  <If when={!mediaUrl()}>
+                    <View class="items-center justify-center gap-2 p-6">
+                      <Icon name="headphones" size={32} tone="dim" />
+                      <Text class="text-sm text-dim">
+                        No video or audio media source
+                      </Text>
+                    </View>
+                  </If>
+
+                  {/* Playback indicator tag */}
+                  <View class="absolute top-2.5 left-2.5 flex-row items-center gap-1.5 rounded-md bg-black/70 px-2 py-1 backdrop-blur">
+                    <View
+                      class={`h-2 w-2 rounded-full ${
+                        playing() ? "bg-ready" : "bg-dim"
+                      }`}
+                    />
+                    <Text class="font-mono text-[10px] font-semibold text-white">
+                      {playing()
+                        ? `PLAYING #${get().index + 1}`
+                        : `PAUSED #${get().index + 1}`}
+                    </Text>
+                  </View>
+
+                  {/* Click to Play/Pause overlay */}
+                  <Button
+                    onPress={() =>
+                      playing() ? stopPlayback() : playSentence(get())
+                    }
+                    class="absolute inset-0 items-center justify-center bg-transparent active:bg-black/10"
+                    accessibilityLabel={playing() ? "Pause" : "Play"}
+                  >
+                    <If when={!playing()}>
+                      <View class="h-14 w-14 items-center justify-center rounded-full border border-white/20 bg-black/60 shadow-lg backdrop-blur">
+                        <Icon name="play" size={24} tone="primary-foreground" />
+                      </View>
+                    </If>
+                  </Button>
+                </View>
+
                 {/* Center Subtitle Focal Area */}
-                <View class="min-h-[104px] items-center justify-center rounded-xl border border-line/70 bg-panel/60 px-5 py-5">
+                <View class="min-h-[96px] items-center justify-center rounded-xl border border-line/70 bg-panel/60 px-5 py-4">
                   <Text class="text-center text-xl font-medium leading-relaxed text-foreground md:text-2xl">
                     {session().revealed
                       ? get().text
@@ -403,7 +468,7 @@ export function BlindFlow(props: Props) {
                       {formatMs(get().startMs)}
                     </Text>
                     <Text class="font-mono text-[10px] uppercase tracking-wider text-dim">
-                      Sentence Timeline · Click segment to jump
+                      Sentence Timeline · Click segment to play
                     </Text>
                     <Text class="font-mono text-[11px] tabular-nums text-faint">
                       {formatMs(get().endMs)}
@@ -413,7 +478,7 @@ export function BlindFlow(props: Props) {
                     <Each of={sentences} key="index">
                       {(item) => (
                         <Button
-                          onPress={() => jumpTo(item().index)}
+                          onPress={() => jumpAndPlay(item().index)}
                           class={`flex-1 rounded-full ${
                             item().index === session().index
                               ? "h-2.5"
@@ -429,7 +494,7 @@ export function BlindFlow(props: Props) {
                                     ? "bg-paper"
                                     : "bg-line"
                           }`}
-                          accessibilityLabel={`Jump to sentence ${item().index + 1}`}
+                          accessibilityLabel={`Play sentence ${item().index + 1}`}
                         />
                       )}
                     </Each>
@@ -440,7 +505,7 @@ export function BlindFlow(props: Props) {
               {/* Transport Controls Row */}
               <View class="flex-row flex-wrap items-center gap-2.5">
                 <Button
-                  onPress={() => jumpTo(session().index - 1)}
+                  onPress={() => jumpAndPlay(session().index - 1)}
                   class="flex-row items-center gap-1.5 rounded-xl border border-line bg-raised px-4 py-3 active:bg-accent"
                 >
                   <Icon name="chevron-left" size={15} tone="paper" />
@@ -459,7 +524,11 @@ export function BlindFlow(props: Props) {
                     tone="primary-foreground"
                   />
                   <Text class="text-base font-bold text-primary-foreground">
-                    {playing() ? "Playing..." : audioUrl ? "Play" : "No audio"}
+                    {playing()
+                      ? "Playing..."
+                      : mediaUrl()
+                        ? "Play"
+                        : "No audio"}
                   </Text>
                 </Button>
 
@@ -487,7 +556,7 @@ export function BlindFlow(props: Props) {
                 </Button>
 
                 <Button
-                  onPress={() => jumpTo(session().index + 1)}
+                  onPress={() => jumpAndPlay(session().index + 1)}
                   class="flex-row items-center gap-1.5 rounded-xl border border-line bg-raised px-4 py-3 active:bg-accent"
                 >
                   <Text class="text-sm font-semibold text-foreground">Next</Text>
@@ -555,7 +624,7 @@ export function BlindFlow(props: Props) {
             <Each of={sentences} key="index">
               {(item) => (
                 <Button
-                  onPress={() => jumpTo(item().index)}
+                  onPress={() => jumpAndPlay(item().index)}
                   class={`rounded-xl border px-3 py-2.5 transition ${
                     item().index === session().index && !done()
                       ? "border-amber/60 bg-amber/10"

@@ -1,3 +1,4 @@
+import { exists } from "fs/promises";
 import {
   colorScheme,
   effect,
@@ -13,6 +14,7 @@ import {
 import { isAvailable, Menu, Window } from "nsh/desktop";
 import { downloadLesson } from "./library/download";
 import { listEntriesSafe, loadLessonFromEntry } from "./library/index";
+import { videoFile } from "./library/paths";
 import {
   findSampleLesson,
   SAMPLE_LESSONS,
@@ -66,6 +68,7 @@ function App() {
   const allVideoTags = signal<Record<string, Record<number, BlindTag>>>({});
   const clipboardPreview = signal<ClipboardVideoPreview | null>(null);
   const dismissedVideoId = signal<string | null>(null);
+  const blindTargetIndex = signal<number | null>(null);
   let urlInputRef: InputRef | null = null;
 
   if (isAvailable) {
@@ -170,6 +173,7 @@ function App() {
     animate = false,
   ) => {
     error.set(null);
+    blindTargetIndex.set(0);
     if (animate) {
       loading.set(true);
       try {
@@ -201,6 +205,7 @@ function App() {
       error.set(`Could not read saved captions for ${entry.videoId}`);
       return;
     }
+    blindTargetIndex.set(0);
     lesson.set(loaded);
     tags.set(getVideoTags(entry.videoId));
     screen.set(targetScreen);
@@ -231,6 +236,7 @@ function App() {
     try {
       await runWithAnimation("parsing", previewTitle, async () => {
         if (matchedSample && !isNativeHost()) {
+          blindTargetIndex.set(0);
           lesson.set(matchedSample.lesson);
           tags.set(getVideoTags(matchedSample.videoId));
           saveSettings({ lastUrl: value, preferredRate: 1 });
@@ -243,6 +249,20 @@ function App() {
         }
 
         const loaded = await loadLesson(value, hostFetch);
+
+        // If local video.mp4 already exists in library, attach file:// URL directly
+        try {
+          const targetVideo = videoFile(loaded.video.videoId, "mp4");
+          if (await exists(targetVideo)) {
+            loaded.video.videoUrl = `file://${targetVideo}`;
+            loaded.video.audioUrl = `file://${targetVideo}`;
+            loaded.video.videoMimeType = "video/mp4";
+          }
+        } catch {
+          // ignore
+        }
+
+        blindTargetIndex.set(0);
         lesson.set(loaded);
         tags.set(getVideoTags(loaded.video.videoId));
         saveSettings({ lastUrl: value, preferredRate: 1 });
@@ -260,10 +280,13 @@ function App() {
               ? `Parsed "${loaded.video.title}" on native host`
               : `Parsed "${loaded.video.title}"`,
           );
+          // Auto-download video & captions in background so playback has reliable local media
+          void downloadTargetLesson(loaded);
         }
       });
     } catch (e) {
       if (matchedSample) {
+        blindTargetIndex.set(0);
         lesson.set(matchedSample.lesson);
         tags.set(getVideoTags(matchedSample.videoId));
         dismissedVideoId.set(matchedSample.videoId);
@@ -291,11 +314,38 @@ function App() {
         const { entry, audioNote } = await downloadLesson(target, hostFetch);
         const entries = await listEntriesSafe();
         savedEntries.set(entries);
+
+        // If currently viewing this lesson, update with downloaded file:// URLs
+        const cur = lesson();
+        if (cur && cur.video.videoId === entry.videoId) {
+          const localMedia = entry.videoPath
+            ? `file://${entry.videoPath}`
+            : entry.audioPath
+              ? `file://${entry.audioPath}`
+              : null;
+          if (localMedia) {
+            lesson.set({
+              ...cur,
+              video: {
+                ...cur.video,
+                videoUrl: entry.videoPath
+                  ? `file://${entry.videoPath}`
+                  : cur.video.videoUrl,
+                audioUrl: localMedia,
+                videoMimeType: entry.videoPath
+                  ? "video/mp4"
+                  : cur.video.videoMimeType,
+              },
+            });
+          }
+        }
+
         status.set(
           audioNote
             ? `Downloaded captions → ${entry.captionsPath} (${audioNote})`
             : `Downloaded locally → ${entry.captionsPath}` +
-                (entry.audioPath ? ` + ${entry.audioPath}` : ""),
+                (entry.audioPath ? ` + ${entry.audioPath}` : "") +
+                (entry.videoPath ? ` + ${entry.videoPath}` : ""),
         );
       });
     } catch (e) {
@@ -544,6 +594,7 @@ function App() {
                 tags={tags()}
                 onTagsChange={updateTags}
                 onOpenDojo={() => screen.set("loop")}
+                initialIndex={blindTargetIndex() ?? undefined}
               />
             )}
           </If>
@@ -567,7 +618,12 @@ function App() {
                 tags={tags}
                 difficultyFilter={difficultyFilter}
                 onDifficultyFilterChange={(df) => difficultyFilter.set(df)}
-                onPracticeInBlind={() => screen.set("blind")}
+                onPracticeInBlind={(idx) => {
+                  if (idx != null) {
+                    blindTargetIndex.set(idx);
+                  }
+                  screen.set("blind");
+                }}
               />
             )}
           </If>
