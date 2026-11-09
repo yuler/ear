@@ -26,3 +26,7 @@ nsh check
 ```
 
 GitHub writes: Cozilla41.
+
+## CI
+
+On push/PR to `main`, [.github/workflows/ci.yml](.github/workflows/ci.yml) installs `nsh` `v0.4.0` and runs `nsh check` + `nsh test`.
