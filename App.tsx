@@ -26,11 +26,14 @@ function SentenceRow(props: { sentence: Sentence }) {
   );
 }
 
+type Screen = "home" | "blind" | "list";
+
 function App() {
   const url = signal("");
   const loading = signal(false);
   const error = signal<string | null>(null);
   const lesson = signal<LoadedLesson | null>(null);
+  const screen = signal<Screen>("home");
 
   const onLoad = async () => {
     const value = url().trim();
@@ -42,16 +45,33 @@ function App() {
       lesson.set(loaded);
       if (!loaded.track) {
         error.set("Parsed video, but no caption tracks found");
+        screen.set("home");
       } else if (loaded.sentences.length === 0) {
         error.set("Captions loaded, but no sentences after merge");
+        screen.set("home");
+      } else {
+        screen.set("blind");
       }
     } catch (e) {
       lesson.set(null);
+      screen.set("home");
       error.set(e instanceof Error ? e.message : String(e));
     } finally {
       loading.set(false);
     }
   };
+
+  const tabLesson = (): LoadedLesson | null => {
+    const L = lesson();
+    if (!L || screen() === "home") return null;
+    return L;
+  };
+
+  const blindLesson = (): LoadedLesson | null =>
+    screen() === "blind" ? lesson() : null;
+
+  const listLesson = (): LoadedLesson | null =>
+    screen() === "list" ? lesson() : null;
 
   return (
     <View class="flex-1 bg-background pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)]">
@@ -59,8 +79,7 @@ function App() {
         <View class="gap-4 p-4">
           <Text class="text-2xl font-semibold text-foreground">Ear</Text>
           <Text class="text-sm text-muted-foreground">
-            Module 1 — hand-parse YouTube (no yt-dlp), json3 captions →
-            sentences + WPM
+            Module 2 — Blind Flow (blur captions + Pass / Lag / Blind)
           </Text>
 
           <View class="gap-2">
@@ -84,7 +103,52 @@ function App() {
             <Text class="text-sm text-destructive">{error()}</Text>
           </If>
 
-          <If when={lesson()}>
+          <If when={tabLesson()}>
+            <View class="flex-row gap-2">
+              <Button
+                onPress={() => screen.set("blind")}
+                class={`flex-1 items-center rounded-lg px-3 py-2 ${
+                  screen() === "blind"
+                    ? "bg-primary"
+                    : "border border-border bg-card"
+                }`}
+              >
+                <Text
+                  class={
+                    screen() === "blind"
+                      ? "text-primary-foreground"
+                      : "text-foreground"
+                  }
+                >
+                  Blind Flow
+                </Text>
+              </Button>
+              <Button
+                onPress={() => screen.set("list")}
+                class={`flex-1 items-center rounded-lg px-3 py-2 ${
+                  screen() === "list"
+                    ? "bg-primary"
+                    : "border border-border bg-card"
+                }`}
+              >
+                <Text
+                  class={
+                    screen() === "list"
+                      ? "text-primary-foreground"
+                      : "text-foreground"
+                  }
+                >
+                  Sentences
+                </Text>
+              </Button>
+            </View>
+          </If>
+
+          <If when={blindLesson()}>
+            {(get) => <BlindFlow lesson={get()} />}
+          </If>
+
+          <If when={listLesson()}>
             {(get) => (
               <View class="gap-2">
                 <Text class="text-lg font-medium text-foreground">
@@ -108,7 +172,6 @@ function App() {
           </If>
 
           <View class="gap-2 pt-2">
-            <BlindFlow />
             <LoopDojo />
           </View>
         </View>
