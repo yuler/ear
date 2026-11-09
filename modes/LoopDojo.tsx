@@ -6,8 +6,10 @@ import {
   msToSeconds,
   type PlaybackRate,
 } from "../player/AudioEngine";
+import type { BlindTag } from "./blindFlow";
 import {
   diffSummary,
+  dojoQueue,
   nextRate,
   wordDiff,
   type DiffToken,
@@ -51,13 +53,18 @@ function DiffRow(props: { tokens: DiffToken[] }) {
   );
 }
 
-type Props = { lesson: LoadedLesson };
+type Props = {
+  lesson: LoadedLesson;
+  /** From Blind Flow — Dojo only drills Lag + Blind. */
+  tags: Record<number, BlindTag>;
+};
 
 /**
- * Loop Dojo: A–B loop the current sentence at 0.8/1/1.2, type what you hear, word Diff.
+ * Loop Dojo: A–B loop Lag/Blind sentences at 0.8/1/1.2, type what you hear, word Diff.
+ * Enter submits Diff.
  */
 export function LoopDojo(props: Props) {
-  const sentences = props.lesson.sentences;
+  const sentences = dojoQueue(props.lesson.sentences, props.tags);
   const audioUrl = props.lesson.video.audioUrl;
   const index = signal(0);
   const rate = signal<PlaybackRate>(1);
@@ -107,7 +114,7 @@ export function LoopDojo(props: Props) {
       <View class="gap-1">
         <Text class="text-lg font-semibold text-foreground">Loop Dojo</Text>
         <Text class="text-xs text-muted-foreground">
-          A–B loop · rate 0.8 / 1 / 1.2 · type + word Diff
+          A–B loop on Lag / Blind only · rate 0.8 / 1 / 1.2 · Enter submits Diff
         </Text>
       </View>
 
@@ -187,8 +194,14 @@ export function LoopDojo(props: Props) {
 
               <Input
                 value={typed()}
-                onChange={(e) => typed.set(e.value)}
+                onChange={(e) => {
+                  typed.set(e.value);
+                  diff.set(null);
+                }}
                 placeholder="Type what you hear…"
+                returnKeyType="done"
+                submitBehavior="submit"
+                onSubmit={() => onCheck()}
                 class="rounded-lg border border-border bg-background px-3 py-2 text-foreground"
               />
 
@@ -237,7 +250,14 @@ export function LoopDojo(props: Props) {
       </If>
 
       <If when={sentences.length === 0}>
-        <Text class="text-sm text-muted-foreground">No sentences to loop.</Text>
+        <View class="gap-1">
+          <Text class="text-sm font-medium text-foreground">
+            No Lag / Blind sentences yet
+          </Text>
+          <Text class="text-sm text-muted-foreground">
+            Tag some as Lag or Blind in Blind Flow first. Pass is skipped here.
+          </Text>
+        </View>
       </If>
     </View>
   );

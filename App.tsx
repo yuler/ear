@@ -3,6 +3,7 @@ import { Input, Button } from "nsh/base";
 import { loadLesson } from "./youtube/parse";
 import type { LoadedLesson, Sentence } from "./youtube/types";
 import { BlindFlow } from "./modes/BlindFlow";
+import type { BlindTag } from "./modes/blindFlow";
 import { LoopDojo } from "./modes/LoopDojo";
 import { ChromeHint } from "./ui/chrome";
 
@@ -34,6 +35,7 @@ function App() {
   const error = signal<string | null>(null);
   const lesson = signal<LoadedLesson | null>(null);
   const screen = signal<Screen>("home");
+  const tags = signal<Record<number, BlindTag>>({});
 
   const onLoad = async () => {
     const value = url().trim();
@@ -43,6 +45,7 @@ function App() {
     try {
       const loaded = await loadLesson(value);
       lesson.set(loaded);
+      tags.set({});
       if (!loaded.track) {
         error.set("Parsed video, but no caption tracks found");
         screen.set("home");
@@ -54,6 +57,7 @@ function App() {
       }
     } catch (e) {
       lesson.set(null);
+      tags.set({});
       screen.set("home");
       error.set(e instanceof Error ? e.message : String(e));
     } finally {
@@ -166,11 +170,17 @@ function App() {
           </If>
 
           <If when={blindLesson()}>
-            {(get) => <BlindFlow lesson={get()} />}
+            {(get) => (
+              <BlindFlow
+                lesson={get()}
+                tags={tags()}
+                onTagsChange={(t) => tags.set(t)}
+              />
+            )}
           </If>
 
           <If when={loopLesson()}>
-            {(get) => <LoopDojo lesson={get()} />}
+            {(get) => <LoopDojo lesson={get()} tags={tags()} />}
           </If>
 
           <If when={listLesson()}>

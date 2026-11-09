@@ -1,4 +1,6 @@
 import type { PlaybackRate } from "../player/AudioEngine";
+import type { Sentence } from "../youtube/types";
+import type { BlindTag } from "./blindFlow";
 
 export type DiffKind = "equal" | "mismatch" | "missing" | "extra";
 
@@ -68,4 +70,15 @@ export const LOOP_RATES: PlaybackRate[] = [0.8, 1, 1.2];
 export function nextRate(current: PlaybackRate): PlaybackRate {
   const i = LOOP_RATES.indexOf(current);
   return LOOP_RATES[(i + 1) % LOOP_RATES.length]!;
+}
+
+/** Loop Dojo default queue: only Blind Flow Lag + Blind (never Pass). */
+export function dojoQueue(
+  sentences: Sentence[],
+  tags: Record<number, BlindTag>,
+): Sentence[] {
+  return sentences.filter((s) => {
+    const tag = tags[s.index];
+    return tag === "lag" || tag === "blind";
+  });
 }
