@@ -44,6 +44,9 @@ function TagButton(props: {
 
 type Props = {
   lesson: LoadedLesson;
+  /** Shared with Loop Dojo (Lag / Blind feed the dojo queue). */
+  tags: Record<number, BlindTag>;
+  onTagsChange: (tags: Record<number, BlindTag>) => void;
 };
 
 /**
@@ -51,7 +54,10 @@ type Props = {
  * Reveal clears the blur for the current sentence (Lag path).
  */
 export function BlindFlow(props: Props) {
-  const session = signal<BlindFlowSession>(createBlindFlowSession());
+  const session = signal<BlindFlowSession>({
+    ...createBlindFlowSession(),
+    tags: { ...props.tags },
+  });
   const playing = signal(false);
   const clipEndMs = signal<number | null>(null);
   let video: { seek(seconds: number): void } | null = null;
@@ -76,12 +82,15 @@ export function BlindFlow(props: Props) {
 
   const onTag = (tag: BlindTag) => {
     stopPlayback();
-    session.set(applyTag(session(), tag, sentences.length));
+    const next = applyTag(session(), tag, sentences.length);
+    session.set(next);
+    props.onTagsChange(next.tags);
   };
 
   const onRestart = () => {
     stopPlayback();
     session.set(restartBlindFlow());
+    props.onTagsChange({});
   };
 
   const done = () => isComplete(session(), sentences.length);

@@ -3,6 +3,7 @@ import { Input, Button } from "nsh/base";
 import { loadLesson } from "./youtube/parse";
 import type { LoadedLesson, Sentence } from "./youtube/types";
 import { BlindFlow } from "./modes/BlindFlow";
+import type { BlindTag } from "./modes/blindFlow";
 import { LoopDojo } from "./modes/LoopDojo";
 import { ChromeHint } from "./ui/chrome";
 
@@ -26,7 +27,7 @@ function SentenceRow(props: { sentence: Sentence }) {
   );
 }
 
-type Screen = "home" | "blind" | "list";
+type Screen = "home" | "blind" | "loop" | "list";
 
 function App() {
   const url = signal("");
@@ -34,6 +35,7 @@ function App() {
   const error = signal<string | null>(null);
   const lesson = signal<LoadedLesson | null>(null);
   const screen = signal<Screen>("home");
+  const tags = signal<Record<number, BlindTag>>({});
 
   const onLoad = async () => {
     const value = url().trim();
@@ -43,6 +45,7 @@ function App() {
     try {
       const loaded = await loadLesson(value);
       lesson.set(loaded);
+      tags.set({});
       if (!loaded.track) {
         error.set("Parsed video, but no caption tracks found");
         screen.set("home");
@@ -54,6 +57,7 @@ function App() {
       }
     } catch (e) {
       lesson.set(null);
+      tags.set({});
       screen.set("home");
       error.set(e instanceof Error ? e.message : String(e));
     } finally {
@@ -70,6 +74,9 @@ function App() {
   const blindLesson = (): LoadedLesson | null =>
     screen() === "blind" ? lesson() : null;
 
+  const loopLesson = (): LoadedLesson | null =>
+    screen() === "loop" ? lesson() : null;
+
   const listLesson = (): LoadedLesson | null =>
     screen() === "list" ? lesson() : null;
 
@@ -79,7 +86,7 @@ function App() {
         <View class="gap-4 p-4">
           <Text class="text-2xl font-semibold text-foreground">Ear</Text>
           <Text class="text-sm text-muted-foreground">
-            Module 2 — Blind Flow (blur captions + Pass / Lag / Blind)
+            Blind Flow · Loop Dojo · sentence list
           </Text>
 
           <View class="gap-2">
@@ -124,6 +131,24 @@ function App() {
                 </Text>
               </Button>
               <Button
+                onPress={() => screen.set("loop")}
+                class={`flex-1 items-center rounded-lg px-3 py-2 ${
+                  screen() === "loop"
+                    ? "bg-primary"
+                    : "border border-border bg-card"
+                }`}
+              >
+                <Text
+                  class={
+                    screen() === "loop"
+                      ? "text-primary-foreground"
+                      : "text-foreground"
+                  }
+                >
+                  Loop Dojo
+                </Text>
+              </Button>
+              <Button
                 onPress={() => screen.set("list")}
                 class={`flex-1 items-center rounded-lg px-3 py-2 ${
                   screen() === "list"
@@ -145,7 +170,17 @@ function App() {
           </If>
 
           <If when={blindLesson()}>
-            {(get) => <BlindFlow lesson={get()} />}
+            {(get) => (
+              <BlindFlow
+                lesson={get()}
+                tags={tags()}
+                onTagsChange={(t) => tags.set(t)}
+              />
+            )}
+          </If>
+
+          <If when={loopLesson()}>
+            {(get) => <LoopDojo lesson={get()} tags={tags()} />}
           </If>
 
           <If when={listLesson()}>
@@ -171,9 +206,6 @@ function App() {
             )}
           </If>
 
-          <View class="gap-2 pt-2">
-            <LoopDojo />
-          </View>
         </View>
       </Scroll>
       <ChromeHint />
