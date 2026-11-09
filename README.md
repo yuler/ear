@@ -11,8 +11,8 @@ Comprehensible-input English listening on [Native Shell](https://nsh.dev) (TSX).
 ## Modules
 
 1. **Parse / sentences** — `youtube/`
-2. **Blind Flow** — blur captions + Pass / Lag / Blind (this PR)
-3. **Loop Dojo** — A-B loop + word Diff
+2. **Blind Flow** — blur captions + Pass / Lag / Blind
+3. **Loop Dojo** — A-B loop + word Diff + 0.8/1/1.2 (this PR)
 4. **Persist + chrome** — local progress, keyboard + mobile chrome
 
 ## Develop
