@@ -18,15 +18,15 @@ Comprehensible-input English listening on [Native Shell](https://nsh.dev) (TSX).
 ## Develop
 
 ```sh
-# install: curl -fsSL https://nsh.dev/install.sh | sh
-nsh run          # native host on this OS
+mise run setup            # installs nsh + Linux WebKitGTK 6 (Arch: webkitgtk-6.0)
+mise run dev              # native host on this OS (alias: mise run run)
 nsh run --target web
-nsh test
-nsh check
+mise run test
+mise run check
 ```
 
 GitHub writes: Cozilla41.
 
 ## CI
 
-On push/PR to `main`, [.github/workflows/ci.yml](.github/workflows/ci.yml) installs `nsh` `v0.4.0` and runs `nsh check` + `nsh test`.
+On push/PR to `main`, [.github/workflows/ci.yml](.github/workflows/ci.yml) installs tools via [mise](https://mise.jdx.dev) (`jdx/mise-action`) from `mise.toml` and runs `mise run check` + `mise run test`.
