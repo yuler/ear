@@ -5,16 +5,21 @@ export type CaptionCue = {
   text: string;
 };
 
+/** Spec difficulty labels (WPM): i-1 <145, i+1 145–180, Hard >180. */
+export type Difficulty = "i-1" | "i+1" | "Hard";
+
 /** One practice sentence after merge. */
 export type Sentence = {
   index: number;
+  /** Playback window start (cue start − 150ms, floored at 0). */
   startMs: number;
+  /** Playback window end (cue end + 150ms). */
   endMs: number;
   text: string;
   wordCount: number;
-  /** Words per minute over this sentence's span. */
+  /** Words per minute over the unpadded cue span. */
   wpm: number;
-  difficulty: "easy" | "medium" | "hard";
+  difficulty: Difficulty;
 };
 
 export type CaptionTrack = {

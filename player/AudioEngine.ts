@@ -1,5 +1,5 @@
-/** Placeholder — module 2/3 will drive playback, rate, and A-B loops. */
-export type PlaybackRate = 0.75 | 1 | 1.25 | 1.5;
+/** Placeholder — module 3 Loop Dojo rates: 0.8 / 1.0 / 1.2. */
+export type PlaybackRate = 0.8 | 1 | 1.2;
 
 export type AudioEngineState = {
   url: string | null;

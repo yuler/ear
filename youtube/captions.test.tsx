@@ -1,5 +1,7 @@
 import { expect, test } from "nsh/test";
 import {
+  SENTENCE_PAD_MS,
+  appendWithoutOverlap,
   countWords,
   cuesFromJson3,
   difficultyFromWpm,
@@ -24,29 +26,53 @@ test("sliceBalancedObject reads nested json", () => {
   expect(JSON.parse(sliced!).c).toBe("}");
 });
 
-test("cuesFromJson3 and mergeSentences compute wpm difficulty", () => {
+test("difficultyFromWpm uses i-1 / i+1 / Hard thresholds", () => {
+  expect(difficultyFromWpm(144)).toBe("i-1");
+  expect(difficultyFromWpm(145)).toBe("i+1");
+  expect(difficultyFromWpm(180)).toBe("i+1");
+  expect(difficultyFromWpm(181)).toBe("Hard");
+});
+
+test("appendWithoutOverlap drops rolling caption word overlap", () => {
+  expect(appendWithoutOverlap("hello world this is", "this is a test")).toBe(
+    "hello world this is a test",
+  );
+  expect(appendWithoutOverlap("same words", "same words")).toBe("same words");
+  expect(appendWithoutOverlap("one two", "three")).toBe("one two three");
+});
+
+test("mergeSentences pads ±150ms and dedupes overlap", () => {
   const cues = cuesFromJson3({
     events: [
       {
-        tStartMs: 0,
+        tStartMs: 1000,
         dDurationMs: 1000,
         segs: [{ utf8: "Hello " }, { utf8: "world." }],
       },
       {
-        tStartMs: 2000,
+        tStartMs: 2500,
         dDurationMs: 2000,
-        segs: [{ utf8: "This is a longer sentence for medium pace." }],
+        segs: [{ utf8: "world. This continues here." }],
       },
     ],
   });
-  expect(cues.length).toBe(2);
-  expect(cues[0]!.text).toBe("Hello world.");
-
+  // First cue ends with period → flush; second is its own sentence after gap? 
+  // gap 2500-2000=500 <= 650, but first already flushed on period.
   const sentences = mergeSentences(cues);
   expect(sentences.length).toBe(2);
-  expect(sentences[0]!.wordCount).toBe(2);
-  expect(difficultyFromWpm(100)).toBe("easy");
-  expect(difficultyFromWpm(140)).toBe("medium");
-  expect(difficultyFromWpm(200)).toBe("hard");
-  expect(countWords("one two three")).toBe(3);
+  expect(sentences[0]!.startMs).toBe(1000 - SENTENCE_PAD_MS);
+  expect(sentences[0]!.endMs).toBe(2000 + SENTENCE_PAD_MS);
+  expect(sentences[0]!.text).toBe("Hello world.");
+  expect(sentences[0]!.difficulty).toBe(difficultyFromWpm(sentences[0]!.wpm));
+
+  // Overlap within one sentence (no period mid-way)
+  const rolling = mergeSentences([
+    { startMs: 0, endMs: 800, text: "I am going" },
+    { startMs: 400, endMs: 1200, text: "going to school today." },
+  ]);
+  expect(rolling.length).toBe(1);
+  expect(rolling[0]!.text).toBe("I am going to school today.");
+  expect(rolling[0]!.startMs).toBe(0);
+  expect(rolling[0]!.endMs).toBe(1200 + SENTENCE_PAD_MS);
+  expect(countWords(rolling[0]!.text)).toBe(6);
 });
