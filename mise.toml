@@ -1,17 +1,18 @@
 [tools]
 "github:longbridge/nsh" = "latest"
 
+[tasks.dev]
+description = "Start native host on this OS"
+alias = ["run"]
+run = "nsh run app"
+
 [tasks.check]
-run = "nsh check"
+run = "nsh check app"
 
 [tasks.test]
-run = "nsh test"
+run = "nsh test app"
 
 [tasks.setup]
 description = "Install tools and Linux host deps (WebKitGTK 6)"
 run = "bash scripts/setup.sh"
 
-[tasks.dev]
-description = "Start native host on this OS"
-alias = ["run"]
-run = "nsh run"
