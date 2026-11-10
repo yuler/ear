@@ -28,7 +28,7 @@ import {
 import type { DownloadTaskProgress, LibraryEntry } from "./library/types";
 import { localMediaCandidates, localMediaFileUrl } from "./player";
 import { ActivityBanner, type ActivityKind } from "./ui/ActivityBanner";
-import { MediaPlayer } from "./ui/MediaPlayer";
+import { VideoDetailView } from "./views/VideoDetailView";
 import { SettingsPanel } from "./ui/SettingsPanel";
 import { initSettings, settings, updateSettings } from "./ui/settings";
 import { TopBar, type MediaTab } from "./ui/TopBar";
@@ -609,10 +609,10 @@ function App() {
         </View>
       </Scroll>
 
-      {/* 3. In-app media player (bare path via nsh <Video>) */}
+      {/* 3. Transition video practice page (Feature: enlarged video + subtitle list + mask + listen) */}
       <If when={playingEntry() && playingSrc()}>
         {() => (
-          <MediaPlayer
+          <VideoDetailView
             entry={() => playingEntry()!}
             src={() => playingSrc()!}
             onClose={() => {

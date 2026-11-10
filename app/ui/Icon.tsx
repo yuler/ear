@@ -4,7 +4,10 @@ import chevronLeft from "./icons/chevron-left.svg";
 import chevronRight from "./icons/chevron-right.svg";
 import clipboard from "./icons/clipboard.svg";
 import download from "./icons/download.svg";
+import eye from "./icons/eye.svg";
+import eyeOff from "./icons/eye-off.svg";
 import folder from "./icons/folder.svg";
+import headphones from "./icons/headphones.svg";
 import link from "./icons/link.svg";
 import loader from "./icons/loader.svg";
 import pause from "./icons/pause.svg";
@@ -21,7 +24,10 @@ const ICONS = {
   "chevron-right": chevronRight,
   clipboard,
   download,
+  eye,
+  "eye-off": eyeOff,
   folder,
+  headphones,
   link,
   loader,
   pause,
