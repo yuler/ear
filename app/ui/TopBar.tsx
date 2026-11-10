@@ -1,15 +1,16 @@
-import { keymap, Text, View, type InputRef } from "nsh";
+import { effect, keymap, LayoutAnimation, Text, View, type InputRef } from "nsh";
 import { Button, Input } from "nsh/base";
 import { titleBar } from "nsh/desktop";
+import type { ClipboardVideoPreview } from "../clipboard";
 import type { ActivityKind } from "./ActivityBanner";
-import type { ChromeScreen } from "./chrome";
+import { ClipboardCard } from "./ClipboardCard";
 import { Icon } from "./Icon";
 
-const TABS: readonly { key: ChromeScreen; label: string }[] = [
-  { key: "home", label: "Library" },
-  { key: "blind", label: "Blind Flow" },
-  { key: "loop", label: "Loop Dojo" },
-  { key: "list", label: "Sentences" },
+export type MediaTab = "video" | "audio";
+
+const TABS: readonly { key: MediaTab; label: string }[] = [
+  { key: "video", label: "Video" },
+  { key: "audio", label: "Audio" },
 ];
 
 export function TopBar(props: {
@@ -22,14 +23,37 @@ export function TopBar(props: {
   /** Show the manual clipboard button (auto-detect off, empty field). */
   showClipboardButton: () => boolean;
   loading: () => boolean;
-  screen: () => ChromeScreen;
-  onSelectScreen: (s: ChromeScreen) => void;
-  dojoCount: () => number;
-  totalVideos: () => number;
+  parsing?: () => boolean;
+  parseMessage?: () => string;
+  activePreview?: () => ClipboardVideoPreview | null;
+  selectedQualityId?: () => string;
+  onSelectQuality?: (qualityId: string) => void;
+  selectedTrackId?: () => string | null;
+  onSelectTrack?: (trackId: string) => void;
+  onDownloadPreview?: (preview: ClipboardVideoPreview) => void;
+  onDismissPreview?: () => void;
+  activeTab: () => MediaTab;
+  onSelectTab: (tab: MediaTab) => void;
+  videoCount: () => number;
+  audioCount: () => number;
+  activeDownloadCount?: () => number;
   onOpenSettings: () => void;
   activityKind: () => ActivityKind;
   activityProgress: () => number;
 }) {
+  const hasDropdown = () => Boolean(props.activePreview?.());
+  const isSpinning = () =>
+    props.loading() || Boolean(props.parsing?.());
+
+  effect(() => {
+    const _open = hasDropdown();
+    try {
+      LayoutAnimation.easeInEaseOut();
+    } catch {
+      // ignore on test host
+    }
+  });
+
   return (
     <View desktop={{ windowDrag: true }} class="border-b border-line bg-background">
       <View
@@ -40,79 +64,108 @@ export function TopBar(props: {
         class="pt-3"
       >
         <View class="mx-auto w-full max-w-[960px] gap-2">
-          {/* Row 1: wordmark · Downbit-style omnibar · settings */}
-          <View class="w-full flex-row items-center gap-4">
-            <Button
-              onPress={() => props.onSelectScreen("home")}
-              class="py-1"
-              accessibilityLabel="Ear home"
-            >
+          {/* Row 1: wordmark · Downbit-style expandable omnibar · settings */}
+          <View class="w-full flex-row items-start gap-4">
+            <View class="py-1.5" accessibilityLabel="Ear">
               <Text class="text-base font-semibold tracking-tight text-foreground">
                 Ear
               </Text>
-            </Button>
+            </View>
 
-            <View class="min-w-0 flex-1 flex-row items-center gap-2.5 rounded-lg border border-line bg-well px-3 py-1.5">
-              <Icon
-                name={props.url().trim().length > 0 ? "link" : "search"}
-                size={14}
-                tone="muted-foreground"
-              />
-              <Input
-                ref={props.onInputRef}
-                value={props.url()}
-                onChange={(e) => props.onUrlChange(e.value)}
-                placeholder="Paste a YouTube link to download, or search"
-                autoCapitalize="none"
-                autoCorrect={false}
-                keyboardType="url"
-                returnKeyType="go"
-                submitBehavior="submit"
-                onSubmit={props.onSubmitParse}
-                class="min-w-0 flex-1 border-0 bg-transparent px-0 py-0.5 text-sm text-foreground placeholder:text-dim"
-              />
-              <If when={props.loading()}>
+            {/* Expandable Omnibar + Dropdown Drawer */}
+            <View class="min-w-0 flex-1">
+              <View
+                class={`w-full flex-row items-center gap-2.5 border bg-well px-3 py-1.5 transition ${
+                  hasDropdown()
+                    ? "rounded-t-xl border-[#2f7cf6]/60"
+                    : "rounded-lg border-line"
+                }`}
+              >
                 <Icon
-                  name="loader"
+                  name={props.url().trim().length > 0 ? "link" : "search"}
                   size={14}
-                  tone="muted-foreground"
-                  class="animate-spin"
+                  tone={hasDropdown() ? "foreground" : "muted-foreground"}
                 />
-              </If>
-              <If when={!props.loading() && props.url().length > 0}>
-                <Button
-                  onPress={() =>
-                    props.onClearUrl
-                      ? props.onClearUrl()
-                      : props.onUrlChange("")
-                  }
-                  class="h-4 w-4 items-center justify-center rounded-full bg-dim/40 active:bg-dim/60"
-                  accessibilityLabel="Clear link"
-                >
-                  <Icon name="x" size={10} tone="foreground" />
-                </Button>
-              </If>
-              <If when={!props.loading() && props.url().length === 0}>
-                <View class="flex-row items-center gap-1.5">
-                  <If when={props.showClipboardButton()}>
-                    <Button
-                      onPress={props.onReadClipboard}
-                      class="h-6 w-6 items-center justify-center rounded active:bg-accent"
-                      accessibilityLabel="Read clipboard"
-                    >
-                      <Icon name="clipboard" size={13} tone="muted-foreground" />
-                    </Button>
-                  </If>
+                <Input
+                  ref={props.onInputRef}
+                  value={props.url()}
+                  onChange={(e) => props.onUrlChange(e.value)}
+                  placeholder="Paste a YouTube link to download"
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  keyboardType="url"
+                  returnKeyType="go"
+                  submitBehavior="submit"
+                  onSubmit={props.onSubmitParse}
+                  class="min-w-0 flex-1 border-0 bg-transparent px-0 py-0.5 text-sm text-foreground placeholder:text-dim"
+                />
+                <If when={isSpinning()}>
+                  <Icon
+                    name="loader"
+                    size={14}
+                    tone="amber"
+                    class="animate-spin"
+                  />
+                </If>
+                <If when={!isSpinning() && props.url().length > 0}>
                   <Button
-                    onPress={props.onSubmitParse}
-                    class="rounded border border-line bg-raised px-1.5 py-0.5 active:bg-accent"
-                    accessibilityLabel="Focus link field"
+                    onPress={() =>
+                      props.onClearUrl
+                        ? props.onClearUrl()
+                        : props.onUrlChange("")
+                    }
+                    class="h-4 w-4 items-center justify-center rounded-full bg-dim/40 active:bg-dim/60"
+                    accessibilityLabel="Clear link"
                   >
-                    <Text class="font-mono text-[11px] text-dim">
-                      {keymap.label("mod+l")}
-                    </Text>
+                    <Icon name="x" size={10} tone="foreground" />
                   </Button>
-                </View>
+                </If>
+                <If when={!isSpinning() && props.url().length === 0}>
+                  <View class="flex-row items-center gap-1.5">
+                    <If when={props.showClipboardButton()}>
+                      <Button
+                        onPress={props.onReadClipboard}
+                        class="h-6 w-6 items-center justify-center rounded active:bg-accent"
+                        accessibilityLabel="Read clipboard"
+                      >
+                        <Icon
+                          name="clipboard"
+                          size={13}
+                          tone="muted-foreground"
+                        />
+                      </Button>
+                    </If>
+                    <Button
+                      onPress={props.onSubmitParse}
+                      class="rounded border border-line bg-raised px-1.5 py-0.5 active:bg-accent"
+                      accessibilityLabel="Focus link field"
+                    >
+                      <Text class="font-mono text-[11px] text-dim">
+                        {keymap.label("mod+l")}
+                      </Text>
+                    </Button>
+                  </View>
+                </If>
+              </View>
+
+              {/* Attached dropdown drawer right below the input bar */}
+              <If when={props.activePreview?.() ?? null}>
+                {(getPreview) => (
+                  <ClipboardCard
+                    preview={getPreview}
+                    loading={props.loading}
+                    parsing={() => props.parsing?.() ?? false}
+                    parseMessage={() => props.parseMessage?.() ?? ""}
+                    selectedQualityId={() =>
+                      props.selectedQualityId?.() ?? "720p"
+                    }
+                    onSelectQuality={(q) => props.onSelectQuality?.(q)}
+                    selectedTrackId={() => props.selectedTrackId?.() ?? null}
+                    onSelectTrack={(t) => props.onSelectTrack?.(t)}
+                    onDownload={(p) => props.onDownloadPreview?.(p)}
+                    onDismiss={() => props.onDismissPreview?.()}
+                  />
+                )}
               </If>
             </View>
 
@@ -125,38 +178,52 @@ export function TopBar(props: {
             </Button>
           </View>
 
-          {/* Row 2: text tabs */}
+          {/* Row 2: Video and Audio tabs */}
           <View class="flex-row items-center gap-6">
-            {TABS.map((tab) => (
-              <Button
-                onPress={() => props.onSelectScreen(tab.key)}
-                class={`flex-row items-center gap-1.5 border-b-2 pt-1 pb-2 ${
-                  props.screen() === tab.key
-                    ? "border-foreground"
-                    : "border-transparent"
-                }`}
-              >
-                <Text
-                  class={`text-sm ${
-                    props.screen() === tab.key
-                      ? "font-semibold text-foreground"
-                      : "text-muted-foreground"
+            {TABS.map((tab) => {
+              const active = () => props.activeTab() === tab.key;
+              const count = () =>
+                tab.key === "video" ? props.videoCount() : props.audioCount();
+              return (
+                <Button
+                  onPress={() => props.onSelectTab(tab.key)}
+                  class={`flex-row items-center gap-1.5 border-b-2 pt-1 pb-2 ${
+                    active() ? "border-foreground" : "border-transparent"
                   }`}
                 >
-                  {tab.label}
-                </Text>
-                <If when={tab.key === "home"}>
-                  <Text class="font-mono text-xs tabular-nums text-dim">
-                    {props.totalVideos()}
+                  <Text
+                    class={`text-sm ${
+                      active()
+                        ? "font-semibold text-foreground"
+                        : "text-muted-foreground"
+                    }`}
+                  >
+                    {tab.label}
                   </Text>
-                </If>
-                <If when={tab.key === "loop" && props.dojoCount() > 0}>
                   <Text class="font-mono text-xs tabular-nums text-dim">
-                    {props.dojoCount()}
+                    {count()}
                   </Text>
-                </If>
-              </Button>
-            ))}
+                  <If
+                    when={
+                      tab.key === "video" &&
+                      (props.activeDownloadCount?.() ?? 0) > 0
+                    }
+                  >
+                    <View class="flex-row items-center gap-1 rounded-full bg-[#2f7cf6]/20 px-1.5 py-0.5">
+                      <Icon
+                        name="loader"
+                        size={10}
+                        color="#2f7cf6"
+                        class="animate-spin"
+                      />
+                      <Text class="font-mono text-[10px] font-semibold tabular-nums text-[#2f7cf6]">
+                        {props.activeDownloadCount?.()}
+                      </Text>
+                    </View>
+                  </If>
+                </Button>
+              );
+            })}
           </View>
         </View>
       </View>
@@ -166,7 +233,7 @@ export function TopBar(props: {
         <If when={props.activityKind()}>
           <View
             style={{ width: `${Math.max(4, props.activityProgress())}%` }}
-            class="h-full bg-foreground transition"
+            class="h-full bg-[#2f7cf6] transition"
           />
         </If>
       </View>

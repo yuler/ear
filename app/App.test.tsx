@@ -1,42 +1,46 @@
 import { expect, open, test } from "nsh/test";
-import { normalizeSettings } from "./store";
 import { buildVideoPreview } from "./clipboard";
+import { normalizeSettings } from "./store";
 
-test("shows minimal Ear shell and text mode tabs", async () => {
+test("shows minimal Ear shell and Video / Audio tabs", async () => {
   const app = await open("./App.tsx");
   expect(app.texts().some((t) => t.includes("Ear"))).toBe(true);
-  expect(app.texts().some((t) => t.includes("Library"))).toBe(true);
-  expect(app.texts().some((t) => t.includes("Blind Flow"))).toBe(true);
-  expect(app.texts().some((t) => t.includes("Loop Dojo"))).toBe(true);
-  expect(app.texts().some((t) => t.includes("Sentences"))).toBe(true);
-  expect(
-    app.texts().some((t) => t.includes("Paste a YouTube link")),
-  ).toBe(true);
+  expect(app.texts().some((t) => t.includes("Video"))).toBe(true);
+  expect(app.texts().some((t) => t.includes("Audio"))).toBe(true);
+  // Ensure "index" never appears
+  expect(app.texts().every((t) => t !== "index")).toBe(true);
 });
 
-test("auto-reads YouTube link from clipboard on launch", async () => {
+test("auto-reads YouTube link into omnibar dropdown with quality, Manual/CC subtitle selectors, and Download button", async () => {
   const app = await open("./App.tsx", {
     clipboard: "https://www.youtube.com/watch?v=b-6XR0rflJw",
   });
   await app.waitFor("From your clipboard");
   expect(app.texts().some((t) => t.includes("From your clipboard"))).toBe(true);
-  expect(app.texts().some((t) => t.includes("Open"))).toBe(true);
-  expect(app.texts().some((t) => t.includes("Return ↵"))).toBe(true);
+  expect(app.texts().some((t) => t.includes("Download"))).toBe(true);
+  expect(app.texts().some((t) => t.includes("Return ↵ to download"))).toBe(true);
   expect(app.texts().some((t) => t.includes("b-6XR0rflJw"))).toBe(true);
+  // Quality selector options
+  expect(app.texts().some((t) => t.includes("1080p"))).toBe(true);
+  expect(app.texts().some((t) => t.includes("720p"))).toBe(true);
+  expect(app.texts().some((t) => t.includes("480p"))).toBe(true);
+  expect(app.texts().some((t) => t.includes("Audio (M4A)"))).toBe(true);
+  // Subtitle badges distinguishing Manual (人工) vs CC (CC 机翻)
+  expect(app.texts().some((t) => t.includes("人工"))).toBe(true);
+  expect(app.texts().some((t) => t.includes("CC 机翻"))).toBe(true);
 });
 
-test("opens Settings modal and shows appearance, speed, and download folder", async () => {
+test("opens Settings modal and shows download folder, open folder button, and storage info", async () => {
   const app = await open("./App.tsx");
   await app.press("Settings");
-  await app.waitFor("Appearance");
+  await app.waitFor("打开文件夹");
+  expect(app.texts().some((t) => t.includes("下载目录"))).toBe(true);
+  expect(app.texts().some((t) => t.includes("打开文件夹"))).toBe(true);
+  expect(app.texts().some((t) => t.includes("元数据与字幕存储"))).toBe(true);
+  expect(app.texts().some((t) => t.includes("打开数据目录"))).toBe(true);
   expect(app.texts().some((t) => t.includes("Light"))).toBe(true);
   expect(app.texts().some((t) => t.includes("Dark"))).toBe(true);
   expect(app.texts().some((t) => t.includes("System"))).toBe(true);
-  expect(app.texts().some((t) => t.includes("Default speed"))).toBe(true);
-  expect(app.texts().some((t) => t.includes("Subtitle size"))).toBe(true);
-  expect(app.texts().some((t) => t.includes("Shortcut bar"))).toBe(true);
-  expect(app.texts().some((t) => t.includes("Clipboard detection"))).toBe(true);
-  expect(app.texts().some((t) => t.includes("Download folder"))).toBe(true);
 });
 
 test("buildVideoPreview extracts YouTube URL", () => {

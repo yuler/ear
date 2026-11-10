@@ -1,7 +1,12 @@
 import { expect, test } from "nsh/test";
 import { normalizeEntry, pruneMissingPaths } from "./index";
 import type { LibraryEntry } from "./types";
-import { MAX_AUDIO_WRITE_BYTES } from "./download";
+import {
+  formatEta,
+  formatSizeProgress,
+  formatSpeed,
+  MAX_AUDIO_WRITE_BYTES,
+} from "./download";
 import {
   archiveFile,
   defaultDownloadFolder,
@@ -69,6 +74,9 @@ test("normalizeEntry fills defaults and marks ready when captions exist", () => 
   expect(entry.site).toBe("YouTube");
   expect(entry.state).toBe("ready");
   expect(entry.url).toContain("abcdefghijk");
+  expect(entry.thumbnailUrl).toBe(
+    "https://i.ytimg.com/vi/abcdefghijk/hqdefault.jpg",
+  );
   expect(entry.videoPath).toBe(null);
   expect(entry.note).toBe(null);
 });
@@ -80,4 +88,14 @@ test("path helpers use per-entry json and archive.jsonl", () => {
   } catch (e) {
     expect(e instanceof Error && e.message.includes("dataDir")).toBe(true);
   }
+});
+
+test("Downbit download telemetry formatters format speed, ETA, and byte progress", () => {
+  expect(formatSpeed(14.2 * 1024 * 1024)).toBe("14.2 MB/s");
+  expect(formatSpeed(512 * 1024)).toBe("512 KB/s");
+  expect(formatEta(7)).toBe("0:07 left");
+  expect(formatEta(85)).toBe("1:25 left");
+  expect(formatSizeProgress(10 * 1024 * 1024, 50 * 1024 * 1024)).toBe(
+    "10.0 MB of 50.0 MB",
+  );
 });

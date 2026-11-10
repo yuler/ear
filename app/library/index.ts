@@ -1,4 +1,4 @@
-import { exists, mkdir, readFile, readdir, writeFile } from "fs/promises";
+import { exists, mkdir, readFile, readdir, unlink, writeFile } from "fs/promises";
 import type {
   CaptionCue,
   CaptionTrack,
@@ -51,6 +51,10 @@ export function normalizeEntry(raw: Partial<LibraryEntry> & { videoId: string })
         ? raw.url
         : `https://www.youtube.com/watch?v=${raw.videoId}`,
     title: typeof raw.title === "string" && raw.title ? raw.title : raw.videoId,
+    thumbnailUrl:
+      typeof raw.thumbnailUrl === "string" && raw.thumbnailUrl
+        ? raw.thumbnailUrl
+        : `https://i.ytimg.com/vi/${raw.videoId}/hqdefault.jpg`,
     site: "YouTube",
     state,
     captionsPath,
@@ -61,6 +65,12 @@ export function normalizeEntry(raw: Partial<LibraryEntry> & { videoId: string })
     audioMimeType:
       typeof raw.audioMimeType === "string" ? raw.audioMimeType : null,
     durationMs: typeof raw.durationMs === "number" ? raw.durationMs : null,
+    quality: typeof raw.quality === "string" ? raw.quality : null,
+    subtitleLabel:
+      typeof raw.subtitleLabel === "string" ? raw.subtitleLabel : null,
+    subtitleIsAuto:
+      typeof raw.subtitleIsAuto === "boolean" ? raw.subtitleIsAuto : null,
+    sizeBytes: typeof raw.sizeBytes === "number" ? raw.sizeBytes : null,
     note: typeof raw.note === "string" ? raw.note : null,
     createdAt: typeof raw.createdAt === "number" ? raw.createdAt : now,
     updatedAt: typeof raw.updatedAt === "number" ? raw.updatedAt : now,
@@ -90,12 +100,15 @@ async function rewriteArchive(entries: LibraryEntry[]): Promise<void> {
 }
 
 export async function readEntry(videoId: string): Promise<LibraryEntry | null> {
+  if (!videoId || videoId === "index") return null;
   const path = entryMetaFile(videoId);
   if (!(await exists(path))) return null;
   try {
     const raw = await readFile(path, "utf8");
     const parsed = JSON.parse(raw) as Partial<LibraryEntry>;
-    if (!parsed || typeof parsed !== "object") return null;
+    if (!parsed || typeof parsed !== "object" || parsed.videoId === "index") {
+      return null;
+    }
     return normalizeEntry({ ...parsed, videoId: parsed.videoId || videoId });
   } catch {
     return null;
@@ -103,6 +116,7 @@ export async function readEntry(videoId: string): Promise<LibraryEntry | null> {
 }
 
 export async function writeEntry(entry: LibraryEntry): Promise<void> {
+  if (!entry.videoId || entry.videoId === "index") return;
   await mkdir(libraryRoot(), { recursive: true });
   const normalized = normalizeEntry(entry);
   await writeFile(entryMetaFile(normalized.videoId), JSON.stringify(normalized, null, 2));
@@ -115,9 +129,26 @@ async function listEntryIds(): Promise<string[]> {
   const ids: string[] = [];
   for (const name of names) {
     if (!name.endsWith(".json")) continue;
-    ids.push(name.slice(0, -".json".length));
+    if (name === "index.json" || name === "archive.jsonl") continue;
+    const id = name.slice(0, -".json".length);
+    if (!id || id === "index") continue;
+    ids.push(id);
   }
   return ids;
+}
+
+export async function deleteEntry(videoId: string): Promise<void> {
+  if (!videoId || videoId === "index") return;
+  try {
+    const metaPath = entryMetaFile(videoId);
+    if (await exists(metaPath)) {
+      await unlink(metaPath);
+    }
+  } catch {
+    // ignore
+  }
+  const all = await listEntriesRaw();
+  await rewriteArchive(all);
 }
 
 async function listEntriesRaw(): Promise<LibraryEntry[]> {
@@ -223,6 +254,9 @@ export async function loadLessonFromEntry(
       video: {
         videoId: parsed.videoId || entry.videoId,
         title: parsed.title || entry.title,
+        thumbnailUrl:
+          entry.thumbnailUrl ||
+          `https://i.ytimg.com/vi/${parsed.videoId || entry.videoId}/hqdefault.jpg`,
         audioUrl: mediaUrl,
         audioMimeType: localVideo
           ? "video/mp4"

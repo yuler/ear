@@ -40,6 +40,8 @@
       "dim": "#a1a1aa",
       "ready": "#3f7a52",
       "ready-soft": "#edf3ee",
+      "amber": "#b4781f",
+      "amber-soft": "#f8f0e2",
       "danger": "#b4473a",
       "danger-soft": "#f6ecea"
     },
@@ -80,6 +82,8 @@
       "dim": "#636363",
       "ready": "#86b896",
       "ready-soft": "#14201a",
+      "amber": "#e2a94b",
+      "amber-soft": "#241d11",
       "danger": "#d0806f",
       "danger-soft": "#241614"
     }

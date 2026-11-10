@@ -4,6 +4,7 @@ import type { PlaybackRate } from "./player";
 
 export type Appearance = "dark" | "light" | "system";
 export type SubtitleSize = "sm" | "md" | "lg";
+export type LibraryLayoutMode = "post" | "grade" | "list";
 
 export type EarSettings = {
   lastUrl: string;
@@ -20,6 +21,8 @@ export type EarSettings = {
    * (Downbit-style default folder).
    */
   downloadFolder: string;
+  /** Library view arrangement mode: "post" (large posters), "grade" (Windows picture tiles), "list". */
+  libraryLayout: LibraryLayoutMode;
 };
 
 const KEY = "ear.settings";
@@ -33,6 +36,7 @@ export const DEFAULT_SETTINGS: EarSettings = {
   showFooter: false,
   clipboardAuto: true,
   downloadFolder: "",
+  libraryLayout: "post",
 };
 
 let cachedSettings: EarSettings = { ...DEFAULT_SETTINGS };
@@ -75,6 +79,12 @@ export function normalizeSettings(parsed: Partial<EarSettings>): EarSettings {
         : d.clipboardAuto,
     downloadFolder:
       typeof parsed.downloadFolder === "string" ? parsed.downloadFolder : d.downloadFolder,
+    libraryLayout:
+      parsed.libraryLayout === "grade" ||
+      parsed.libraryLayout === "post" ||
+      parsed.libraryLayout === "list"
+        ? parsed.libraryLayout
+        : d.libraryLayout,
   };
 }
 

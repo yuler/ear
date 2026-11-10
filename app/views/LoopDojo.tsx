@@ -1,12 +1,14 @@
-import { Scroll, signal, Text, Video, View } from "nsh";
+import { Image, Scroll, signal, Text, Video, View } from "nsh";
 import { Button, Input } from "nsh/base";
 import {
   clipEnded,
   msToSeconds,
+  resolvePlaybackSource,
   type PlaybackRate,
 } from "../player";
 import { Icon } from "../ui/Icon";
 import { settings, subtitleClass } from "../ui/settings";
+import { videoPosterUrl } from "../youtube/parse";
 import type { LoadedLesson, Sentence } from "../youtube/types";
 import type { BlindTag } from "./blindFlow";
 import {
@@ -63,7 +65,8 @@ function DiffRow(props: { tokens: () => DiffToken[] }) {
 }
 
 type Props = {
-  lesson: LoadedLesson;
+  /** Accessor so download completion (file:// swap) updates the player. */
+  lesson: () => LoadedLesson;
   /** From Blind Flow — Dojo only drills Lag + Blind. */
   tags: Record<number, BlindTag>;
   onBackToBlind?: () => void;
@@ -76,9 +79,13 @@ type Props = {
  * Queue panel is collapsed by default.
  */
 export function LoopDojo(props: Props) {
-  const sentences = () => dojoQueue(props.lesson.sentences, props.tags);
-  const mediaUrl = () =>
-    props.lesson.video.videoUrl || props.lesson.video.audioUrl || null;
+  const lesson = () => props.lesson();
+  const sentences = () => dojoQueue(lesson().sentences, props.tags);
+  const playback = () => resolvePlaybackSource(lesson().video);
+  const mediaUrl = () => playback().url;
+  const hasVideoStream = () => playback().hasPicture;
+  const posterUrl = () =>
+    videoPosterUrl(lesson().video.videoId, lesson().video.thumbnailUrl);
   const index = signal(0);
   const rate = signal<PlaybackRate>(settings().preferredRate);
   const looping = signal(false);
@@ -143,7 +150,7 @@ export function LoopDojo(props: Props) {
       <If when={sentence()}>
         {(get) => (
           <View class="gap-5">
-            {/* Clean video frame (no border, no overlay badges) */}
+            {/* Clean video frame with video poster */}
             <View class="relative flex aspect-video max-h-[340px] w-full items-center justify-center overflow-hidden rounded-md bg-black">
               <If when={mediaUrl()}>
                 <Video
@@ -173,8 +180,22 @@ export function LoopDojo(props: Props) {
                   onError={() => stopLoop()}
                 />
               </If>
+
+              {/* Video poster overlay when paused, audio-only, or dictation-only */}
+              <If when={!looping() || !hasVideoStream()}>
+                <Image
+                  src={posterUrl()}
+                  class="absolute inset-0 h-full w-full object-cover"
+                />
+                <View class="absolute inset-0 bg-black/25" />
+              </If>
+
               <If when={!mediaUrl()}>
-                <Text class="text-xs text-dim">Dictation only</Text>
+                <View class="absolute bottom-2.5 left-2.5 rounded bg-black/75 px-2 py-0.5">
+                  <Text class="font-mono text-[11px] text-white">
+                    Dictation only
+                  </Text>
+                </View>
               </If>
 
               <Button
@@ -183,7 +204,7 @@ export function LoopDojo(props: Props) {
                 accessibilityLabel={looping() ? "Stop Loop" : "Start Loop"}
               >
                 <If when={!looping() && mediaUrl()}>
-                  <View class="h-12 w-12 items-center justify-center rounded-full bg-black/60">
+                  <View class="h-12 w-12 items-center justify-center rounded-full bg-black/65">
                     <Icon name="play" size={18} color="#fafafa" />
                   </View>
                 </If>

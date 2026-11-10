@@ -1,8 +1,11 @@
+import process from "process";
 import { cuesFromJson3, mergeSentences } from "./captions";
+import { isNativeHost } from "./host";
 import type {
   CaptionTrack,
   LoadedLesson,
   ParsedVideo,
+  VideoQualityOption,
 } from "./types";
 
 const WATCH_UA =
@@ -10,6 +13,78 @@ const WATCH_UA =
 
 const VISIONOS_UA =
   "Mozilla/5.0 (Macintosh; Intel Mac OS X 15_7_3) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.0 Safari/605.1.15";
+
+/** Resolve Ear CLI binary path on native host. */
+export function earBinaryCandidates(): string[] {
+  return ["ear"];
+}
+
+/** Resolve 16:9 poster URL for a YouTube video (uses explicit thumbnailUrl or falls back to hqdefault.jpg). */
+export function videoPosterUrl(
+  videoId: string,
+  thumbnailUrl?: string | null,
+): string {
+  if (typeof thumbnailUrl === "string" && thumbnailUrl.trim().length > 0) {
+    return thumbnailUrl.trim();
+  }
+  return `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`;
+}
+
+/** Format byte size into human-readable MB / KB. */
+export function formatBytes(bytes: number | null | undefined): string {
+  if (!bytes || !Number.isFinite(bytes) || bytes <= 0) return "";
+  if (bytes >= 1024 * 1024 * 1024) {
+    return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`;
+  }
+  if (bytes >= 1024 * 1024) {
+    const mb = bytes / (1024 * 1024);
+    return `${mb >= 100 ? Math.round(mb) : mb.toFixed(1)} MB`;
+  }
+  return `${Math.max(1, Math.round(bytes / 1024))} KB`;
+}
+
+/** True when a subtitle track is CC auto-generated / machine-translated (`kind === "asr"` or `vssId` starts with `a.`). */
+export function isAutoCaptionTrack(track: CaptionTrack): boolean {
+  if (typeof track.isAuto === "boolean") return track.isAuto;
+  if (track.kind === "asr") return true;
+  if (track.vssId?.startsWith("a.")) return true;
+  return /auto-generated/i.test(track.name);
+}
+
+/** Unique identifier for selecting a specific caption track. */
+export function captionTrackId(track: CaptionTrack): string {
+  if (track.trackId) return track.trackId;
+  if (track.vssId) return track.vssId;
+  return `${track.languageCode}:${isAutoCaptionTrack(track) ? "asr" : "manual"}`;
+}
+
+/** Clean display name for a caption track (without redundant "(auto-generated)" suffix). */
+export function cleanCaptionTrackName(track: CaptionTrack): string {
+  const cleaned = track.name
+    .replace(/\s*\(auto-generated\)\s*/gi, "")
+    .trim();
+  return cleaned || track.languageCode || "Subtitles";
+}
+
+/** Badge metadata distinguishing Manual (人工翻译/人工字幕) vs CC (机器生成/自动翻译). */
+export function captionTrackBadge(track: CaptionTrack): {
+  kind: "manual" | "cc";
+  shortLabel: string;
+  fullLabel: string;
+} {
+  if (isAutoCaptionTrack(track)) {
+    return {
+      kind: "cc",
+      shortLabel: "CC 机翻",
+      fullLabel: "CC · 自动生成",
+    };
+  }
+  return {
+    kind: "manual",
+    shortLabel: "人工",
+    fullLabel: "人工 · Manual",
+  };
+}
 
 /** Extract an 11-char YouTube video id from a URL or bare id. */
 export function extractVideoId(input: string): string | null {
@@ -84,25 +159,67 @@ export function sliceBalancedObject(source: string, start: number): string | nul
 }
 
 type AdaptiveFormat = {
+  itag?: number;
   mimeType?: string;
   url?: string;
   bitrate?: number;
+  width?: number;
+  height?: number;
+  fps?: number;
+  qualityLabel?: string;
+  contentLength?: string | number;
   audioQuality?: string;
+  audioTrack?: {
+    displayName?: string;
+    id?: string;
+    audioIsDefault?: boolean;
+    isAutoDubbed?: boolean;
+  };
 };
 
 type CaptionTrackRenderer = {
   baseUrl?: string;
   languageCode?: string;
   kind?: string;
+  vssId?: string;
   name?: {
     simpleText?: string;
     runs?: Array<{ text?: string }>;
   };
 };
 
+function parseContentLength(f: AdaptiveFormat): number | null {
+  if (typeof f.contentLength === "number" && f.contentLength > 0) {
+    return f.contentLength;
+  }
+  if (typeof f.contentLength === "string") {
+    const n = Number(f.contentLength);
+    if (Number.isFinite(n) && n > 0) return n;
+  }
+  if (typeof f.url === "string") {
+    const m = f.url.match(/[?&]clen=(\d+)/);
+    if (m) {
+      const n = Number(m[1]);
+      if (Number.isFinite(n) && n > 0) return n;
+    }
+  }
+  return null;
+}
+
+function isOriginalAudioTrack(f: AdaptiveFormat): boolean {
+  if (!f.audioTrack) return true;
+  if (f.audioTrack.audioIsDefault === true) return true;
+  if (f.audioTrack.isAutoDubbed === true) return false;
+  if (f.audioTrack.displayName && /original/i.test(f.audioTrack.displayName)) {
+    return true;
+  }
+  return false;
+}
+
 function pickAudio(formats: AdaptiveFormat[]): {
   url: string;
   mimeType: string;
+  sizeBytes: number | null;
 } | null {
   const audio = formats.filter(
     (f) =>
@@ -111,29 +228,115 @@ function pickAudio(formats: AdaptiveFormat[]): {
       f.mimeType.startsWith("audio/"),
   );
   if (audio.length === 0) return null;
-  const preferMp4 = audio.filter((f) => f.mimeType!.includes("mp4"));
-  const pool = preferMp4.length > 0 ? preferMp4 : audio;
+  const orig = audio.filter(isOriginalAudioTrack);
+  const trackPool = orig.length > 0 ? orig : audio;
+  const preferMp4 = trackPool.filter((f) => f.mimeType!.includes("mp4"));
+  const pool = preferMp4.length > 0 ? preferMp4 : trackPool;
   pool.sort((a, b) => (b.bitrate ?? 0) - (a.bitrate ?? 0));
   const best = pool[0]!;
-  return { url: best.url!, mimeType: best.mimeType! };
+  return {
+    url: best.url!,
+    mimeType: best.mimeType!,
+    sizeBytes: parseContentLength(best),
+  };
 }
 
-function pickVideo(formats: AdaptiveFormat[]): {
-  url: string;
-  mimeType: string;
-} | null {
-  const video = formats.filter(
-    (f) =>
-      typeof f.url === "string" &&
-      typeof f.mimeType === "string" &&
-      f.mimeType.startsWith("video/mp4") &&
-      (Boolean(f.audioQuality) || f.mimeType.includes("mp4a")),
-  );
-  if (video.length === 0) return null;
-  const reasonable = video.filter((v) => (v.bitrate ?? 0) <= 2_500_000);
-  reasonable.sort((a, b) => (b.bitrate ?? 0) - (a.bitrate ?? 0));
-  const best = reasonable[0] ?? video[0]!;
-  return { url: best.url!, mimeType: best.mimeType! };
+export function buildQualityOptions(
+  formats: AdaptiveFormat[],
+  adaptiveFormats: AdaptiveFormat[],
+  bestAudio: { url: string; mimeType: string; sizeBytes: number | null } | null,
+): VideoQualityOption[] {
+  const all = [...adaptiveFormats, ...formats];
+  const heights = [1080, 720, 480, 360, 240];
+  const out: VideoQualityOption[] = [];
+
+  for (const h of heights) {
+    const matching = all.filter((f) => {
+      if (typeof f.url !== "string" || !f.url) return false;
+      if (typeof f.mimeType !== "string" || !f.mimeType.startsWith("video/mp4")) {
+        return false;
+      }
+      const fh =
+        f.height ??
+        (f.qualityLabel ? parseInt(f.qualityLabel, 10) : NaN);
+      return fh === h;
+    });
+    if (matching.length === 0) continue;
+
+    matching.sort((a, b) => {
+      const aAvc = a.mimeType?.includes("avc1") ? 1 : 0;
+      const bAvc = b.mimeType?.includes("avc1") ? 1 : 0;
+      if (aAvc !== bAvc) return bAvc - aAvc;
+      return (b.bitrate ?? 0) - (a.bitrate ?? 0);
+    });
+
+    const chosen = matching[0]!;
+    const vSize = parseContentLength(chosen);
+    const hasMuxedAudio =
+      Boolean(chosen.audioQuality) || Boolean(chosen.mimeType?.includes("mp4a"));
+    const sizeBytes =
+      vSize != null
+        ? hasMuxedAudio
+          ? vSize
+          : vSize + (bestAudio?.sizeBytes ?? 0)
+        : null;
+    const label = `${h}p`;
+    out.push({
+      id: label,
+      label,
+      mode: "video",
+      height: h,
+      fps: chosen.fps ?? null,
+      videoUrl: chosen.url!,
+      audioUrl: hasMuxedAudio ? null : (bestAudio?.url ?? null),
+      mimeType: chosen.mimeType!,
+      ext: "mp4",
+      sizeBytes,
+    });
+  }
+
+  // Fallback progressive video if none of the standard heights matched
+  if (out.length === 0) {
+    const anyMp4 = all.find(
+      (f) =>
+        typeof f.url === "string" &&
+        typeof f.mimeType === "string" &&
+        f.mimeType.startsWith("video/mp4"),
+    );
+    if (anyMp4) {
+      const hasMuxed =
+        Boolean(anyMp4.audioQuality) || Boolean(anyMp4.mimeType?.includes("mp4a"));
+      out.push({
+        id: "720p",
+        label: anyMp4.qualityLabel || "720p",
+        mode: "video",
+        height: anyMp4.height ?? 720,
+        fps: anyMp4.fps ?? null,
+        videoUrl: anyMp4.url!,
+        audioUrl: hasMuxed ? null : (bestAudio?.url ?? null),
+        mimeType: anyMp4.mimeType!,
+        ext: "mp4",
+        sizeBytes: parseContentLength(anyMp4),
+      });
+    }
+  }
+
+  if (bestAudio) {
+    out.push({
+      id: "audio",
+      label: "Audio (M4A)",
+      mode: "audio",
+      height: null,
+      fps: null,
+      videoUrl: null,
+      audioUrl: bestAudio.url,
+      mimeType: bestAudio.mimeType,
+      ext: bestAudio.mimeType.includes("webm") ? "webm" : "m4a",
+      sizeBytes: bestAudio.sizeBytes,
+    });
+  }
+
+  return out;
 }
 
 function readCaptionTracks(player: Record<string, unknown>): CaptionTrack[] {
@@ -146,29 +349,70 @@ function readCaptionTracks(player: Record<string, unknown>): CaptionTrack[] {
     | undefined;
   const tracks =
     captions?.playerCaptionsTracklistRenderer?.captionTracks ?? [];
-  return tracks
+  const mapped = tracks
     .filter((t) => typeof t.baseUrl === "string")
-    .map((t) => ({
-      languageCode: t.languageCode ?? "",
-      name:
+    .map((t) => {
+      const languageCode = t.languageCode ?? "";
+      const name =
         t.name?.simpleText ??
         t.name?.runs?.map((r) => r.text ?? "").join("") ??
-        t.languageCode ??
-        "",
-      baseUrl: t.baseUrl!,
-      kind: t.kind,
-    }));
+        languageCode;
+      const isAuto =
+        t.kind === "asr" ||
+        Boolean(t.vssId?.startsWith("a.")) ||
+        /auto-generated/i.test(name);
+      const trackId =
+        t.vssId || `${languageCode}:${isAuto ? "asr" : "manual"}`;
+      return {
+        trackId,
+        languageCode,
+        name,
+        baseUrl: t.baseUrl!,
+        kind: t.kind,
+        vssId: t.vssId,
+        isAuto,
+      };
+    });
+
+  // Sort so English comes first and Manual (人工) comes before CC Auto (机器)
+  mapped.sort((a, b) => {
+    const aEn =
+      a.languageCode === "en" ||
+      a.languageCode.startsWith("en-") ||
+      /english/i.test(a.name);
+    const bEn =
+      b.languageCode === "en" ||
+      b.languageCode.startsWith("en-") ||
+      /english/i.test(b.name);
+    if (aEn !== bEn) return aEn ? -1 : 1;
+    const aAuto = isAutoCaptionTrack(a);
+    const bAuto = isAutoCaptionTrack(b);
+    if (aAuto !== bAuto) return aAuto ? 1 : -1;
+    return 0;
+  });
+
+  return mapped;
 }
 
+/**
+ * Prefer manual English track first, then auto-generated CC English track,
+ * then first manual track, then first available track.
+ */
 export function preferEnglishTrack(tracks: CaptionTrack[]): CaptionTrack | null {
   if (tracks.length === 0) return null;
-  const en = tracks.find(
-    (t) =>
-      t.languageCode === "en" ||
-      t.languageCode.startsWith("en-") ||
-      /english/i.test(t.name),
-  );
-  return en ?? tracks[0]!;
+  const isEn = (t: CaptionTrack) =>
+    t.languageCode === "en" ||
+    t.languageCode.startsWith("en-") ||
+    /english/i.test(t.name);
+
+  const manualEn = tracks.find((t) => isEn(t) && !isAutoCaptionTrack(t));
+  if (manualEn) return manualEn;
+
+  const autoEn = tracks.find((t) => isEn(t));
+  if (autoEn) return autoEn;
+
+  const anyManual = tracks.find((t) => !isAutoCaptionTrack(t));
+  return anyManual ?? tracks[0]!;
 }
 
 async function fetchVisionOsPlayer(
@@ -226,10 +470,7 @@ async function fetchVisionOsPlayer(
 }
 
 /**
- * Hand-parse a YouTube video into audio URL + caption track list.
- * Uses Innertube player API (VisionOS client) with visitor data from the watch
- * page for valid progressive audio streams and unthrottled timedtext captions,
- * falling back to watch HTML ytInitialPlayerResponse.
+ * Hand-parse a YouTube video into audio URL, video quality options, and caption track list.
  */
 export async function parseYouTubeVideo(
   input: string,
@@ -278,10 +519,15 @@ export async function parseYouTubeVideo(
     adaptiveFormats?: AdaptiveFormat[];
   };
   const audio = pickAudio(streaming.adaptiveFormats ?? []);
-  const video = pickVideo([
-    ...(streaming.formats ?? []),
-    ...(streaming.adaptiveFormats ?? []),
-  ]);
+  const qualities = buildQualityOptions(
+    streaming.formats ?? [],
+    streaming.adaptiveFormats ?? [],
+    audio,
+  );
+  const defaultVideo =
+    qualities.find((q) => q.id === "720p") ??
+    qualities.find((q) => q.mode === "video") ??
+    null;
   const lengthSec = Number(videoDetails.lengthSeconds ?? NaN);
 
   const captionTracks =
@@ -295,20 +541,135 @@ export async function parseYouTubeVideo(
     videoId,
     title: videoDetails.title ?? videoId,
     author: videoDetails.author ?? null,
+    thumbnailUrl: `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`,
     audioUrl: audio?.url ?? null,
     audioMimeType: audio?.mimeType ?? null,
-    videoUrl: video?.url ?? null,
-    videoMimeType: video?.mimeType ?? null,
+    videoUrl: defaultVideo?.videoUrl ?? null,
+    videoMimeType: defaultVideo?.mimeType ?? null,
     durationMs: Number.isFinite(lengthSec) ? lengthSec * 1000 : null,
+    qualities,
     captionTracks,
     playerResponse: player,
   };
+}
+
+export type ParseProgressEvent = {
+  stage: string;
+  progress: number;
+  message: string;
+};
+
+/**
+ * Parse a YouTube video via the Rust `ear parse` binary with real-time
+ * progress callbacks, falling back to `parseYouTubeVideo` when in unit tests
+ * or if `ear` is unavailable.
+ */
+export async function parseYouTubeWithRust(
+  input: string,
+  onProgress?: (ev: ParseProgressEvent) => void,
+  fetchImpl: typeof fetch = fetch,
+): Promise<ParsedVideo> {
+  const videoId = extractVideoId(input);
+  if (!videoId) throw new Error("Not a valid YouTube URL or video id");
+
+  if (isNativeHost() && typeof process.spawn === "function") {
+    for (const bin of earBinaryCandidates()) {
+      try {
+        const parsed = await new Promise<ParsedVideo>((resolve, reject) => {
+          let resultVideo: ParsedVideo | null = null;
+          let errorMessage: string | null = null;
+          const child = process.spawn(bin, ["parse", input], {
+            lines: true,
+            timeoutMs: 30_000,
+          });
+          child.on("stdout", (line) => {
+            const trimmed = line.trim();
+            if (!trimmed) return;
+            try {
+              const msg = JSON.parse(trimmed) as {
+                type?: string;
+                stage?: string;
+                progress?: number;
+                message?: string;
+                video?: ParsedVideo;
+              };
+              if (msg.type === "progress") {
+                onProgress?.({
+                  stage: msg.stage ?? "parsing",
+                  progress: msg.progress ?? 50,
+                  message: msg.message ?? "Parsing YouTube link…",
+                });
+              } else if (msg.type === "result" && msg.video) {
+                resultVideo = {
+                  ...msg.video,
+                  playerResponse: msg.video.playerResponse ?? null,
+                };
+              } else if (msg.type === "error") {
+                errorMessage = msg.message ?? "ear parse error";
+              }
+            } catch {
+              // ignore non-json lines
+            }
+          });
+          child.on("exit", (res) => {
+            if (resultVideo) {
+              resolve(resultVideo);
+            } else {
+              reject(
+                new Error(
+                  errorMessage ||
+                    res.error ||
+                    `ear parse exited with code ${res.code ?? -1}`,
+                ),
+              );
+            }
+          });
+        });
+        return parsed;
+      } catch {
+        // Try next candidate or fallback to TS fetch
+      }
+    }
+  }
+
+  onProgress?.({
+    stage: "connecting",
+    progress: 24,
+    message: `Connecting to YouTube (${videoId})…`,
+  });
+  const parsed = await parseYouTubeVideo(input, fetchImpl);
+  onProgress?.({
+    stage: "tracks",
+    progress: 92,
+    message: "Loaded video resolutions & subtitle tracks",
+  });
+  return parsed;
 }
 
 export async function fetchJson3Captions(
   track: CaptionTrack,
   fetchImpl: typeof fetch = fetch,
 ): Promise<unknown> {
+  // Try Rust ear captions helper first on native host when using default fetch
+  if (
+    isNativeHost() &&
+    fetchImpl === fetch &&
+    typeof process.run === "function"
+  ) {
+    for (const bin of earBinaryCandidates()) {
+      try {
+        const out = await process.run(bin, ["captions", track.baseUrl], {
+          timeoutMs: 20_000,
+        });
+        if (out.code === 0 && out.stdout.trim()) {
+          return JSON.parse(out.stdout);
+        }
+      } catch {
+        // Fallback to fetchImpl below
+      }
+    }
+  }
+
   const url = new URL(track.baseUrl);
   url.searchParams.set("fmt", "json3");
   const res = await fetchImpl(url.toString(), {
@@ -322,18 +683,84 @@ export async function fetchJson3Captions(
   return JSON.parse(text);
 }
 
-/** Parse video + preferred English captions into a lesson payload. */
-export async function loadLesson(
-  input: string,
-  fetchImpl: typeof fetch = fetch,
+/**
+ * Build a LoadedLesson from an already-parsed ParsedVideo, using the user's
+ * chosen subtitle track (`trackId`) and video quality (`qualityId`).
+ */
+export async function loadLessonFromParsed(
+  video: ParsedVideo,
+  options: {
+    trackId?: string | null;
+    qualityId?: string | null;
+    fetchImpl?: typeof fetch;
+  } = {},
 ): Promise<LoadedLesson> {
-  const video = await parseYouTubeVideo(input, fetchImpl);
-  const track = preferEnglishTrack(video.captionTracks);
+  const fetchImpl = options.fetchImpl ?? fetch;
+  const qualities = video.qualities ?? [];
+  const selectedQuality =
+    (options.qualityId
+      ? qualities.find((q) => q.id === options.qualityId)
+      : null) ??
+    qualities.find((q) => q.id === "720p") ??
+    qualities[0] ??
+    null;
+
+  const updatedVideo: ParsedVideo = selectedQuality
+    ? {
+        ...video,
+        videoUrl:
+          selectedQuality.mode === "video"
+            ? (selectedQuality.videoUrl ?? video.videoUrl)
+            : null,
+        videoMimeType:
+          selectedQuality.mode === "video"
+            ? selectedQuality.mimeType
+            : null,
+        audioUrl: selectedQuality.audioUrl ?? video.audioUrl,
+      }
+    : video;
+
+  const track =
+    (options.trackId
+      ? updatedVideo.captionTracks.find(
+          (t) => captionTrackId(t) === options.trackId,
+        )
+      : null) ?? preferEnglishTrack(updatedVideo.captionTracks);
+
   if (!track) {
-    return { video, track: null, cues: [], sentences: [] };
+    return {
+      video: updatedVideo,
+      track: null,
+      selectedQuality,
+      cues: [],
+      sentences: [],
+    };
   }
+
   const json3 = await fetchJson3Captions(track, fetchImpl);
   const cues = cuesFromJson3(json3);
   const sentences = mergeSentences(cues);
-  return { video, track, cues, sentences };
+  return {
+    video: updatedVideo,
+    track,
+    selectedQuality,
+    cues,
+    sentences,
+  };
+}
+
+/** Parse video + preferred (or selected) captions into a lesson payload. */
+export async function loadLesson(
+  input: string,
+  fetchImpl: typeof fetch = fetch,
+  options: {
+    trackId?: string | null;
+    qualityId?: string | null;
+  } = {},
+): Promise<LoadedLesson> {
+  const video = await parseYouTubeVideo(input, fetchImpl);
+  return loadLessonFromParsed(video, {
+    ...options,
+    fetchImpl,
+  });
 }

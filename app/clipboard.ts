@@ -1,6 +1,15 @@
 import { Clipboard } from "nsh";
 import { hostFetch, isNativeHost } from "./youtube/host";
-import { extractVideoId, parseYouTubeVideo } from "./youtube/parse";
+import {
+  extractVideoId,
+  parseYouTubeWithRust,
+  type ParseProgressEvent,
+} from "./youtube/parse";
+import type {
+  CaptionTrack,
+  ParsedVideo,
+  VideoQualityOption,
+} from "./youtube/types";
 
 export type ClipboardVideoPreview = {
   rawUrl: string;
@@ -10,9 +19,13 @@ export type ClipboardVideoPreview = {
   durationLabel: string;
   thumbnailUrl: string;
   source: "clipboard" | "input";
+  parsedVideo?: ParsedVideo | null;
+  qualities?: VideoQualityOption[];
+  captionTracks?: CaptionTrack[];
+  isParsed?: boolean;
 };
 
-function formatDurationMs(durationMs: number | null): string {
+export function formatDurationMs(durationMs: number | null): string {
   if (!durationMs || !Number.isFinite(durationMs) || durationMs <= 0) {
     return "CC";
   }
@@ -78,27 +91,45 @@ export function buildVideoPreview(
     durationLabel: "CC",
     thumbnailUrl: `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`,
     source,
+    parsedVideo: null,
+    qualities: [],
+    captionTracks: [],
+    isParsed: false,
   };
 }
 
 /**
- * Fetch live YouTube metadata (title, channel, duration) to enrich a preview card.
+ * Fetch live YouTube metadata, video resolutions, and subtitle tracks
+ * (Manual vs CC) via Rust `ear parse` (with TS fetch fallback).
  */
 export async function fetchVideoPreviewMeta(
   preview: ClipboardVideoPreview,
   fetchImpl: typeof fetch = hostFetch,
+  onProgress?: (ev: ParseProgressEvent) => void,
 ): Promise<ClipboardVideoPreview> {
   if (!isNativeHost()) return preview;
   try {
-    const parsed = await parseYouTubeVideo(preview.rawUrl, fetchImpl);
+    const parsed = await parseYouTubeWithRust(
+      preview.rawUrl,
+      onProgress,
+      fetchImpl,
+    );
     const author = parsed.author?.trim() || "YouTube";
     return {
       ...preview,
       title: parsed.title || preview.title,
       channel: author === "YouTube" ? "YouTube" : `YouTube · ${author}`,
       durationLabel: formatDurationMs(parsed.durationMs),
+      thumbnailUrl: parsed.thumbnailUrl || preview.thumbnailUrl,
+      parsedVideo: parsed,
+      qualities: parsed.qualities ?? [],
+      captionTracks: parsed.captionTracks ?? [],
+      isParsed: true,
     };
   } catch {
-    return preview;
+    return {
+      ...preview,
+      isParsed: true,
+    };
   }
 }

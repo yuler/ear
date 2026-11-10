@@ -1,7 +1,10 @@
 import { Image, token, type Tokens } from "nsh";
+import check from "./icons/check.svg";
 import chevronLeft from "./icons/chevron-left.svg";
 import chevronRight from "./icons/chevron-right.svg";
 import clipboard from "./icons/clipboard.svg";
+import download from "./icons/download.svg";
+import folder from "./icons/folder.svg";
 import link from "./icons/link.svg";
 import loader from "./icons/loader.svg";
 import pause from "./icons/pause.svg";
@@ -9,12 +12,16 @@ import play from "./icons/play.svg";
 import repeat from "./icons/repeat.svg";
 import search from "./icons/search.svg";
 import settingsIcon from "./icons/settings.svg";
+import subtitles from "./icons/subtitles.svg";
 import x from "./icons/x.svg";
 
 const ICONS = {
+  check,
   "chevron-left": chevronLeft,
   "chevron-right": chevronRight,
   clipboard,
+  download,
+  folder,
   link,
   loader,
   pause,
@@ -22,6 +29,7 @@ const ICONS = {
   repeat,
   search,
   settings: settingsIcon,
+  subtitles,
   x,
 } as const;
 

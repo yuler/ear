@@ -13,6 +13,18 @@
     "fs": {
       "read": ["${dataDir}", "${homeDir}/Downloads"],
       "write": ["${dataDir}", "${homeDir}/Downloads"]
+    },
+    "process": {
+      "execute": [
+        "ear",
+        "yt-dlp",
+        "ffmpeg",
+        "curl",
+        "cp",
+        "xdg-open",
+        "open",
+        "gio"
+      ]
     }
   }
 }

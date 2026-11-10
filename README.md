@@ -7,8 +7,7 @@ Paste a YouTube link → download video/audio + subtitles → practice with Blin
 ## Stack
 
 - `nsh init --template ts` — Desktop-first (linux/macos host); Mobile later
-- Hand-parse YouTube player response (audio/video stream URLs + json3 captions)
-- Native `fetch` saves captions + media ≤ 8 MiB write cap; larger media streams remotely
+- Rust `ear` CLI (`cli/`) — Parses YouTube VisionOS Innertube streams, video resolutions (`1080p`/`720p`/`480p`/`360p`/`Audio`), and subtitle tracks (`人工` Manual vs `CC 机翻` Auto), and runs 4-thread parallel HTTP Range downloads + `ffmpeg` muxing in the background with live speed (`MB/s`), ETA, and progress telemetry
 - Local catalog (Downbit-style, not SQLite): `dataDir/library/<videoId>.json` + `archive.jsonl` + `<videoId>/captions.json`
 - Media files: `~/Downloads/<videoId>.{mp4,m4a}` by default (configurable in Settings)
 
@@ -16,6 +15,7 @@ Paste a YouTube link → download video/audio + subtitles → practice with Blin
 
 Referenced from [huacnlee/noop](https://github.com/huacnlee/noop):
 
+- `cli/` — Rust `ear` binary (`parse` / `captions` / `download`)
 - `app/` — Standalone Native Shell desktop application
   - `app/App.tsx` — Root application shell & mode router
   - `app/ui/` — Shared UI components, icons, and theme design system
@@ -31,9 +31,11 @@ Referenced from [huacnlee/noop](https://github.com/huacnlee/noop):
 ## Develop
 
 ```sh
-mise run setup            # installs nsh + Linux WebKitGTK 6 (Arch: webkitgtk-6.0)
-mise run dev              # native host (runs `nsh run app`)
-mise run test             # runs `nsh test app`
+mise run setup            # installs nsh, release `ear` CLI, Linux WebKitGTK 6
+mise run build-cli        # release-build + install `ear` → ~/.local/bin/ear
+mise run build-cli-dev    # debug-build + install `ear` (used by `dev`)
+mise run dev              # rebuilds CLI (debug) then `nsh run app`
+mise run test             # `cargo test` (cli) + `nsh test app`
 mise run check            # runs `nsh check app`
 ```
 

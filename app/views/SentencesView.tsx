@@ -1,7 +1,8 @@
-import { Text, View } from "nsh";
+import { Image, Text, View } from "nsh";
 import { Button } from "nsh/base";
-import type { BlindTag } from "./blindFlow";
+import { videoPosterUrl } from "../youtube/parse";
 import type { Difficulty, LoadedLesson, Sentence } from "../youtube/types";
+import type { BlindTag } from "./blindFlow";
 
 function formatMs(ms: number): string {
   const s = Math.floor(ms / 1000);
@@ -71,14 +72,29 @@ export function SentencesView(props: {
 
   return (
     <View class="mx-auto w-full max-w-[760px] gap-3">
-      {/* Header & pure-text difficulty tabs */}
-      <View class="flex-row flex-wrap items-center justify-between gap-3 border-b border-line pb-2.5">
-        <Text class="text-xs text-muted-foreground">
-          {props.lesson().video.title} ·{" "}
-          <Text class="font-mono text-xs tabular-nums text-muted-foreground">
-            {filteredSentences().length} / {props.lesson().sentences.length}
-          </Text>
-        </Text>
+      {/* Header with video poster & pure-text difficulty tabs */}
+      <View class="flex-row flex-wrap items-center justify-between gap-3 border-b border-line pb-3">
+        <View class="min-w-0 flex-1 flex-row items-center gap-3">
+          <View class="h-10 w-[72px] shrink-0 overflow-hidden rounded-md border border-line bg-black">
+            <Image
+              src={videoPosterUrl(
+                props.lesson().video.videoId,
+                props.lesson().video.thumbnailUrl,
+              )}
+              class="h-full w-full object-cover"
+            />
+          </View>
+          <View class="min-w-0 flex-1 gap-0.5">
+            <Text class="line-clamp-1 text-sm font-medium text-foreground">
+              {props.lesson().video.title}
+            </Text>
+            <Text class="font-mono text-xs tabular-nums text-muted-foreground">
+              YouTube · {props.lesson().video.videoId} ·{" "}
+              {filteredSentences().length} / {props.lesson().sentences.length}{" "}
+              sentences
+            </Text>
+          </View>
+        </View>
 
         <View class="flex-row items-center gap-4">
           {(["all", "i-1", "i+1", "Hard"] as const).map((df) => (

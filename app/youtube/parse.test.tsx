@@ -1,6 +1,8 @@
 import { expect, test } from "nsh/test";
 import {
+  captionTrackBadge,
   fetchJson3Captions,
+  isAutoCaptionTrack,
   parseYouTubeVideo,
   preferEnglishTrack,
 } from "./parse";
@@ -158,11 +160,26 @@ test("fetchJson3Captions rejects on empty response and parses valid JSON", async
   expect(data.events[0]!.tStartMs).toBe(0);
 });
 
-test("preferEnglishTrack selects en / english tracks", () => {
+test("preferEnglishTrack selects manual en over auto-generated CC en", () => {
   const tracks = [
     { languageCode: "es", name: "Spanish", baseUrl: "https://example.com/es" },
-    { languageCode: "en", name: "English (auto-generated)", baseUrl: "https://example.com/en" },
+    {
+      languageCode: "en",
+      name: "English (auto-generated)",
+      kind: "asr",
+      vssId: "a.en",
+      baseUrl: "https://example.com/en-asr",
+    },
+    {
+      languageCode: "en",
+      name: "English",
+      vssId: ".en",
+      baseUrl: "https://example.com/en-manual",
+    },
   ];
   const preferred = preferEnglishTrack(tracks);
-  expect(preferred?.languageCode).toBe("en");
+  expect(preferred?.baseUrl).toBe("https://example.com/en-manual");
+  expect(isAutoCaptionTrack(preferred!)).toBe(false);
+  expect(captionTrackBadge(preferred!).shortLabel).toBe("人工");
+  expect(captionTrackBadge(tracks[1]!).shortLabel).toBe("CC 机翻");
 });

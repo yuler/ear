@@ -5,8 +5,8 @@ import { Icon } from "./Icon";
 export type ActivityKind = "parsing" | "downloading" | null;
 
 /**
- * Quiet activity line + small toasts. The progress itself is the 1px line
- * at the bottom of the top bar; this only states what is happening.
+ * Top activity banner for parsing progress, errors, and status notifications.
+ * Active downloads are displayed directly in the Library view at the top of the list.
  */
 export function ActivityBanner(props: {
   kind: () => ActivityKind;
@@ -16,32 +16,27 @@ export function ActivityBanner(props: {
   status: () => string | null;
   onDismissStatus: () => void;
 }) {
-  const label = () => {
-    const p = props.progress();
-    if (props.kind() === "parsing") {
-      if (p < 38) return "Reading video page";
-      if (p < 74) return "Finding audio";
-      return "Merging captions";
-    }
-    if (p < 40) return "Saving captions";
-    if (p < 82) return "Saving media";
-    return "Indexing";
-  };
-
   return (
-    <View class="gap-2">
-      <If when={props.kind()}>
-        <View class="flex-row items-center gap-3">
-          <Text class="font-mono text-xs tabular-nums text-muted-foreground">
-            {props.progress()}%
-          </Text>
-          <Text class="min-w-0 flex-1 truncate text-xs text-muted-foreground">
-            {props.kind() === "parsing" ? "Parsing" : "Downloading"} ·{" "}
-            {label()} · {props.targetTitle()}
-          </Text>
+    <View class="gap-2.5">
+      {/* 1. Parsing activity indicator (CLI / Shell style) */}
+      <If when={props.kind() === "parsing"}>
+        <View class="flex-row items-center justify-between gap-3 rounded-xl border border-line bg-popover px-3.5 py-2.5">
+          <View class="min-w-0 flex-1 flex-row items-center gap-2">
+            <Text class="font-mono text-xs font-bold text-[#2f7cf6]">❯</Text>
+            <Icon
+              name="loader"
+              size={13}
+              tone="amber"
+              class="animate-spin"
+            />
+            <Text class="min-w-0 flex-1 truncate font-mono text-xs text-muted-foreground">
+              ear parse: {props.targetTitle()}
+            </Text>
+          </View>
         </View>
       </If>
 
+      {/* 2. Error banner */}
       <If when={props.error()}>
         <View class="flex-row items-center justify-between gap-3 rounded-md border border-danger/40 px-3 py-2">
           <Text class="min-w-0 flex-1 text-xs text-danger">{props.error()}</Text>
@@ -55,6 +50,7 @@ export function ActivityBanner(props: {
         </View>
       </If>
 
+      {/* 3. Quiet status toast */}
       <If when={!props.kind() && !props.error() && props.status()}>
         <View class="flex-row items-center justify-between gap-3 rounded-md border border-line px-3 py-2">
           <Text class="min-w-0 flex-1 truncate text-xs text-muted-foreground">

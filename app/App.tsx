@@ -1,4 +1,3 @@
-import { exists } from "fs/promises";
 import {
   colorScheme,
   effect,
@@ -11,37 +10,37 @@ import {
   type InputRef,
 } from "nsh";
 import { isAvailable, Menu, Window } from "nsh/desktop";
-import { downloadLesson } from "./library/download";
-import { listEntriesSafe, loadLessonFromEntry } from "./library/index";
-import { videoFile } from "./library/paths";
-import type { LibraryEntry } from "./library/types";
-import { BlindFlow } from "./views/BlindFlow";
-import type { BlindTag } from "./views/blindFlow";
-import { LoopDojo } from "./views/LoopDojo";
-import { dojoQueue } from "./views/loopDojo";
-import {
-  getVideoTags,
-  hydrateAllVideoTags,
-  saveSettings,
-  saveVideoTags,
-} from "./store";
-import { ActivityBanner, type ActivityKind } from "./ui/ActivityBanner";
-import { ChromeHint, type ChromeScreen } from "./ui/chrome";
 import {
   buildVideoPreview,
   fetchVideoPreviewMeta,
   readSystemClipboard,
   type ClipboardVideoPreview,
 } from "./clipboard";
-import { ClipboardCard } from "./ui/ClipboardCard";
-import { LibraryView } from "./views/LibraryView";
-import { SentencesView } from "./views/SentencesView";
-import { initSettings, settings, updateSettings } from "./ui/settings";
+import { downloadLesson } from "./library/download";
+import { deleteEntry, listEntriesSafe } from "./library/index";
+import { exists } from "fs/promises";
+import process from "process";
+import {
+  mediaRoot,
+  openDirectory,
+  openFileParentFolder,
+} from "./library/paths";
+import type { DownloadTaskProgress, LibraryEntry } from "./library/types";
+import { localMediaCandidates, localMediaFileUrl } from "./player";
+import { ActivityBanner, type ActivityKind } from "./ui/ActivityBanner";
+import { MediaPlayer } from "./ui/MediaPlayer";
 import { SettingsPanel } from "./ui/SettingsPanel";
-import { TopBar } from "./ui/TopBar";
-import { hostFetch, isNativeHost } from "./youtube/host";
-import { loadLesson } from "./youtube/parse";
-import type { Difficulty, LoadedLesson } from "./youtube/types";
+import { initSettings, settings, updateSettings } from "./ui/settings";
+import { TopBar, type MediaTab } from "./ui/TopBar";
+import { isAudioEntry, LibraryView } from "./views/LibraryView";
+import { hostFetch } from "./youtube/host";
+import {
+  captionTrackId,
+  loadLesson,
+  loadLessonFromParsed,
+  preferEnglishTrack,
+} from "./youtube/parse";
+import type { LoadedLesson } from "./youtube/types";
 
 function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -56,34 +55,74 @@ function App() {
   const activityTitle = signal("");
   const error = signal<string | null>(null);
   const status = signal<string | null>(null);
-  const lesson = signal<LoadedLesson | null>(null);
-  const screen = signal<ChromeScreen>("home");
-  const tags = signal<Record<number, BlindTag>>({});
-  const difficultyFilter = signal<"all" | Difficulty>("all");
+  const activeTab = signal<MediaTab>("video");
   const savedEntries = signal<LibraryEntry[]>([]);
-  const allVideoTags = signal<Record<string, Record<number, BlindTag>>>({});
   const clipboardPreview = signal<ClipboardVideoPreview | null>(null);
   const previewMetaMap = signal<Record<string, ClipboardVideoPreview>>({});
+  const parsingMap = signal<Record<string, boolean>>({});
+  const parseMessageMap = signal<Record<string, string>>({});
+  const selectedQualityMap = signal<Record<string, string>>({});
+  const selectedTrackMap = signal<Record<string, string>>({});
+  const downloadTasks = signal<Record<string, DownloadTaskProgress>>({});
   const dismissedVideoId = signal<string | null>(null);
-  const blindTargetIndex = signal<number | null>(null);
+  const playingEntry = signal<LibraryEntry | null>(null);
+  const playingSrc = signal<string | null>(null);
   const settingsOpen = signal(false);
   let urlInputRef: InputRef | null = null;
   const fetchingMetaIds = new Set<string>();
+  const activeDownloadIds = new Set<string>();
 
   const ensurePreviewEnriched = (preview: ClipboardVideoPreview) => {
-    if (previewMetaMap()[preview.videoId] || fetchingMetaIds.has(preview.videoId)) {
+    const vid = preview.videoId;
+    if (previewMetaMap()[vid] || fetchingMetaIds.has(vid)) {
       return;
     }
-    fetchingMetaIds.add(preview.videoId);
-    void fetchVideoPreviewMeta(preview, hostFetch)
+    fetchingMetaIds.add(vid);
+    parsingMap.set({ ...parsingMap(), [vid]: true });
+    parseMessageMap.set({
+      ...parseMessageMap(),
+      [vid]: "Connecting to YouTube…",
+    });
+
+    void fetchVideoPreviewMeta(preview, hostFetch, (ev) => {
+      parseMessageMap.set({
+        ...parseMessageMap(),
+        [vid]: ev.message,
+      });
+    })
       .then((enriched) => {
         previewMetaMap.set({
           ...previewMetaMap(),
-          [preview.videoId]: enriched,
+          [vid]: enriched,
         });
+
+        // Default quality selection: prefer 720p, else first available quality
+        if (!selectedQualityMap()[vid]) {
+          const qs = enriched.qualities ?? [];
+          const defQ =
+            qs.find((q) => q.id === "720p")?.id ?? qs[0]?.id ?? "720p";
+          selectedQualityMap.set({
+            ...selectedQualityMap(),
+            [vid]: defQ,
+          });
+        }
+
+        // Default subtitle track selection: prefer Manual English, then CC English
+        if (!selectedTrackMap()[vid]) {
+          const pref = preferEnglishTrack(enriched.captionTracks ?? []);
+          if (pref) {
+            selectedTrackMap.set({
+              ...selectedTrackMap(),
+              [vid]: captionTrackId(pref),
+            });
+          }
+        }
       })
       .finally(() => {
-        fetchingMetaIds.delete(preview.videoId);
+        fetchingMetaIds.delete(vid);
+        const nextParsing = { ...parsingMap() };
+        delete nextParsing[vid];
+        parsingMap.set(nextParsing);
       });
   };
 
@@ -109,9 +148,6 @@ function App() {
   // Hydrate persisted state and local library on startup
   void initSettings().then((s) => {
     if (s.clipboardAuto) void checkClipboard();
-  });
-  void hydrateAllVideoTags().then((map) => {
-    allVideoTags.set(map);
   });
   void listEntriesSafe().then((entries) => {
     savedEntries.set(entries);
@@ -142,188 +178,235 @@ function App() {
       : candidate;
   };
 
-  // Smooth progress runner for Parsing & Downloading
-  const runWithAnimation = async (
-    kind: "parsing" | "downloading",
-    title: string,
-    work: () => Promise<void>,
-  ) => {
-    activityKind.set(kind);
-    activityTitle.set(title);
-    activityProgress.set(16);
-    const timer = setInterval(() => {
-      const cur = activityProgress();
-      if (cur < 90) {
-        activityProgress.set(Math.min(92, cur + 14));
-      }
-    }, 45);
-    try {
-      await Promise.all([work(), delay(220)]);
-      activityProgress.set(100);
-      await delay(60);
-    } finally {
-      clearInterval(timer);
-      activityKind.set(null);
-      activityProgress.set(0);
-    }
+  const activeSelectedQualityId = (): string => {
+    const cur = activePreview();
+    if (!cur) return "720p";
+    return selectedQualityMap()[cur.videoId] ?? "720p";
   };
 
-  const updateTags = (next: Record<number, BlindTag>) => {
-    tags.set(next);
-    const L = lesson();
-    if (L) {
-      saveVideoTags(L.video.videoId, next);
-      allVideoTags.set({ ...allVideoTags(), [L.video.videoId]: next });
-    }
+  const activeSelectedTrackId = (): string | null => {
+    const cur = activePreview();
+    if (!cur) return null;
+    const explicit = selectedTrackMap()[cur.videoId];
+    if (explicit) return explicit;
+    const tracks = cur.captionTracks ?? [];
+    const pref = preferEnglishTrack(tracks);
+    return pref ? captionTrackId(pref) : "en:manual";
   };
 
-  const openSavedEntry = async (
-    entry: LibraryEntry,
-    targetScreen: ChromeScreen = "blind",
+  const activeDownloadsList = (): DownloadTaskProgress[] =>
+    Object.values(downloadTasks());
+
+  const topBarActivityKind = (): ActivityKind => {
+    if (activityKind()) return activityKind();
+    const cur = activePreview();
+    if (cur && parsingMap()[cur.videoId]) return "parsing";
+    if (activeDownloadsList().length > 0) return "downloading";
+    return null;
+  };
+
+  const topBarActivityProgress = (): number => {
+    if (activityKind()) return activityProgress();
+    const dls = activeDownloadsList();
+    if (dls.length > 0) {
+      const sum = dls.reduce((acc, d) => acc + d.percent, 0);
+      return Math.round(sum / dls.length);
+    }
+    return 0;
+  };
+
+  const resolveLessonForPreview = async (
+    value: string,
+    qualityId: string,
+    trackId: string | null,
+  ): Promise<LoadedLesson> => {
+    const curPreview = activePreview();
+    if (curPreview?.parsedVideo && curPreview.rawUrl === value) {
+      return loadLessonFromParsed(curPreview.parsedVideo, {
+        qualityId,
+        trackId,
+        fetchImpl: hostFetch,
+      });
+    }
+    return loadLesson(value, hostFetch, {
+      qualityId,
+      trackId,
+    });
+  };
+
+  const downloadTargetLesson = async (
+    target: LoadedLesson,
+    qualityId?: string,
   ) => {
+    const vid = target.video.videoId;
+    if (activeDownloadIds.has(vid)) return;
+    activeDownloadIds.add(vid);
+    saving.set(true);
     error.set(null);
-    const loaded = await loadLessonFromEntry(entry);
-    if (!loaded) {
-      error.set(`Could not read saved captions for ${entry.videoId}`);
-      return;
+
+    const effectiveQuality =
+      qualityId ??
+      selectedQualityMap()[vid] ??
+      target.selectedQuality?.id ??
+      "720p";
+
+    // Auto-switch tab to match downloading media type immediately
+    if (effectiveQuality === "audio") {
+      activeTab.set("audio");
+    } else {
+      activeTab.set("video");
     }
-    blindTargetIndex.set(0);
-    lesson.set(loaded);
-    tags.set(getVideoTags(entry.videoId));
-    screen.set(targetScreen);
-    status.set(`Opened downloaded lesson → ${entry.title}`);
+
+    // Immediately display active download in library list at 0%
+    downloadTasks.set({
+      ...downloadTasks(),
+      [vid]: {
+        videoId: vid,
+        title: target.video.title || "Downloading video…",
+        thumbnailUrl:
+          target.video.thumbnailUrl ||
+          `https://i.ytimg.com/vi/${vid}/hqdefault.jpg`,
+        qualityLabel:
+          effectiveQuality === "audio"
+            ? "Audio (M4A)"
+            : `${effectiveQuality} MP4`,
+        subtitleLabel: target.track?.name ?? "English",
+        subtitleIsAuto: target.track?.isAuto ?? false,
+        targetPath: "",
+        stage: "starting",
+        percent: 0,
+        downloadedBytes: 0,
+        totalBytes: 0,
+        speedBps: 0,
+        etaSeconds: null,
+      },
+    });
+
+    try {
+      const { entry, audioNote } = await downloadLesson(target, {
+        fetchImpl: hostFetch,
+        downloadFolder: settings().downloadFolder,
+        qualityId: effectiveQuality,
+        onProgress: (prog) => {
+          downloadTasks.set({
+            ...downloadTasks(),
+            [vid]: prog,
+          });
+        },
+      });
+      const entries = await listEntriesSafe();
+      savedEntries.set(entries);
+
+      // Auto-switch tab to match downloaded media type
+      if (isAudioEntry(entry)) {
+        activeTab.set("audio");
+      } else {
+        activeTab.set("video");
+      }
+
+      await delay(300);
+      status.set(
+        entry.videoPath
+          ? `Downloaded (${entry.quality ?? effectiveQuality}) → ${entry.videoPath}`
+          : entry.audioPath
+            ? `Downloaded audio → ${entry.audioPath}`
+            : audioNote
+              ? `Downloaded captions → ${entry.captionsPath} (${audioNote})`
+              : `Downloaded locally → ${entry.captionsPath}`,
+      );
+    } catch (e) {
+      error.set(e instanceof Error ? e.message : String(e));
+    } finally {
+      activeDownloadIds.delete(vid);
+      const next = { ...downloadTasks() };
+      delete next[vid];
+      downloadTasks.set(next);
+      saving.set(activeDownloadIds.size > 0);
+    }
   };
 
-  const switchMode = (target: ChromeScreen) => {
-    if (target !== "home" && !lesson()) {
-      error.set("Paste a YouTube link and open it first");
-      screen.set("home");
-      return;
-    }
-    screen.set(target);
-  };
+  // User triggers download (either via button or Return ↵ in omnibar)
+  const onStartDownload = async (previewCandidate?: ClipboardVideoPreview | null) => {
+    const cur = previewCandidate ?? activePreview();
+    const rawVal = url().trim();
+    if (!cur && !rawVal) return;
+    if (loading()) return;
 
-  const onLoad = async () => {
-    const value = url().trim();
-    if (!value || loading()) return;
     loading.set(true);
     error.set(null);
     status.set(null);
 
+    const chosenQualityId = activeSelectedQualityId();
+    const chosenTrackId = activeSelectedTrackId();
+
     try {
-      await runWithAnimation("parsing", value, async () => {
-        const loaded = await loadLesson(value, hostFetch);
-
-        // If local video.mp4 already exists, attach file:// URL directly
-        try {
-          const targetVideo = videoFile(
-            loaded.video.videoId,
-            "mp4",
-            settings().downloadFolder,
+      activityKind.set("parsing");
+      activityTitle.set(cur?.title || rawVal);
+      const loaded = cur?.parsedVideo
+        ? await loadLessonFromParsed(cur.parsedVideo, {
+            qualityId: chosenQualityId,
+            trackId: chosenTrackId,
+            fetchImpl: hostFetch,
+          })
+        : await resolveLessonForPreview(
+            cur?.rawUrl || rawVal,
+            chosenQualityId,
+            chosenTrackId,
           );
-          if (await exists(targetVideo)) {
-            loaded.video.videoUrl = `file://${targetVideo}`;
-            loaded.video.audioUrl = `file://${targetVideo}`;
-            loaded.video.videoMimeType = "video/mp4";
-          }
-        } catch {
-          // ignore
-        }
 
-        blindTargetIndex.set(0);
-        lesson.set(loaded);
-        tags.set(getVideoTags(loaded.video.videoId));
-        saveSettings({ lastUrl: value });
-        dismissedVideoId.set(loaded.video.videoId);
-        if (!loaded.track) {
-          error.set("Parsed video, but no caption tracks found");
-          screen.set("home");
-        } else if (loaded.sentences.length === 0) {
-          error.set("Captions loaded, but no sentences after merge");
-          screen.set("home");
-        } else {
-          screen.set("blind");
-          status.set(
-            isNativeHost()
-              ? `Parsed "${loaded.video.title}" on native host`
-              : `Parsed "${loaded.video.title}"`,
-          );
-          // Auto-download video & captions in background so playback has reliable local media
-          void downloadTargetLesson(loaded);
-        }
-      });
+      if (cur) dismissedVideoId.set(cur.videoId);
+      url.set("");
+      activityKind.set(null);
+      void downloadTargetLesson(loaded, chosenQualityId);
     } catch (e) {
-      lesson.set(null);
-      tags.set({});
-      screen.set("home");
+      activityKind.set(null);
       error.set(e instanceof Error ? e.message : String(e));
     } finally {
       loading.set(false);
     }
   };
 
-  const downloadTargetLesson = async (target: LoadedLesson) => {
-    if (saving()) return;
-    saving.set(true);
-    error.set(null);
-    try {
-      await runWithAnimation("downloading", target.video.title, async () => {
-        const { entry, audioNote } = await downloadLesson(target, {
-          fetchImpl: hostFetch,
-          downloadFolder: settings().downloadFolder,
-        });
-        const entries = await listEntriesSafe();
-        savedEntries.set(entries);
-
-        // If currently viewing this lesson, update with downloaded file:// URLs
-        const cur = lesson();
-        if (cur && cur.video.videoId === entry.videoId) {
-          const localMedia = entry.videoPath
-            ? `file://${entry.videoPath}`
-            : entry.audioPath
-              ? `file://${entry.audioPath}`
-              : null;
-          if (localMedia) {
-            lesson.set({
-              ...cur,
-              video: {
-                ...cur.video,
-                videoUrl: entry.videoPath
-                  ? `file://${entry.videoPath}`
-                  : cur.video.videoUrl,
-                audioUrl: localMedia,
-                videoMimeType: entry.videoPath
-                  ? "video/mp4"
-                  : cur.video.videoMimeType,
-              },
-            });
-          }
+  const handleOpenEntry = async (entry: LibraryEntry) => {
+    const candidates = localMediaCandidates({
+      videoId: entry.videoId,
+      videoPath: entry.videoPath,
+      audioPath: entry.audioPath,
+      dataDir: process.dataDir ?? null,
+    });
+    let src: string | null = null;
+    for (const path of candidates) {
+      try {
+        if (await exists(path)) {
+          src = path;
+          break;
         }
+      } catch {
+        // try next
+      }
+    }
+    src = src ?? localMediaFileUrl(entry);
+    if (!src) {
+      error.set(`没有可播放的本地文件：${entry.title}`);
+      return;
+    }
+    error.set(null);
+    playingSrc.set(src);
+    playingEntry.set(entry);
+  };
 
-        status.set(
-          audioNote
-            ? `Downloaded captions → ${entry.captionsPath} (${audioNote})`
-            : `Downloaded locally → ${entry.captionsPath}` +
-                (entry.audioPath ? ` + ${entry.audioPath}` : "") +
-                (entry.videoPath ? ` + ${entry.videoPath}` : ""),
-        );
-      });
-    } catch (e) {
-      error.set(e instanceof Error ? e.message : String(e));
-    } finally {
-      saving.set(false);
+  const handleOpenFolder = async (entry: LibraryEntry) => {
+    const target = entry.videoPath || entry.audioPath || entry.captionsPath;
+    if (target) {
+      await openFileParentFolder(target);
+    } else {
+      await openDirectory(mediaRoot(settings().downloadFolder));
     }
   };
 
-  const onSaveLocal = async () => {
-    const L = lesson();
-    if (!L) return;
-    await downloadTargetLesson(L);
-  };
-
-  const onConfirmClipboard = async (preview: ClipboardVideoPreview) => {
-    url.set(preview.rawUrl);
-    await onLoad();
+  const handleDeleteEntry = async (entry: LibraryEntry) => {
+    await deleteEntry(entry.videoId);
+    const updated = await listEntriesSafe();
+    savedEntries.set(updated);
   };
 
   keymap.bind({
@@ -331,32 +414,26 @@ function App() {
     "mod+k": () => urlInputRef?.focus(),
     "mod+,": () => settingsOpen.set(!settingsOpen()),
     escape: () => {
-      if (settingsOpen()) settingsOpen.set(false);
+      if (playingEntry()) {
+        playingEntry.set(null);
+        playingSrc.set(null);
+        return;
+      }
+      if (settingsOpen()) {
+        settingsOpen.set(false);
+        return;
+      }
+      const cur = activePreview();
+      if (cur) dismissedVideoId.set(cur.videoId);
     },
-    "mod+1": () => switchMode("home"),
-    "mod+2": () => switchMode("blind"),
-    "mod+3": () => switchMode("loop"),
-    "mod+4": () => switchMode("list"),
-    "mod+s": () => {
-      if (lesson()) void onSaveLocal();
-    },
+    "mod+1": () => activeTab.set("video"),
+    "mod+2": () => activeTab.set("audio"),
   });
 
   effect(() => {
     if (!isAvailable) return;
-    const L = lesson();
-    const sc = screen();
-    const modeLabel =
-      sc === "home"
-        ? "Library"
-        : sc === "blind"
-          ? "Blind Flow"
-          : sc === "loop"
-            ? "Loop Dojo"
-            : "Sentences";
-    Window.setTitle(
-      L ? `Ear — ${modeLabel} · ${L.video.title}` : `Ear — ${modeLabel}`,
-    );
+    const tabName = activeTab() === "video" ? "Video" : "Audio";
+    Window.setTitle(`Ear — ${tabName}`);
 
     Menu.setApplicationMenu([
       {
@@ -372,10 +449,9 @@ function App() {
             onSelect: () => void checkClipboard(true),
           },
           {
-            label: "Download Lesson Locally",
-            shortcut: "mod+s",
-            disabled: !L,
-            onSelect: () => void onSaveLocal(),
+            label: "Open Download Folder",
+            onSelect: () =>
+              void openDirectory(mediaRoot(settings().downloadFolder)),
           },
           { type: "separator" },
           {
@@ -400,37 +476,21 @@ function App() {
         ],
       },
       {
-        label: "Practice",
+        label: "View",
         submenu: [
           {
-            label: "Library",
+            label: "Video",
             shortcut: "mod+1",
-            checked: sc === "home",
-            onSelect: () => switchMode("home"),
+            checked: activeTab() === "video",
+            onSelect: () => activeTab.set("video"),
           },
           {
-            label: "Blind Flow",
+            label: "Audio",
             shortcut: "mod+2",
-            checked: sc === "blind",
-            onSelect: () => switchMode("blind"),
+            checked: activeTab() === "audio",
+            onSelect: () => activeTab.set("audio"),
           },
-          {
-            label: "Loop Dojo",
-            shortcut: "mod+3",
-            checked: sc === "loop",
-            onSelect: () => switchMode("loop"),
-          },
-          {
-            label: "Sentences",
-            shortcut: "mod+4",
-            checked: sc === "list",
-            onSelect: () => switchMode("list"),
-          },
-        ],
-      },
-      {
-        label: "Window",
-        submenu: [
+          { type: "separator" },
           {
             label: "Switch Appearance",
             onSelect: () =>
@@ -438,7 +498,11 @@ function App() {
                 appearance: colorScheme() === "dark" ? "light" : "dark",
               }),
           },
-          { type: "separator" },
+        ],
+      },
+      {
+        label: "Window",
+        submenu: [
           { role: "minimize" },
           { role: "zoom" },
           { role: "toggleFullScreen" },
@@ -447,22 +511,14 @@ function App() {
     ]);
   });
 
-  const currentDojoCount = () => {
-    const L = lesson();
-    if (!L) return 0;
-    return dojoQueue(L.sentences, tags()).length;
-  };
-
-  const blindLesson = (): LoadedLesson | null =>
-    screen() === "blind" ? lesson() : null;
-  const loopLesson = (): LoadedLesson | null =>
-    screen() === "loop" ? lesson() : null;
-  const listLesson = (): LoadedLesson | null =>
-    screen() === "list" ? lesson() : null;
+  const videoEntriesCount = () =>
+    savedEntries().filter((e) => !isAudioEntry(e)).length;
+  const audioEntriesCount = () =>
+    savedEntries().filter((e) => isAudioEntry(e)).length;
 
   return (
     <View class="relative flex-1 bg-background pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)]">
-      {/* 1. Minimal top bar + text mode tabs + 1px progress line */}
+      {/* 1. Top bar with expandable omnibar + Video / Audio tabs */}
       <TopBar
         url={url}
         onUrlChange={(v) => {
@@ -477,25 +533,59 @@ function App() {
         onInputRef={(ref) => {
           urlInputRef = ref;
         }}
-        onSubmitParse={() => void onLoad()}
+        onSubmitParse={() => void onStartDownload()}
         onReadClipboard={() => void checkClipboard(true)}
         showClipboardButton={() =>
           !settings().clipboardAuto && url().length === 0
         }
         loading={loading}
-        screen={screen}
-        onSelectScreen={switchMode}
-        dojoCount={currentDojoCount}
-        totalVideos={() => savedEntries().length}
+        parsing={() => {
+          const cur = activePreview();
+          return cur ? Boolean(parsingMap()[cur.videoId]) : false;
+        }}
+        parseMessage={() => {
+          const cur = activePreview();
+          return cur ? (parseMessageMap()[cur.videoId] ?? "") : "";
+        }}
+        activePreview={activePreview}
+        selectedQualityId={activeSelectedQualityId}
+        onSelectQuality={(q) => {
+          const cur = activePreview();
+          if (cur) {
+            selectedQualityMap.set({
+              ...selectedQualityMap(),
+              [cur.videoId]: q,
+            });
+          }
+        }}
+        selectedTrackId={activeSelectedTrackId}
+        onSelectTrack={(t) => {
+          const cur = activePreview();
+          if (cur) {
+            selectedTrackMap.set({
+              ...selectedTrackMap(),
+              [cur.videoId]: t,
+            });
+          }
+        }}
+        onDownloadPreview={(p: ClipboardVideoPreview) => void onStartDownload(p)}
+        onDismissPreview={() => {
+          const cur = activePreview();
+          if (cur) dismissedVideoId.set(cur.videoId);
+        }}
+        activeTab={activeTab}
+        onSelectTab={(tab: MediaTab) => activeTab.set(tab)}
+        videoCount={videoEntriesCount}
+        audioCount={audioEntriesCount}
+        activeDownloadCount={() => activeDownloadsList().length}
         onOpenSettings={() => settingsOpen.set(true)}
-        activityKind={activityKind}
-        activityProgress={activityProgress}
+        activityKind={topBarActivityKind}
+        activityProgress={topBarActivityProgress}
       />
 
-      {/* 2. Single workspace scroll area */}
+      {/* 2. Workspace scroll area: Download telemetry banner + Media list */}
       <Scroll class="flex-1">
         <View class="mx-auto w-full max-w-[960px] gap-4 p-4 md:p-5">
-          {/* Quiet activity status & toasts */}
           <ActivityBanner
             kind={activityKind}
             progress={activityProgress}
@@ -508,86 +598,32 @@ function App() {
             }}
           />
 
-          {/* Compact single-line clipboard prompt */}
-          <If when={activePreview()}>
-            {(getPreview) => (
-              <ClipboardCard
-                preview={getPreview}
-                loading={loading}
-                onConfirm={(p) => void onConfirmClipboard(p)}
-                onDismiss={() => dismissedVideoId.set(getPreview().videoId)}
-              />
-            )}
-          </If>
-
-          {/* Screen 1: Minimal library list */}
-          <If when={screen() === "home"}>
-            <LibraryView
-              savedEntries={savedEntries}
-              activeVideoId={() => lesson()?.video.videoId ?? null}
-              allVideoTags={allVideoTags}
-              onOpenSaved={(entry, mode) => void openSavedEntry(entry, mode)}
-            />
-          </If>
-
-          {/* Screen 2: Blind Flow */}
-          <If when={blindLesson()}>
-            {(get) => (
-              <BlindFlow
-                lesson={get()}
-                tags={tags()}
-                onTagsChange={updateTags}
-                onOpenDojo={() => screen.set("loop")}
-                onDownload={() => void onSaveLocal()}
-                saving={saving}
-                initialIndex={blindTargetIndex() ?? undefined}
-              />
-            )}
-          </If>
-
-          {/* Screen 3: Loop Dojo */}
-          <If when={loopLesson()}>
-            {(get) => (
-              <LoopDojo
-                lesson={get()}
-                tags={tags()}
-                onBackToBlind={() => screen.set("blind")}
-                onDownload={() => void onSaveLocal()}
-                saving={saving}
-              />
-            )}
-          </If>
-
-          {/* Screen 4: Sentences List */}
-          <If when={listLesson()}>
-            {(get) => (
-              <SentencesView
-                lesson={get}
-                tags={tags}
-                difficultyFilter={difficultyFilter}
-                onDifficultyFilterChange={(df) => difficultyFilter.set(df)}
-                onPracticeInBlind={(idx) => {
-                  if (idx != null) {
-                    blindTargetIndex.set(idx);
-                  }
-                  screen.set("blind");
-                }}
-              />
-            )}
-          </If>
+          <LibraryView
+            activeTab={activeTab}
+            savedEntries={savedEntries}
+            activeDownloads={activeDownloadsList}
+            onOpenEntry={(entry) => void handleOpenEntry(entry)}
+            onOpenFolder={(entry) => void handleOpenFolder(entry)}
+            onDeleteEntry={(entry) => void handleDeleteEntry(entry)}
+          />
         </View>
       </Scroll>
 
-      {/* 3. Optional bottom shortcut bar (hidden by default) */}
-      <ChromeHint
-        screen={screen()}
-        onSelectScreen={switchMode}
-        lessonTitle={lesson()?.video.title ?? null}
-        sentenceCount={lesson()?.sentences.length ?? 0}
-        dojoCount={currentDojoCount()}
-      />
+      {/* 3. In-app media player (bare path via nsh <Video>) */}
+      <If when={playingEntry() && playingSrc()}>
+        {() => (
+          <MediaPlayer
+            entry={() => playingEntry()!}
+            src={() => playingSrc()!}
+            onClose={() => {
+              playingEntry.set(null);
+              playingSrc.set(null);
+            }}
+          />
+        )}
+      </If>
 
-      {/* 4. Settings Modal */}
+      {/* 4. Settings modal overlay */}
       <If when={settingsOpen()}>
         <SettingsPanel onClose={() => settingsOpen.set(false)} />
       </If>

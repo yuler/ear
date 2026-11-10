@@ -1,12 +1,14 @@
-import { effect, keymap, Scroll, signal, Text, Video, View } from "nsh";
+import { effect, Image, keymap, Scroll, signal, Text, Video, View } from "nsh";
 import { Button } from "nsh/base";
 import {
   clipEnded,
   msToSeconds,
+  resolvePlaybackSource,
   type PlaybackRate,
 } from "../player";
 import { Icon } from "../ui/Icon";
 import { settings, subtitleClass } from "../ui/settings";
+import { videoPosterUrl } from "../youtube/parse";
 import type { LoadedLesson, Sentence } from "../youtube/types";
 import {
   applyTag,
@@ -74,7 +76,8 @@ function TagButton(props: {
 }
 
 type Props = {
-  lesson: LoadedLesson;
+  /** Accessor so download completion (file:// swap) updates the player. */
+  lesson: () => LoadedLesson;
   /** Shared with Loop Dojo (Lag / Blind feed the dojo queue). */
   tags: Record<number, BlindTag>;
   onTagsChange: (tags: Record<number, BlindTag>) => void;
@@ -89,13 +92,14 @@ type Props = {
  * Video -> focal subtitle -> thin timeline -> controls -> collapsible transcript.
  */
 export function BlindFlow(props: Props) {
+  const lesson = () => props.lesson();
   const session = signal<BlindFlowSession>({
     ...createBlindFlowSession(),
     index:
       props.initialIndex != null
         ? Math.max(
             0,
-            Math.min(props.lesson.sentences.length - 1, props.initialIndex),
+            Math.min(lesson().sentences.length - 1, props.initialIndex),
           )
         : 0,
     tags: { ...props.tags },
@@ -106,9 +110,12 @@ export function BlindFlow(props: Props) {
   const showTranscript = signal(false);
   let video: { seek(seconds: number): void } | null = null;
 
-  const sentences = props.lesson.sentences;
-  const mediaUrl = () =>
-    props.lesson.video.videoUrl || props.lesson.video.audioUrl || null;
+  const sentences = () => lesson().sentences;
+  const playback = () => resolvePlaybackSource(lesson().video);
+  const mediaUrl = () => playback().url;
+  const hasVideoStream = () => playback().hasPicture;
+  const posterUrl = () =>
+    videoPosterUrl(lesson().video.videoId, lesson().video.thumbnailUrl);
 
   const playSentence = (s: Sentence) => {
     const url = mediaUrl();
@@ -128,7 +135,7 @@ export function BlindFlow(props: Props) {
 
   const onTag = (tag: BlindTag) => {
     stopPlayback();
-    const next = applyTag(session(), tag, sentences.length);
+    const next = applyTag(session(), tag, sentences().length);
     session.set(next);
     props.onTagsChange(next.tags);
   };
@@ -140,15 +147,16 @@ export function BlindFlow(props: Props) {
   };
 
   const jumpTo = (idx: number, autoPlay = false) => {
-    if (sentences.length === 0) return;
-    const clamped = Math.max(0, Math.min(sentences.length - 1, idx));
+    const list = sentences();
+    if (list.length === 0) return;
+    const clamped = Math.max(0, Math.min(list.length - 1, idx));
     session.set({
       ...session(),
       index: clamped,
       revealed: false,
     });
     if (autoPlay) {
-      const target = sentences[clamped];
+      const target = list[clamped];
       if (target) {
         playSentence(target);
       }
@@ -170,13 +178,14 @@ export function BlindFlow(props: Props) {
     session.set(cur.revealed ? hideCaption(cur) : revealCaption(cur));
   };
 
-  const done = () => isComplete(session(), sentences.length);
-  const sentence = () => currentSentence(sentences, session());
+  const done = () => isComplete(session(), sentences().length);
+  const sentence = () => currentSentence(sentences(), session());
   const activeSentence = (): Sentence | null => (done() ? null : sentence());
   const counts = () => countTags(session().tags);
   const progressLabel = () => {
-    if (sentences.length === 0) return "0 / 0";
-    return `${Math.min(session().index + 1, sentences.length)} / ${sentences.length}`;
+    const list = sentences();
+    if (list.length === 0) return "0 / 0";
+    return `${Math.min(session().index + 1, list.length)} / ${list.length}`;
   };
 
   keymap.bind(
@@ -242,7 +251,7 @@ export function BlindFlow(props: Props) {
       <If when={activeSentence()}>
         {(get) => (
           <View class="gap-5">
-            {/* Clean video frame (no border, no overlay badges) */}
+            {/* Clean video frame with video poster */}
             <View class="relative flex aspect-video max-h-[380px] w-full items-center justify-center overflow-hidden rounded-md bg-black">
               <If when={mediaUrl()}>
                 <Video
@@ -266,8 +275,22 @@ export function BlindFlow(props: Props) {
                   onError={() => stopPlayback()}
                 />
               </If>
+
+              {/* Video poster overlay when paused, audio-only, or captions-only */}
+              <If when={!playing() || !hasVideoStream()}>
+                <Image
+                  src={posterUrl()}
+                  class="absolute inset-0 h-full w-full object-cover"
+                />
+                <View class="absolute inset-0 bg-black/25" />
+              </If>
+
               <If when={!mediaUrl()}>
-                <Text class="text-xs text-dim">Captions only</Text>
+                <View class="absolute bottom-2.5 left-2.5 rounded bg-black/75 px-2 py-0.5">
+                  <Text class="font-mono text-[11px] text-white">
+                    Captions only
+                  </Text>
+                </View>
               </If>
 
               <Button
@@ -278,7 +301,7 @@ export function BlindFlow(props: Props) {
                 accessibilityLabel={playing() ? "Pause" : "Play"}
               >
                 <If when={!playing() && mediaUrl()}>
-                  <View class="h-12 w-12 items-center justify-center rounded-full bg-black/60">
+                  <View class="h-12 w-12 items-center justify-center rounded-full bg-black/65">
                     <Icon name="play" size={18} color="#fafafa" />
                   </View>
                 </If>
@@ -310,7 +333,7 @@ export function BlindFlow(props: Props) {
                 </Text>
               </View>
               <View class="flex-row items-center gap-1">
-                <Each of={sentences} key="index">
+                <Each of={sentences()} key="index">
                   {(item) => (
                     <Button
                       onPress={() => jumpAndPlay(item().index)}
@@ -438,7 +461,7 @@ export function BlindFlow(props: Props) {
         )}
       </If>
 
-      <If when={sentences.length === 0}>
+      <If when={sentences().length === 0}>
         <Text class="text-sm text-muted-foreground">
           No sentences to practice.
         </Text>
@@ -448,7 +471,7 @@ export function BlindFlow(props: Props) {
       <If when={showTranscript()}>
         <View class="border-t border-line pt-4">
           <Scroll class="max-h-[320px]">
-            <Each of={sentences} key="index">
+            <Each of={sentences()} key="index">
               {(item) => (
                 <Button
                   onPress={() => jumpAndPlay(item().index)}
