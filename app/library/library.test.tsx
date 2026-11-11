@@ -99,3 +99,11 @@ test("Downbit download telemetry formatters format speed, ETA, and byte progress
     "10.0 MB of 50.0 MB",
   );
 });
+
+test("openSystemPath and revealInFileManager guard empty and invalid targets", async () => {
+  const { openFileParentFolder, openSystemPath, revealInFileManager } =
+    await import("./paths");
+  expect(await openSystemPath("")).toBe(false);
+  expect(await revealInFileManager("")).toBe(false);
+  expect(await openFileParentFolder("")).toBe(false);
+});

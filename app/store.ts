@@ -5,13 +5,22 @@ import type { PlaybackRate } from "./player";
 export type Appearance = "dark" | "light" | "system";
 export type SubtitleSize = "sm" | "md" | "lg";
 export type LibraryLayoutMode = "post" | "grade" | "list";
+export type SentenceLengthMode = "short" | "medium" | "long";
+export type EarLocale = "en" | "zh";
+export type DefaultQuality = "360p" | "480p" | "720p" | "1080p" | "audio";
 
 export type EarSettings = {
   lastUrl: string;
   /** Initial playback rate for Blind Flow and Loop Dojo. */
   preferredRate: PlaybackRate;
   appearance: Appearance;
+  /** Display language for buttons and labels ("en" English first, or "zh" Chinese). */
+  language: EarLocale;
   subtitleSize: SubtitleSize;
+  /** Sentence segmentation length: short for beginner training, medium, long. */
+  sentenceLength: SentenceLengthMode;
+  /** Default video quality preference (defaults to "360p" for fast download & mobile sync). */
+  defaultQuality: DefaultQuality;
   /** Bottom keyboard-shortcut hint bar. */
   showFooter: boolean;
   /** Read the system clipboard for YouTube links on launch / focus. */
@@ -32,7 +41,10 @@ export const DEFAULT_SETTINGS: EarSettings = {
   lastUrl: "",
   preferredRate: 1,
   appearance: "dark",
+  language: "en",
   subtitleSize: "md",
+  sentenceLength: "short",
+  defaultQuality: "360p",
   showFooter: false,
   clipboardAuto: true,
   downloadFolder: "",
@@ -65,6 +77,7 @@ export function normalizeSettings(parsed: Partial<EarSettings>): EarSettings {
       parsed.appearance === "system"
         ? parsed.appearance
         : d.appearance,
+    language: parsed.language === "zh" ? "zh" : "en",
     subtitleSize:
       parsed.subtitleSize === "sm" ||
       parsed.subtitleSize === "md" ||
@@ -85,6 +98,20 @@ export function normalizeSettings(parsed: Partial<EarSettings>): EarSettings {
       parsed.libraryLayout === "list"
         ? parsed.libraryLayout
         : d.libraryLayout,
+    sentenceLength:
+      parsed.sentenceLength === "medium" ||
+      parsed.sentenceLength === "long" ||
+      parsed.sentenceLength === "short"
+        ? parsed.sentenceLength
+        : d.sentenceLength,
+    defaultQuality:
+      parsed.defaultQuality === "1080p" ||
+      parsed.defaultQuality === "720p" ||
+      parsed.defaultQuality === "480p" ||
+      parsed.defaultQuality === "360p" ||
+      parsed.defaultQuality === "audio"
+        ? parsed.defaultQuality
+        : d.defaultQuality,
   };
 }
 

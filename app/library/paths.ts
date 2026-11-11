@@ -62,10 +62,10 @@ export function archiveFile(): string {
 }
 
 /**
- * Opens a file or directory with the OS default handler.
+ * Opens a file or directory with the OS default handler across all systems.
  *
- * Prefer `ear open` / `gio open` — both return immediately. Avoid waiting on
- * plain `xdg-open`, which often blocks until the media player exits.
+ * Uses `ear open` first (which handles native file manager reveal, Finder, Explorer,
+ * and FreeDesktop D-Bus on Linux). Falls back to native platform tools.
  */
 export async function openSystemPath(targetPath: string): Promise<boolean> {
   if (!targetPath) return false;
@@ -81,6 +81,16 @@ export async function openSystemPath(targetPath: string): Promise<boolean> {
   if (process.platform === "macos") {
     try {
       const res = await process.run("open", [targetPath]);
+      return res.code === 0;
+    } catch {
+      return false;
+    }
+  }
+
+  if (process.platform === "windows") {
+    try {
+      const winPath = targetPath.replace(/\//g, "\\");
+      const res = await process.run("explorer", [winPath]);
       return res.code === 0;
     } catch {
       return false;
@@ -108,8 +118,104 @@ export async function openSystemPath(targetPath: string): Promise<boolean> {
   return false;
 }
 
+/**
+ * Reveal a file in the desktop's native file manager (Finder / File Explorer / GNOME Files / Dolphin).
+ * Leverages `ear files` / `ear open`, with multi-OS native fallbacks.
+ */
+export async function revealInFileManager(filePath: string): Promise<boolean> {
+  if (!filePath) return false;
+  if (!isNativeHost() || typeof process.run !== "function") return false;
+
+  // 1. Try ear CLI (handles macOS open -R, Windows explorer /select, Linux D-Bus ShowItems)
+  try {
+    const res = await process.run("ear", ["files", filePath]);
+    if (res.code === 0) return true;
+  } catch {
+    // try direct fallbacks
+  }
+
+  // 2. macOS: Finder reveal
+  if (process.platform === "macos") {
+    try {
+      const res = await process.run("open", ["-R", filePath]);
+      if (res.code === 0) return true;
+    } catch {
+      // fallback
+    }
+  }
+
+  // 3. Windows: File Explorer reveal
+  if (process.platform === "windows") {
+    try {
+      const winPath = filePath.replace(/\//g, "\\");
+      const res = await process.run("explorer", [`/select,${winPath}`]);
+      if (res.code === 0) return true;
+    } catch {
+      // fallback
+    }
+  }
+
+  // 4. Linux: FreeDesktop D-Bus ShowItems (Nautilus/Files, Dolphin, etc.)
+  if (process.platform === "linux") {
+    const fileUri = filePath.startsWith("/")
+      ? `file://${encodeURI(filePath)}`
+      : filePath;
+    try {
+      const res = await process.run("gdbus", [
+        "call",
+        "--session",
+        "--dest",
+        "org.freedesktop.FileManager1",
+        "--object-path",
+        "/org/freedesktop/FileManager1",
+        "--method",
+        "org.freedesktop.FileManager1.ShowItems",
+        `['${fileUri}']`,
+        "",
+      ]);
+      if (res.code === 0) return true;
+    } catch {
+      // try dbus-send
+    }
+
+    try {
+      const res = await process.run("dbus-send", [
+        "--session",
+        "--dest=org.freedesktop.FileManager1",
+        "--type=method_call",
+        "/org/freedesktop/FileManager1",
+        "org.freedesktop.FileManager1.ShowItems",
+        `array:string:${fileUri}`,
+        "string:",
+      ]);
+      if (res.code === 0) return true;
+    } catch {
+      // try direct binaries
+    }
+
+    try {
+      const res = await process.run("nautilus", ["--select", filePath]);
+      if (res.code === 0) return true;
+    } catch {
+      // try dolphin
+    }
+
+    try {
+      const res = await process.run("dolphin", ["--select", filePath]);
+      if (res.code === 0) return true;
+    } catch {
+      // fallback
+    }
+  }
+
+  // 5. Fallback: open parent folder
+  const parent = dirname(filePath);
+  return openDirectory(parent);
+}
+
 /** Ensure directory exists and open it in the system file manager. */
 export async function openDirectory(dirPath: string): Promise<boolean> {
+  if (!dirPath) return false;
   try {
     await mkdir(dirPath, { recursive: true });
   } catch {
@@ -118,8 +224,11 @@ export async function openDirectory(dirPath: string): Promise<boolean> {
   return openSystemPath(dirPath);
 }
 
-/** Open the containing folder of a file in the system file manager. */
+/** Open the containing folder of a file in the system file manager (selecting the file if possible). */
 export async function openFileParentFolder(filePath: string): Promise<boolean> {
+  if (!filePath) return false;
+  const revealed = await revealInFileManager(filePath);
+  if (revealed) return true;
   const parent = dirname(filePath);
   return openDirectory(parent);
 }

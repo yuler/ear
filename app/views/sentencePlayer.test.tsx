@@ -8,8 +8,9 @@ import {
   getNextSentenceIndex,
   getPrevSentenceIndex,
   isSentenceMasked,
+  resegmentSentences,
 } from "./sentencePlayer";
-import type { Sentence } from "../youtube/types";
+import type { CaptionCue, Sentence } from "../youtube/types";
 
 const mockSentences: Sentence[] = [
   {
@@ -93,4 +94,44 @@ test("displaySentenceText and isSentenceMasked support mask and reveal", () => {
   // Not masked globally -> original text regardless of reveal
   expect(isSentenceMasked(false, false)).toBe(false);
   expect(displaySentenceText(text, false, false)).toBe(text);
+});
+
+test("resegmentSentences supports short, medium, and long modes", () => {
+  const cues: CaptionCue[] = [
+    { startMs: 0, endMs: 1500, text: "When I was young," },
+    { startMs: 1500, endMs: 3000, text: "I loved to read books," },
+    { startMs: 3100, endMs: 5000, text: "and I went to the library." },
+  ];
+
+  // Short mode: splits on clauses/commas into bite-sized training sentences
+  const shortSentences = resegmentSentences(cues, [], "short");
+  expect(shortSentences.length).toBeGreaterThanOrEqual(2);
+  expect(shortSentences[0]!.text).toBe("When I was young,");
+
+  // Long mode: groups clauses together into longer context
+  const longSentences = resegmentSentences(cues, [], "long");
+  expect(longSentences.length).toBe(1);
+  expect(longSentences[0]!.text).toContain("When I was young, I loved to read books, and I went to the library.");
+});
+
+test("resegmentSentences slices fallback sentences without cues in short mode", () => {
+  const fallback: Sentence[] = [
+    {
+      index: 0,
+      startMs: 0,
+      endMs: 6000,
+      text: "First clause here, second clause there, third clause ends.",
+      wordCount: 9,
+      wpm: 120,
+      difficulty: "i-1",
+    },
+  ];
+
+  const shortResult = resegmentSentences([], fallback, "short");
+  expect(shortResult.length).toBe(3);
+  expect(shortResult[0]!.text).toBe("First clause here,");
+  expect(shortResult[1]!.text).toBe("second clause there,");
+  expect(shortResult[2]!.text).toBe("third clause ends.");
+  expect(shortResult[0]!.startMs).toBe(0);
+  expect(shortResult[2]!.endMs).toBe(6000);
 });

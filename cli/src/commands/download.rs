@@ -259,6 +259,7 @@ fn fallback_yt_dlp(video_id: &str, quality: &str, output_path: &Path) -> Result<
                     if let Some(num_str) = prefix.split_whitespace().last() {
                         if let Ok(pct) = num_str.parse::<f64>() {
                             emit_json(json!({
+                                "v": 1,
                                 "type": "progress",
                                 "stage": "downloading",
                                 "percent": pct.clamp(0.0, 99.0),
@@ -296,7 +297,7 @@ pub fn run(args: &[String]) -> Result<(), String> {
                 i += 1;
                 video_id = args.get(i).cloned().unwrap_or_default();
             }
-            "--output" => {
+            "--output" | "-o" => {
                 i += 1;
                 output_str = args.get(i).cloned().unwrap_or_default();
             }
@@ -314,17 +315,34 @@ pub fn run(args: &[String]) -> Result<(), String> {
                     audio_url = Some(a);
                 }
             }
-            "--quality" => {
+            "--quality" | "-q" => {
                 i += 1;
                 quality = args.get(i).cloned().unwrap_or_else(|| "720p".to_string());
+            }
+            arg if !arg.starts_with('-') && video_id.is_empty() => {
+                if let Some(id) = crate::youtube::extract_video_id(arg) {
+                    video_id = id;
+                } else {
+                    video_id = arg.to_string();
+                }
             }
             _ => {}
         }
         i += 1;
     }
 
+    if video_id.is_empty() && video_url.is_none() && audio_url.is_none() {
+        return Err("Missing video ID or URL. Usage: ear download <URL|ID> [--output <path>] [--quality <q>]".to_string());
+    }
+
     if output_str.is_empty() {
-        return Err("Missing --output <path>".to_string());
+        let ext = if quality == "audio" { "m4a" } else { "mp4" };
+        let base = if !video_id.is_empty() {
+            &video_id
+        } else {
+            "media"
+        };
+        output_str = format!("./{base}.{ext}");
     }
 
     let output_path = PathBuf::from(&output_str);
@@ -364,6 +382,7 @@ pub fn run(args: &[String]) -> Result<(), String> {
     }
 
     emit_json(json!({
+        "v": 1,
         "type": "progress",
         "stage": "starting",
         "percent": 2.0,
@@ -426,6 +445,7 @@ pub fn run(args: &[String]) -> Result<(), String> {
             };
 
             emit_json(json!({
+                "v": 1,
                 "type": "progress",
                 "stage": "downloading",
                 "percent": (pct * 10.0).round() / 10.0,
@@ -464,6 +484,7 @@ pub fn run(args: &[String]) -> Result<(), String> {
         match (video_url.is_some(), audio_url.is_some()) {
             (true, true) => {
                 emit_json(json!({
+                    "v": 1,
                     "type": "progress",
                     "stage": "merging",
                     "percent": 96.0,
@@ -513,6 +534,7 @@ pub fn run(args: &[String]) -> Result<(), String> {
             .map(|m| m.len())
             .unwrap_or(total_bytes);
         emit_json(json!({
+            "v": 1,
             "type": "done",
             "percent": 100.0,
             "path": output_path.to_string_lossy(),
@@ -529,6 +551,7 @@ pub fn run(args: &[String]) -> Result<(), String> {
     if !video_id.is_empty() {
         let size = fallback_yt_dlp(&video_id, &quality, &output_path)?;
         emit_json(json!({
+            "v": 1,
             "type": "done",
             "percent": 100.0,
             "path": output_path.to_string_lossy(),

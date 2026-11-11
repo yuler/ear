@@ -23,11 +23,11 @@ export function MediaPlayer(props: {
     <View class="absolute inset-0 z-50 items-center justify-center bg-black/80 p-4">
       <View class="w-full max-w-[880px] gap-3 rounded-xl border border-line bg-background p-4 shadow-2xl">
         <View class="flex-row items-start justify-between gap-3">
-          <View class="min-w-0 flex-1 gap-0.5">
-            <Text class="line-clamp-2 text-sm font-semibold text-foreground">
+          <View selectable class="min-w-0 flex-1 gap-0.5 select-text">
+            <Text class="select-text line-clamp-2 text-sm font-semibold text-foreground">
               {entry().title}
             </Text>
-            <Text class="font-mono text-xs text-muted-foreground">
+            <Text class="select-text font-mono text-xs text-muted-foreground">
               {entry().quality ?? (audioOnly() ? "Audio" : "Video")}
               {entry().videoId ? ` · ${entry().videoId}` : ""}
             </Text>

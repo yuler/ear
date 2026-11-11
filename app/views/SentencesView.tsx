@@ -23,15 +23,14 @@ function SentenceRow(props: {
   onSelect: () => void;
 }) {
   return (
-    <Button
-      onPress={props.onSelect}
-      class="w-full flex-row items-baseline justify-between gap-4 border-b border-line py-3.5 active:bg-accent"
+    <View
+      class="w-full flex-row items-baseline justify-between gap-4 border-b border-line py-3.5 transition hover:bg-well/30"
     >
-      <View class="min-w-0 flex-1 flex-row items-baseline gap-3">
-        <Text class="shrink-0 font-mono text-xs tabular-nums text-dim">
+      <View selectable class="min-w-0 flex-1 flex-row items-baseline gap-3 select-text">
+        <Text class="select-text shrink-0 font-mono text-xs tabular-nums text-dim">
           {props.sentence().index + 1}
         </Text>
-        <Text class="min-w-0 flex-1 text-base leading-relaxed text-foreground">
+        <Text class="select-text min-w-0 flex-1 text-base leading-relaxed text-foreground">
           {props.sentence().text}
         </Text>
       </View>
@@ -51,8 +50,15 @@ function SentenceRow(props: {
         <Text class="font-mono text-xs tabular-nums text-muted-foreground">
           {formatMs(props.sentence().startMs)}
         </Text>
+        <Button
+          onPress={props.onSelect}
+          class="rounded bg-well px-2 py-1 text-xs text-foreground hover:bg-accent active:scale-95"
+          accessibilityLabel="Practice sentence"
+        >
+          <Text class="text-xs text-foreground">练习</Text>
+        </Button>
       </View>
-    </Button>
+    </View>
   );
 }
 

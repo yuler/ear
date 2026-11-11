@@ -20,18 +20,10 @@ import { Icon } from "./Icon";
 
 const FALLBACK_QUALITIES: readonly VideoQualityOption[] = [
   {
-    id: "1080p",
-    label: "1080p",
+    id: "360p",
+    label: "360p",
     mode: "video",
-    height: 1080,
-    mimeType: "video/mp4",
-    ext: "mp4",
-  },
-  {
-    id: "720p",
-    label: "720p",
-    mode: "video",
-    height: 720,
+    height: 360,
     mimeType: "video/mp4",
     ext: "mp4",
   },
@@ -44,10 +36,18 @@ const FALLBACK_QUALITIES: readonly VideoQualityOption[] = [
     ext: "mp4",
   },
   {
-    id: "360p",
-    label: "360p",
+    id: "720p",
+    label: "720p",
     mode: "video",
-    height: 360,
+    height: 720,
+    mimeType: "video/mp4",
+    ext: "mp4",
+  },
+  {
+    id: "1080p",
+    label: "1080p",
+    mode: "video",
+    height: 1080,
     mimeType: "video/mp4",
     ext: "mp4",
   },
@@ -148,8 +148,8 @@ export function ClipboardCard(props: {
               ? "From your clipboard"
               : "Detected YouTube link"}
           </Text>
-          <View class="rounded bg-well px-1.5 py-0.5">
-            <Text class="font-mono text-[11px] text-dim">
+          <View selectable class="rounded bg-well px-1.5 py-0.5 select-text">
+            <Text class="select-text font-mono text-[11px] text-dim">
               {props.preview().videoId}
             </Text>
           </View>
@@ -188,11 +188,11 @@ export function ClipboardCard(props: {
           </View>
         </View>
 
-        <View class="min-w-0 flex-1 gap-1">
-          <Text class="line-clamp-2 text-sm font-semibold leading-snug text-foreground">
+        <View selectable class="min-w-0 flex-1 gap-1 select-text">
+          <Text class="select-text line-clamp-2 text-sm font-semibold leading-snug text-foreground">
             {props.preview().title}
           </Text>
-          <Text class="text-xs text-muted-foreground">
+          <Text class="select-text text-xs text-muted-foreground">
             {props.preview().channel}
           </Text>
           <View class="flex-row flex-wrap items-center gap-1.5 pt-0.5">

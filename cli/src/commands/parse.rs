@@ -11,6 +11,7 @@ pub fn run(input: &str) -> Result<(), String> {
         extract_video_id(input).ok_or_else(|| "Not a valid YouTube URL or video ID".to_string())?;
 
     emit_json(json!({
+        "v": 1,
         "type": "progress",
         "stage": "connecting",
         "progress": 18,
@@ -27,6 +28,7 @@ pub fn run(input: &str) -> Result<(), String> {
     }
 
     emit_json(json!({
+        "v": 1,
         "type": "progress",
         "stage": "player",
         "progress": 52,
@@ -40,6 +42,7 @@ pub fn run(input: &str) -> Result<(), String> {
         .ok_or_else(|| "Failed to retrieve YouTube player response".to_string())?;
 
     emit_json(json!({
+        "v": 1,
         "type": "progress",
         "stage": "tracks",
         "progress": 84,
@@ -116,6 +119,7 @@ pub fn run(input: &str) -> Result<(), String> {
     };
 
     emit_json(json!({
+        "v": 1,
         "type": "result",
         "progress": 100,
         "video": payload

@@ -1,41 +1,58 @@
-import { effect, Image, keymap, Scroll, signal, Text, Video, View } from "nsh";
-import { Button } from "nsh/base";
+import {
+  effect,
+  Image,
+  keymap,
+  LayoutAnimation,
+  Scroll,
+  type ScrollRef,
+  signal,
+  Video,
+  View,
+  type ViewRef,
+} from "nsh";
 import { loadLessonFromEntry } from "../library/index";
 import type { LibraryEntry } from "../library/types";
 import { clipEnded, msToSeconds, type PlaybackRate } from "../player";
 import { Icon } from "../ui/Icon";
+import { t, type EarLocale } from "../ui/i18n";
 import { hostFetch } from "../youtube/host";
 import { loadLesson, videoPosterUrl } from "../youtube/parse";
-import type { Sentence } from "../youtube/types";
-import { maskCaption } from "./blindFlow";
+import type { CaptionCue, Sentence } from "../youtube/types";
+import type { SentenceLengthMode } from "../youtube/captions";
+import { settings, updateSettings } from "../ui/settings";
 import { isAudioEntry } from "./libraryView";
-import { SentenceControlsBar } from "./SentenceControlsBar";
 import {
   clampSentenceIndex,
   findSentenceIndexAtTime,
   getNextSentenceIndex,
   getPrevSentenceIndex,
-  isSentenceMasked,
+  resegmentSentences,
 } from "./sentencePlayer";
-import { SentenceRow } from "./SentenceRow";
+import { SentenceList } from "./SentenceList";
+import { VideoDetailHeader } from "./VideoDetailHeader";
+import { VideoDetailMetaBar } from "./VideoDetailMetaBar";
+import { VideoPlayerControls } from "./VideoPlayerControls";
+import {
+  calculateFallbackOriginRect,
+  calculateTargetRect,
+  getViewTransitionHeroStyle,
+  type TransitionPhase,
+  type ViewTransitionRect,
+} from "./viewTransition";
 
 export type VideoDetailViewProps = {
   entry: () => LibraryEntry;
   /** Absolute filesystem path or streaming URL for nsh <Video src>. */
   src: () => string;
+  originRect?: () => ViewTransitionRect | null;
   onClose: () => void;
 };
 
 /**
  * VideoDetailView:
  * Enlarged video player page with smooth page transition animation,
- * full sentence listing, caption masking (打码 + "去听"),
- * and quick sentence navigation (上一句 / 下一句 / 重复听 / 单句循环).
- *
- * Child components:
- * - Controls: app/views/SentenceControlsBar.tsx
- * - Sentence item: app/views/SentenceRow.tsx
- * - Helpers & logic: app/views/sentencePlayer.ts
+ * full 100% width video player, fixed header & controls,
+ * real-time scrolling subtitle list, and English-first i18n support.
  */
 export function VideoDetailView(props: VideoDetailViewProps) {
   const entry = () => props.entry();
@@ -43,9 +60,22 @@ export function VideoDetailView(props: VideoDetailViewProps) {
   const audioOnly = () => isAudioEntry(entry()) || !entry().videoPath;
   const poster = () => videoPosterUrl(entry().videoId, entry().thumbnailUrl);
 
-  // Transition animation state: mounts in initial state then expands smoothly
-  const entered = signal(false);
+  // Internationalization: English first by default, reactive to settings
+  const language = () => (settings().language === "zh" ? "zh" : "en");
+  const m = () => t(language());
+
+  // View Transition animation state: calculates position from originRect to targetRect
+  const origin = () => props.originRect?.() ?? calculateFallbackOriginRect();
+  const measuredTargetRect = signal<ViewTransitionRect | null>(null);
+  const target = () => measuredTargetRect() ?? calculateTargetRect();
+  const phase = signal<TransitionPhase>("initial");
   const closing = signal(false);
+  let targetBoxRef: {
+    measure(): Promise<{
+      bounds: { size: { width: number; height: number } };
+      pagePosition: { x: number; y: number };
+    } | null>;
+  } | null = null;
 
   // Playback & Sentence state
   const paused = signal(false);
@@ -56,25 +86,186 @@ export function VideoDetailView(props: VideoDetailViewProps) {
   );
   const errorMsg = signal<string | null>(null);
 
-  // Subtitle sentences state
+  // Subtitle sentences & segmentation length state
+  const sentenceLength = signal<SentenceLengthMode>(settings().sentenceLength ?? "short");
+  const rawCues = signal<CaptionCue[]>([]);
+  const rawSentences = signal<Sentence[]>([]);
   const sentences = signal<Sentence[]>([]);
   const loadingSentences = signal(true);
   const activeIndex = signal(0);
   const clipEndMs = signal<number | null>(null);
   const loopSingle = signal(false);
+  const autoNext = signal(false);
+  const muted = signal(false);
 
   // Mask state: default masked for listening practice (打码)
   const maskAll = signal(true);
   const revealedMap = signal<Record<number, boolean>>({});
 
+  // Immersive controls overlay auto-hide state (5-second countdown timer, mouse-driven only)
+  const controlsVisible = signal(false);
+  let hideTimer: ReturnType<typeof setTimeout> | null = null;
+
+  const handlePointerActivity = () => {
+    controlsVisible.set(true);
+    if (hideTimer) {
+      clearTimeout(hideTimer);
+      hideTimer = null;
+    }
+    // 5-second countdown timer. Resets every time mouse moves inside the area.
+    hideTimer = setTimeout(() => {
+      controlsVisible.set(false);
+    }, 5000);
+  };
+
+  const handlePointerLeave = () => {
+    if (hideTimer) {
+      clearTimeout(hideTimer);
+      hideTimer = null;
+    }
+    hideTimer = setTimeout(() => {
+      controlsVisible.set(false);
+    }, 300);
+  };
+
+  const isControlsVisible = () => controlsVisible();
+
+  const handleTogglePlay = () => {
+    errorMsg.set(null);
+    const next = !paused();
+    paused.set(next);
+    if (next) {
+      if (hideTimer) clearTimeout(hideTimer);
+    } else {
+      // When unpausing, if autoNext is off, bind to current sentence clip
+      if (!autoNext()) {
+        const cur = currentSentence();
+        if (cur) {
+          clipEndMs.set(cur.endMs);
+        }
+      } else {
+        clipEndMs.set(null);
+      }
+    }
+  };
+
+  const handleToggleAutoNext = () => {
+    const next = !autoNext();
+    autoNext.set(next);
+    if (next) {
+      clipEndMs.set(null);
+    } else {
+      const cur = currentSentence();
+      if (cur) {
+        clipEndMs.set(cur.endMs);
+      }
+    }
+  };
+
+  const handleToggleLoop = () => {
+    const next = !loopSingle();
+    loopSingle.set(next);
+    if (next) {
+      const cur = currentSentence();
+      if (cur) {
+        clipEndMs.set(cur.endMs);
+      }
+    }
+  };
+
+  const handleChangeSentenceLength = (mode: SentenceLengthMode) => {
+    sentenceLength.set(mode);
+    updateSettings({ sentenceLength: mode });
+    rowNodes.clear();
+    const next = resegmentSentences(rawCues(), rawSentences(), mode);
+    sentences.set(next);
+    const cur = currentTimeSec();
+    const nextIdx = findSentenceIndexAtTime(next, cur);
+    if (nextIdx >= 0) activeIndex.set(nextIdx);
+  };
+
+  const handleChangeLanguage = (lang: EarLocale) => {
+    updateSettings({ language: lang });
+  };
+
   let videoNode: { seek(seconds: number): void } | null = null;
 
-  // Trigger web page transition animation on mount
+  // Auto-scroll: keep the active sentence row centered in the roller while playing
+  let scrollNode: ScrollRef | null = null;
+  let scrollOffsetY = 0;
+  let scrollViewportH = 0;
+  const rowNodes = new Map<number, ViewRef>();
+
   effect(() => {
-    const timer = setTimeout(() => {
-      entered.set(true);
-    }, 20);
-    return () => clearTimeout(timer);
+    const idx = activeIndex();
+    if (sentences().length === 0) return;
+    const row = rowNodes.get(idx);
+    if (!row || !scrollNode) return;
+    const scroll = scrollNode;
+    void Promise.all([row.measure(), scroll.measure()]).then(([r, sc]) => {
+      if (!r || !sc) return;
+      const rowTop = r.pagePosition.y - sc.pagePosition.y;
+      const viewH = scrollViewportH || sc.bounds.size.height;
+      const rowH = r.bounds.size.height || 64;
+      // Center the active row vertically in the roller wheel viewport
+      const y = Math.max(0, scrollOffsetY + rowTop - (viewH / 2 - rowH / 2));
+      scroll.scrollTo({ y, animated: true });
+    });
+  });
+
+  const handleSeek = (sec: number) => {
+    currentTimeSec.set(sec);
+    if (videoNode) {
+      videoNode.seek(sec);
+    }
+  };
+
+  // Trigger View Transition animation on mount: origin thumbnail zooms smoothly into hero player
+  effect(() => {
+    let enterTimer: ReturnType<typeof setTimeout> | null = null;
+    let settleTimer: ReturnType<typeof setTimeout> | null = null;
+
+    const startEnter = () => {
+      enterTimer = setTimeout(() => {
+        try {
+          LayoutAnimation.easeInEaseOut();
+        } catch {
+          // ignore
+        }
+        phase.set("entering");
+      }, 16);
+
+      settleTimer = setTimeout(() => {
+        phase.set("settled");
+      }, 440);
+    };
+
+    if (targetBoxRef) {
+      void targetBoxRef
+        .measure()
+        .then((measureData) => {
+          if (measureData && measureData.bounds && measureData.pagePosition) {
+            measuredTargetRect.set({
+              x: Math.round(measureData.pagePosition.x),
+              y: Math.round(measureData.pagePosition.y),
+              width: Math.round(measureData.bounds.size.width),
+              height: Math.round(measureData.bounds.size.height),
+              borderRadius: 0,
+            });
+          }
+          startEnter();
+        })
+        .catch(() => {
+          startEnter();
+        });
+    } else {
+      startEnter();
+    }
+
+    return () => {
+      if (enterTimer) clearTimeout(enterTimer);
+      if (settleTimer) clearTimeout(settleTimer);
+    };
   });
 
   // Load sentences from local captions or remote parse
@@ -83,7 +274,7 @@ export function VideoDetailView(props: VideoDetailViewProps) {
     loadingSentences.set(true);
     void loadLessonFromEntry(cur)
       .then(async (loaded) => {
-        if (loaded && loaded.sentences.length > 0) {
+        if (loaded && (loaded.cues?.length > 0 || loaded.sentences?.length > 0)) {
           return loaded;
         }
         if (cur.url) {
@@ -92,13 +283,21 @@ export function VideoDetailView(props: VideoDetailViewProps) {
         return null;
       })
       .then((res) => {
-        if (res && res.sentences.length > 0) {
-          sentences.set(res.sentences);
+        if (res && (res.cues?.length > 0 || res.sentences?.length > 0)) {
+          const cues = res.cues ?? [];
+          const rawS = res.sentences ?? [];
+          rawCues.set(cues);
+          rawSentences.set(rawS);
+          sentences.set(resegmentSentences(cues, rawS, sentenceLength()));
         } else {
+          rawCues.set([]);
+          rawSentences.set([]);
           sentences.set([]);
         }
       })
       .catch(() => {
+        rawCues.set([]);
+        rawSentences.set([]);
         sentences.set([]);
       })
       .finally(() => {
@@ -109,10 +308,20 @@ export function VideoDetailView(props: VideoDetailViewProps) {
   const handleClose = () => {
     if (closing()) return;
     closing.set(true);
-    entered.set(false);
+    paused.set(true);
+    try {
+      LayoutAnimation.easeInEaseOut();
+    } catch {
+      // ignore
+    }
+    if (hideTimer) {
+      clearTimeout(hideTimer);
+      hideTimer = null;
+    }
+    phase.set("closing");
     setTimeout(() => {
       props.onClose();
-    }, 240);
+    }, 360);
   };
 
   // Play a targeted sentence clip from startMs to endMs
@@ -157,7 +366,25 @@ export function VideoDetailView(props: VideoDetailViewProps) {
     const nextIdx = getNextSentenceIndex(activeIndex(), list.length);
     if (nextIdx != null && list[nextIdx]) {
       playSentence(list[nextIdx]!);
+    } else {
+      // Reached the end: repeat current sentence
+      handleRepeatCurrent();
     }
+  };
+
+  // Space key handler: at start plays first sentence, otherwise advances to next sentence
+  const handleSpaceKey = () => {
+    const list = sentences();
+    if (list.length === 0) {
+      handleTogglePlay();
+      return;
+    }
+    // If initially at the start and paused, play the first sentence
+    if (activeIndex() === 0 && paused() && currentTimeSec() < 0.2) {
+      playSentence(list[0]!);
+      return;
+    }
+    handleNextSentence();
   };
 
   // Toggle mask for a single sentence
@@ -189,304 +416,267 @@ export function VideoDetailView(props: VideoDetailViewProps) {
       left: handlePrevSentence,
       right: handleNextSentence,
       r: handleRepeatCurrent,
-      space: () => {
-        if (clipEndMs() != null) {
-          handleRepeatCurrent();
-        } else {
-          paused.set(!paused());
-        }
-      },
+      space: handleSpaceKey,
       m: () => maskAll.set(!maskAll()),
     },
     { when: "notEditing" },
   );
 
   return (
-    <View
-      class={`fixed inset-0 z-50 flex-col bg-background/95 backdrop-blur-md transition-all duration-300 ease-out ${
-        entered() ? "opacity-100" : "pointer-events-none opacity-0"
-      }`}
-    >
-      {/* 1. Header with back button, animated transition banner, and actions */}
-      <View class="flex-row items-center justify-between border-b border-line bg-popover/80 px-4 py-2.5 shadow-sm">
-        <View class="flex-row items-center gap-3">
-          <Button
-            onPress={handleClose}
-            class="flex-row items-center gap-1.5 rounded-lg border border-line bg-well/60 px-3 py-1.5 transition hover:bg-well active:scale-95"
-            accessibilityLabel="Back to library"
-          >
-            <Icon name="chevron-left" size={14} tone="foreground" />
-            <Text class="text-xs font-medium text-foreground">返回列表</Text>
-          </Button>
+    <View class="fixed inset-0 z-50 overflow-hidden">
+      {/* 1. Backdrop dark blur surface: fades in on enter, fades out on close */}
+      <View
+        class={`absolute inset-0 bg-background/95 backdrop-blur-md transition-opacity duration-300 ease-out ${
+          phase() === "settled" || phase() === "entering"
+            ? "opacity-100"
+            : "pointer-events-none opacity-0"
+        }`}
+      />
 
-          {/* Web transition indicator badge */}
-          <View class="flex-row items-center gap-1.5 rounded-full border border-primary/30 bg-primary/10 px-2.5 py-0.5">
-            <View class="h-1.5 w-1.5 animate-pulse rounded-full bg-primary" />
-            <Text class="font-mono text-[11px] font-semibold text-primary">
-              网页过渡动画 · 放大播放与字幕精听
-            </Text>
+      {/* 2. Shared element transition hero */}
+      <View
+        style={getViewTransitionHeroStyle(phase(), origin(), target())}
+        class="pointer-events-none border border-border bg-black"
+      >
+        <Image src={poster()} class="h-full w-full object-cover" />
+        <If when={audioOnly()}>
+          <View class="absolute inset-0 items-center justify-center bg-black/40">
+            <Icon name="headphones" size={32} color="#ffffff" />
           </View>
-        </View>
-
-        <View class="flex-row items-center gap-2">
-          {/* Global mask toggle button */}
-          <Button
-            onPress={() => maskAll.set(!maskAll())}
-            class={`flex-row items-center gap-1.5 rounded-lg border px-3 py-1.5 transition ${
-              maskAll()
-                ? "border-amber/50 bg-amber-soft text-amber"
-                : "border-line bg-well/60 text-muted-foreground"
-            }`}
-          >
-            <Icon
-              name={maskAll() ? "eye-off" : "eye"}
-              size={13}
-              tone={maskAll() ? "foreground" : "muted-foreground"}
-            />
-            <Text
-              class={`text-xs font-medium ${
-                maskAll() ? "text-amber font-semibold" : "text-muted-foreground"
-              }`}
-            >
-              {maskAll() ? "字幕已打码 (去听)" : "显示原文字幕"}
-            </Text>
-          </Button>
-
-          {/* Close button */}
-          <Button
-            onPress={handleClose}
-            class="h-8 w-8 items-center justify-center rounded-lg border border-line bg-well/60 active:bg-accent"
-            accessibilityLabel="Close"
-          >
-            <Icon name="x" size={14} tone="foreground" />
-          </Button>
-        </View>
+        </If>
       </View>
 
-      {/* 2. Main content area: Enlarged video on top, sentences list below */}
-      <Scroll class="flex-1">
+      {/* 3. Detail contents: 100% Width Video with Immersive Floating Overlays + Controls + Scrollable Subtitles */}
+      <View
+        class={`relative flex-1 flex-col h-full overflow-hidden transition-all duration-300 ease-out ${
+          phase() === "settled" || phase() === "entering"
+            ? "opacity-100 translate-y-0"
+            : "pointer-events-none opacity-0 translate-y-3"
+        }`}
+      >
+        {/* 1. Video Display: 100% width with immersive floating overlays */}
         <View
-          class={`mx-auto w-full max-w-[960px] gap-4 p-4 md:p-5 transition-transform duration-300 ease-out ${
-            entered() ? "scale-100 translate-y-0" : "scale-[0.97] translate-y-2"
-          }`}
+          ref={(node) => {
+            targetBoxRef = node;
+          }}
+          onMouseEnter={handlePointerActivity}
+          onMouseMove={handlePointerActivity}
+          onMouseLeave={handlePointerLeave}
+          style={{
+            opacity: phase() === "settled" ? 1 : 0,
+            transitionProperty: "opacity",
+            transitionDuration: "160ms",
+          }}
+          class="relative aspect-video w-full shrink-0 overflow-hidden bg-black shadow-2xl"
         >
-          {/* Title and metadata */}
-          <View class="gap-1">
-            <Text class="line-clamp-2 text-base font-semibold text-foreground md:text-lg">
-              {entry().title}
-            </Text>
-            <View class="flex-row flex-wrap items-center gap-2 text-xs text-muted-foreground">
-              <Text class="font-mono text-xs">
-                {entry().quality ?? (audioOnly() ? "Audio" : "Video")}
-              </Text>
-              <Text class="text-dim">·</Text>
-              <Text class="font-mono text-xs">
-                {sentences().length > 0
-                  ? `共 ${sentences().length} 句字幕`
-                  : loadingSentences()
-                    ? "正在解析字幕…"
-                    : "暂无字幕"}
-              </Text>
-              <If when={entry().subtitleLabel}>
-                <Text class="text-dim">·</Text>
-                <Text class="text-xs">{entry().subtitleLabel}</Text>
-              </If>
-            </View>
-          </View>
+          <Video
+            ref={(node) => {
+              videoNode = node;
+            }}
+            src={src()}
+            paused={paused()}
+            muted={muted()}
+            rate={rate()}
+            volume={1}
+            controls={false}
+            audioSession="playback"
+            progressUpdateInterval={80}
+            class="h-full w-full object-contain bg-black"
+            onLoad={() => errorMsg.set(null)}
+            onProgress={(e: { currentTime: number; duration?: number }) => {
+              currentTimeSec.set(e.currentTime);
+              if (e.duration) durationSec.set(e.duration);
 
-          {/* 3. Enlarged Video Player Container (Feature 1: 把这个视频放大) */}
-          <View class="relative aspect-video w-full max-h-[460px] overflow-hidden rounded-xl border border-line bg-black shadow-2xl">
-            <Video
-              ref={(node) => {
-                videoNode = node;
-              }}
-              src={src()}
-              paused={paused()}
-              rate={rate()}
-              volume={1}
-              controls={false}
-              audioSession="playback"
-              progressUpdateInterval={80}
-              class="h-full w-full object-contain"
-              onLoad={() => errorMsg.set(null)}
-              onProgress={(e: { currentTime: number; duration?: number }) => {
-                currentTimeSec.set(e.currentTime);
-                if (e.duration) durationSec.set(e.duration);
+              const sList = sentences();
+              if (sList.length === 0 || paused()) return;
 
-                // Clip playback: pauses or loops at clip end
+              // 1. Single sentence loop mode
+              if (loopSingle()) {
                 const end = clipEndMs();
-                if (end != null && !paused()) {
-                  if (clipEnded(e.currentTime, end)) {
-                    if (loopSingle()) {
-                      const cur = currentSentence();
-                      if (cur && videoNode) {
-                        videoNode.seek(msToSeconds(cur.startMs));
-                      }
-                    } else {
-                      paused.set(true);
-                      clipEndMs.set(null);
-                    }
-                  }
-                } else if (!paused()) {
-                  const sList = sentences();
-                  if (sList.length > 0) {
-                    const idx = findSentenceIndexAtTime(sList, e.currentTime);
-                    if (idx !== activeIndex()) {
-                      activeIndex.set(idx);
-                    }
+                if (end != null && clipEnded(e.currentTime, end)) {
+                  const cur = currentSentence();
+                  if (cur && videoNode) {
+                    videoNode.seek(msToSeconds(cur.startMs));
                   }
                 }
-              }}
-              onError={(e: { message?: string; code?: string }) => {
-                paused.set(true);
-                const code = e?.code ? ` [${e.code}]` : "";
-                errorMsg.set(
-                  `${e?.message ?? "播放器加载失败"}${code} · ${src()}`,
-                );
-              }}
-              onEnd={() => {
-                paused.set(true);
-                clipEndMs.set(null);
-              }}
-            />
+                return;
+              }
 
-            {/* Poster fallback when paused or audio-only */}
-            <If when={audioOnly() && paused()}>
-              <Image
-                src={poster()}
-                class="pointer-events-none absolute inset-0 h-full w-full object-cover opacity-80"
-              />
-            </If>
-
-            {/* In-video floating focal subtitle overlay */}
-            <If when={currentSentence()}>
-              {(getSentence) => {
-                const s = getSentence();
-                const masked = isSentenceMasked(
-                  maskAll(),
-                  Boolean(revealedMap()[s.index]),
-                );
-                return (
-                  <View class="absolute inset-x-4 bottom-4 items-center">
-                    <Button
-                      onPress={() => toggleSentenceReveal(s.index)}
-                      class="max-w-[90%] rounded-lg border border-white/20 bg-black/80 px-4 py-2 backdrop-blur-md active:bg-black/90"
-                    >
-                      <Text class="text-center text-sm font-medium leading-relaxed text-white md:text-base">
-                        {masked ? maskCaption(s.text) : s.text}
-                      </Text>
-                      <If when={masked}>
-                        <Text class="mt-0.5 text-center font-mono text-[10px] text-amber">
-                          [字幕已打码 · 点击切换显示]
-                        </Text>
-                      </If>
-                    </Button>
-                  </View>
-                );
-              }}
-            </If>
-
-            {/* Big center play button overlay when paused */}
-            <If when={paused()}>
-              <Button
-                onPress={() => {
-                  errorMsg.set(null);
+              // 2. Auto-next mode: seamless continuous playback like normal video!
+              // Video flows naturally without seeking between sentences.
+              if (autoNext()) {
+                const lastIdx = sList.length - 1;
+                const lastSentence = sList[lastIdx];
+                if (lastSentence && clipEnded(e.currentTime, lastSentence.endMs)) {
+                  paused.set(true);
                   clipEndMs.set(null);
-                  paused.set(false);
-                }}
-                class="absolute inset-0 items-center justify-center bg-black/20"
-                accessibilityLabel="Play"
-              >
-                <View class="h-16 w-16 items-center justify-center rounded-full border border-white/30 bg-black/70 shadow-lg active:scale-95">
-                  <Icon name="play" size={24} color="#fafafa" />
-                </View>
-              </Button>
-            </If>
-          </View>
+                } else {
+                  const idx = findSentenceIndexAtTime(sList, e.currentTime);
+                  if (idx !== activeIndex()) {
+                    activeIndex.set(idx);
+                  }
+                }
+                return;
+              }
 
-          {/* 4. Sentence Controls Toolbar (Feature 4: 快捷跳转上一句、下一句，重复听) */}
-          <SentenceControlsBar
-            activeIndex={activeIndex}
+              // 3. Auto-next OFF: single-sentence intensive listening mode.
+              // Plays current sentence and pauses cleanly at its end.
+              const end = clipEndMs();
+              if (end != null) {
+                if (clipEnded(e.currentTime, end)) {
+                  paused.set(true);
+                }
+              } else {
+                const idx = findSentenceIndexAtTime(sList, e.currentTime);
+                if (idx !== activeIndex()) {
+                  activeIndex.set(idx);
+                }
+                const cur = sList[idx];
+                if (cur) {
+                  clipEndMs.set(cur.endMs);
+                }
+              }
+            }}
+            onError={(e: { message?: string; code?: string }) => {
+              paused.set(true);
+              const code = e?.code ? ` [${e.code}]` : "";
+              errorMsg.set(
+                `${e?.message ?? m().playerError}${code} · ${src()}`,
+              );
+            }}
+            onEnd={() => {
+              paused.set(true);
+              clipEndMs.set(null);
+            }}
+          />
+
+          <If when={audioOnly() && paused()}>
+            <Image
+              src={poster()}
+              class="pointer-events-none absolute inset-0 h-full w-full object-cover opacity-80"
+            />
+          </If>
+
+          {/* Top Header: Floating overlay (5s countdown timer, mouse-driven only) */}
+          <VideoDetailHeader
+            entry={entry}
             totalSentences={() => sentences().length}
+            loadingSentences={loadingSentences}
+            audioOnly={audioOnly}
+            onBack={handleClose}
+            visible={isControlsVisible}
+            onActivity={handlePointerActivity}
+            language={language}
+          />
+
+          {/* Bottom Player Controls */}
+          <VideoPlayerControls
+            paused={paused}
+            onTogglePlay={handleTogglePlay}
             currentTimeSec={currentTimeSec}
             durationSec={durationSec}
             rate={rate}
-            loopSingle={loopSingle}
-            onPrev={handlePrevSentence}
-            onRepeat={handleRepeatCurrent}
-            onNext={handleNextSentence}
-            onToggleLoop={() => loopSingle.set(!loopSingle())}
             onCycleRate={handleCycleRate}
+            loopSingle={loopSingle}
+            onToggleLoop={handleToggleLoop}
+            muted={muted}
+            onToggleMute={() => {
+              muted.set(!muted());
+              handlePointerActivity();
+            }}
+            maskAll={maskAll}
+            onToggleMask={() => {
+              maskAll.set(!maskAll());
+              handlePointerActivity();
+            }}
+            sentences={sentences}
+            onPrevSentence={() => {
+              handlePrevSentence();
+              handlePointerActivity();
+            }}
+            onRepeatSentence={() => {
+              handleRepeatCurrent();
+              handlePointerActivity();
+            }}
+            onNextSentence={() => {
+              handleNextSentence();
+              handlePointerActivity();
+            }}
+            onSeek={(sec) => {
+              handleSeek(sec);
+              handlePointerActivity();
+            }}
+            language={language}
+            visible={isControlsVisible}
+            onActivity={handlePointerActivity}
           />
-
-          {/* Error notice if player fails */}
-          <If when={errorMsg()}>
-            <View class="rounded-lg border border-danger/40 bg-danger-soft p-3">
-              <Text class="text-xs text-danger">{errorMsg()}</Text>
-            </View>
-          </If>
-
-          {/* 5. Subtitle Sentences List (Feature 2 & 3: 列出每一句话 + 打码 + "去听") */}
-          <View class="gap-2">
-            <View class="flex-row items-center justify-between border-b border-line pb-2">
-              <View class="flex-row items-center gap-2">
-                <Icon name="subtitles" size={14} tone="foreground" />
-                <Text class="text-sm font-bold text-foreground">
-                  视频字幕句单 (逐句精听)
-                </Text>
-              </View>
-              <Text class="font-mono text-xs text-muted-foreground">
-                快捷键: ←/→ 切句 · 空格/R 重复听 · M 打码切换
-              </Text>
-            </View>
-
-            {/* Loading state */}
-            <If when={loadingSentences()}>
-              <View class="items-center justify-center gap-2 py-8">
-                <Icon name="loader" size={20} class="animate-spin" />
-                <Text class="font-mono text-xs text-muted-foreground">
-                  正在加载字幕句子与时间对齐…
-                </Text>
-              </View>
-            </If>
-
-            {/* Empty state */}
-            <If when={!loadingSentences() && sentences().length === 0}>
-              <View class="items-center justify-center gap-2 rounded-xl border border-line bg-well/30 p-8 text-center">
-                <Icon name="subtitles" size={24} tone="muted-foreground" />
-                <Text class="text-sm font-medium text-foreground">
-                  未检测到当前视频的内嵌字幕
-                </Text>
-                <Text class="text-xs text-muted-foreground">
-                  可通过上方播放器直接播放，或重新解析下载包含字幕的版本
-                </Text>
-              </View>
-            </If>
-
-            {/* Sentences rows */}
-            <If when={sentences().length > 0}>
-              <View class="gap-1.5">
-                <Each of={sentences()} key="index">
-                  {(item) => {
-                    const s = item();
-                    return (
-                      <SentenceRow
-                        sentence={() => s}
-                        isActive={() => activeIndex() === s.index}
-                        isPlaying={() => !paused()}
-                        isMaskAll={maskAll}
-                        isRevealed={() => Boolean(revealedMap()[s.index])}
-                        onToggleReveal={toggleSentenceReveal}
-                        onListen={playSentence}
-                      />
-                    );
-                  }}
-                </Each>
-              </View>
-            </If>
-          </View>
         </View>
-      </Scroll>
+
+        {/* 2. Fixed Section: 前面的标题与操作栏保持固定 */}
+        <VideoDetailMetaBar
+          entry={entry()}
+          audioOnly={audioOnly()}
+          totalSentences={sentences().length}
+          loadingSentences={loadingSentences()}
+          activeIndex={activeIndex}
+          currentTimeSec={currentTimeSec}
+          durationSec={durationSec}
+          rate={rate}
+          autoNext={autoNext}
+          loopSingle={loopSingle}
+          onPrevSentence={handlePrevSentence}
+          onRepeatSentence={handleRepeatCurrent}
+          onNextSentence={handleNextSentence}
+          onToggleAutoNext={handleToggleAutoNext}
+          onToggleLoop={handleToggleLoop}
+          onCycleRate={handleCycleRate}
+          sentenceLength={sentenceLength}
+          onChangeSentenceLength={handleChangeSentenceLength}
+          errorMsg={errorMsg}
+          language={language}
+        />
+
+        {/* 3. Real-time scrolling subtitle roller with top & bottom vignette fade */}
+        <View class="relative flex-1 min-h-0 w-full overflow-hidden bg-background/40">
+          {/* Top & bottom subtle fade gradients for teleprompter / roller wheel effect */}
+          <View class="pointer-events-none absolute top-0 inset-x-0 h-10 sm:h-14 z-10 bg-gradient-to-b from-background via-background/80 to-transparent" />
+          <View class="pointer-events-none absolute bottom-0 inset-x-0 h-14 sm:h-20 z-10 bg-gradient-to-t from-background via-background/80 to-transparent" />
+
+          <Scroll
+            ref={(node) => {
+              scrollNode = node;
+            }}
+            scrollEventThrottle={50}
+            onScroll={(e) => {
+              scrollOffsetY = e.offset.y;
+              scrollViewportH = e.size.height;
+            }}
+            onLayout={(e) => {
+              scrollViewportH = e.bounds.size.height;
+            }}
+            class="flex-1 h-full min-h-0"
+          >
+            <View class="mx-auto w-full max-w-[1024px] px-4 md:px-6">
+              <SentenceList
+                showHeader={false}
+                sentences={sentences}
+                loading={loadingSentences}
+                activeIndex={activeIndex}
+                paused={paused}
+                maskAll={maskAll}
+                isRevealed={(idx) => Boolean(revealedMap()[idx])}
+                onToggleReveal={toggleSentenceReveal}
+                onListen={playSentence}
+                language={language}
+                rowRef={(idx, node) => {
+                  if (node) rowNodes.set(idx, node);
+                  else rowNodes.delete(idx);
+                }}
+              />
+            </View>
+          </Scroll>
+        </View>
+      </View>
     </View>
   );
 }

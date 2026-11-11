@@ -1,163 +1,203 @@
 import { expect, test } from "nsh/test";
 import {
   captionTrackBadge,
-  fetchJson3Captions,
+  captionTrackId,
+  cleanCaptionTrackName,
+  extractVideoId,
   isAutoCaptionTrack,
-  parseYouTubeVideo,
+  loadLessonFromParsed,
   preferEnglishTrack,
+  videoPosterUrl,
 } from "./parse";
+import {
+  earCaptions,
+  earParse,
+  setEarSpawnHook,
+  type ParseProgressEvent,
+} from "./earClient";
 
-test("parseYouTubeVideo uses Innertube VisionOS player API with visitor data", async () => {
-  const requests: { url: string; headers?: HeadersInit; body?: string }[] = [];
+test("earParse invokes Ear CLI binary and streams progress before resolving video payload", async () => {
+  const progressStages: string[] = [];
+  setEarSpawnHook((bin: string, args: string[]) => {
+    expect(bin).toBe("ear");
+    expect(args).toEqual(["parse", "https://www.youtube.com/watch?v=mockId12345"]);
 
-  const mockFetch = (async (input: string | URL | Request, init?: RequestInit) => {
-    const url = input.toString();
-    requests.push({
-      url,
-      headers: init?.headers,
-      body: init?.body ? String(init.body) : undefined,
+    return {
+      on(event: string, handler: (data: any) => void) {
+        if (event === "stdout") {
+          setTimeout(() => {
+            handler(
+              JSON.stringify({
+                v: 1,
+                type: "progress",
+                stage: "connecting",
+                progress: 20,
+                message: "Connecting...",
+              }),
+            );
+            handler(
+              JSON.stringify({
+                v: 1,
+                type: "progress",
+                stage: "tracks",
+                progress: 80,
+                message: "Tracks...",
+              }),
+            );
+            handler(
+              JSON.stringify({
+                v: 1,
+                type: "result",
+                progress: 100,
+                video: {
+                  videoId: "mockId12345",
+                  title: "Mock Lesson Video",
+                  durationMs: 120000,
+                  thumbnailUrl: "https://i.ytimg.com/vi/mockId12345/hqdefault.jpg",
+                  audioUrl: "https://example.com/audio.mp4",
+                  audioMimeType: "audio/mp4",
+                  videoUrl: null,
+                  videoMimeType: null,
+                  qualities: [
+                    {
+                      id: "720p",
+                      label: "720p",
+                      mode: "video",
+                      mimeType: "video/mp4",
+                      ext: "mp4",
+                    },
+                  ],
+                  captionTracks: [
+                    {
+                      baseUrl: "https://example.com/captions",
+                      languageCode: "en",
+                      name: "English",
+                      isAuto: false,
+                    },
+                  ],
+                },
+              }),
+            );
+          }, 0);
+        } else if (event === "exit") {
+          setTimeout(() => handler({ code: 0 }), 10);
+        }
+      },
+    };
+  });
+
+  try {
+    const parsed = await earParse(
+      "https://www.youtube.com/watch?v=mockId12345",
+      (ev: ParseProgressEvent) => {
+        progressStages.push(ev.stage);
+      },
+    );
+
+    expect(parsed.videoId).toBe("mockId12345");
+    expect(parsed.title).toBe("Mock Lesson Video");
+    expect(parsed.durationMs).toBe(120000);
+    expect(parsed.audioUrl).toBe("https://example.com/audio.mp4");
+    expect(parsed.captionTracks.length).toBe(1);
+    expect(progressStages).toContain("connecting");
+    expect(progressStages).toContain("tracks");
+  } finally {
+    setEarSpawnHook(null);
+  }
+});
+
+test("earCaptions retrieves normalized cues via Ear CLI", async () => {
+  setEarSpawnHook((_bin: string, args: string[]) => {
+    expect(args[0]).toBe("captions");
+    return {
+      on(event: string, handler: (data: any) => void) {
+        if (event === "stdout") {
+          setTimeout(() => {
+            handler(
+              JSON.stringify({
+                v: 1,
+                type: "captions",
+                cues: [
+                  { startMs: 0, endMs: 1500, text: "Hello and welcome" },
+                  { startMs: 1500, endMs: 3000, text: "to this lesson." },
+                ],
+              }),
+            );
+          }, 0);
+        } else if (event === "exit") {
+          setTimeout(() => handler({ code: 0 }), 10);
+        }
+      },
+    };
+  });
+
+  try {
+    const cues = await earCaptions("https://example.com/captions");
+    expect(cues.length).toBe(2);
+    expect(cues[0]!.text).toBe("Hello and welcome");
+    expect(cues[1]!.startMs).toBe(1500);
+  } finally {
+    setEarSpawnHook(null);
+  }
+});
+
+test("loadLessonFromParsed parses video + captions into LoadedLesson with merged sentences", async () => {
+  setEarSpawnHook(() => {
+    return {
+      on(event: string, handler: (data: any) => void) {
+        if (event === "stdout") {
+          setTimeout(() => {
+            handler(
+              JSON.stringify({
+                v: 1,
+                type: "captions",
+                cues: [
+                  { startMs: 1000, endMs: 2500, text: "This is a full sentence." },
+                ],
+              }),
+            );
+          }, 0);
+        } else if (event === "exit") {
+          setTimeout(() => handler({ code: 0 }), 10);
+        }
+      },
+    };
+  });
+
+  try {
+    const lesson = await loadLessonFromParsed({
+      videoId: "test1234567",
+      title: "Test Lesson",
+      durationMs: 5000,
+      audioUrl: "https://example.com/audio.mp4",
+      audioMimeType: "audio/mp4",
+      qualities: [
+        {
+          id: "720p",
+          label: "720p",
+          mode: "video",
+          mimeType: "video/mp4",
+          ext: "mp4",
+        },
+      ],
+      captionTracks: [
+        {
+          baseUrl: "https://example.com/captions",
+          languageCode: "en",
+          name: "English",
+          isAuto: false,
+        },
+      ],
+      playerResponse: null,
     });
 
-    if (url.includes("youtube.com/watch?v=mockId12345")) {
-      return new Response(
-        `<html><script>ytcfg.set({"VISITOR_DATA": "mock-visitor-xyz"});</script></html>`,
-        { status: 200 },
-      );
-    }
-
-    if (url.includes("youtubei/v1/player")) {
-      const parsedBody = JSON.parse(String(init?.body));
-      expect(parsedBody.videoId).toBe("mockId12345");
-      expect(parsedBody.context?.client?.clientName).toBe("VISIONOS");
-
-      return new Response(
-        JSON.stringify({
-          playabilityStatus: { status: "OK" },
-          videoDetails: {
-            videoId: "mockId12345",
-            title: "Mock Lesson Video",
-            lengthSeconds: "120",
-          },
-          streamingData: {
-            adaptiveFormats: [
-              {
-                itag: 140,
-                mimeType: 'audio/mp4; codecs="mp4a.40.2"',
-                bitrate: 128000,
-                url: "https://googlevideo.com/audio.mp4",
-              },
-            ],
-          },
-          captions: {
-            playerCaptionsTracklistRenderer: {
-              captionTracks: [
-                {
-                  baseUrl: "https://www.youtube.com/api/timedtext?v=mockId12345",
-                  name: { runs: [{ text: "English (auto-generated)" }] },
-                  languageCode: "en",
-                  kind: "asr",
-                },
-              ],
-            },
-          },
-        }),
-        { status: 200, headers: { "Content-Type": "application/json" } },
-      );
-    }
-
-    return new Response("Not found", { status: 404 });
-  }) as typeof fetch;
-
-  const parsed = await parseYouTubeVideo(
-    "https://www.youtube.com/watch?v=mockId12345",
-    mockFetch,
-  );
-
-  expect(parsed.videoId).toBe("mockId12345");
-  expect(parsed.title).toBe("Mock Lesson Video");
-  expect(parsed.durationMs).toBe(120000);
-  expect(parsed.audioUrl).toBe("https://googlevideo.com/audio.mp4");
-  expect(parsed.audioMimeType).toBe('audio/mp4; codecs="mp4a.40.2"');
-  expect(parsed.captionTracks.length).toBe(1);
-  expect(parsed.captionTracks[0]!.name).toBe("English (auto-generated)");
-  expect(parsed.captionTracks[0]!.languageCode).toBe("en");
-
-  // Verify headers passed to player API
-  const playerReq = requests.find((r) => r.url.includes("youtubei/v1/player"));
-  expect(playerReq).toBeTruthy();
-  const headers = playerReq!.headers as Record<string, string>;
-  expect(headers["X-Goog-Visitor-Id"]).toBe("mock-visitor-xyz");
-  expect(headers["X-YouTube-Client-Name"]).toBe("101");
-});
-
-test("parseYouTubeVideo falls back to watch HTML playerResponse when player API is unavailable", async () => {
-  const watchHtml = `
-    <html>
-      <script>
-        var ytInitialPlayerResponse = {
-          "videoDetails": { "title": "Watch Fallback Title", "lengthSeconds": "60" },
-          "streamingData": {
-            "adaptiveFormats": [
-              { "itag": 140, "mimeType": "audio/mp4", "bitrate": 96000, "url": "https://example.com/fallback.mp4" }
-            ]
-          },
-          "captions": {
-            "playerCaptionsTracklistRenderer": {
-              "captionTracks": [
-                { "baseUrl": "https://example.com/captions", "name": { "simpleText": "English" }, "languageCode": "en" }
-              ]
-            }
-          }
-        };
-      </script>
-    </html>
-  `;
-
-  const mockFetch = (async (input: string | URL | Request) => {
-    const url = input.toString();
-    if (url.includes("youtube.com/watch?v=fallback123")) {
-      return new Response(watchHtml, { status: 200 });
-    }
-    // Player API fails
-    return new Response("Internal Error", { status: 500 });
-  }) as typeof fetch;
-
-  const parsed = await parseYouTubeVideo(
-    "https://www.youtube.com/watch?v=fallback123",
-    mockFetch,
-  );
-
-  expect(parsed.videoId).toBe("fallback123");
-  expect(parsed.title).toBe("Watch Fallback Title");
-  expect(parsed.audioUrl).toBe("https://example.com/fallback.mp4");
-  expect(parsed.captionTracks.length).toBe(1);
-  expect(parsed.captionTracks[0]!.name).toBe("English");
-});
-
-test("fetchJson3Captions rejects on empty response and parses valid JSON", async () => {
-  const emptyFetch = (async () => new Response("", { status: 200 })) as typeof fetch;
-  let emptyErr: Error | null = null;
-  try {
-    await fetchJson3Captions(
-      { baseUrl: "https://example.com/timedtext", languageCode: "en", name: "en" },
-      emptyFetch,
-    );
-  } catch (e) {
-    emptyErr = e instanceof Error ? e : new Error(String(e));
+    expect(lesson.video.videoId).toBe("test1234567");
+    expect(lesson.cues.length).toBe(1);
+    expect(lesson.sentences.length).toBe(1);
+    expect(lesson.sentences[0]!.text).toBe("This is a full sentence.");
+  } finally {
+    setEarSpawnHook(null);
   }
-  expect(emptyErr).toBeTruthy();
-  expect(emptyErr!.message).toMatch(/empty response/i);
-
-  const validFetch = (async () =>
-    new Response(JSON.stringify({ events: [{ tStartMs: 0, dDurationMs: 1000 }] }), {
-      status: 200,
-    })) as typeof fetch;
-  const data = (await fetchJson3Captions(
-    { baseUrl: "https://example.com/timedtext", languageCode: "en", name: "en" },
-    validFetch,
-  )) as { events: Array<{ tStartMs: number }> };
-  expect(data.events.length).toBe(1);
-  expect(data.events[0]!.tStartMs).toBe(0);
 });
 
 test("preferEnglishTrack selects manual en over auto-generated CC en", () => {
@@ -182,4 +222,10 @@ test("preferEnglishTrack selects manual en over auto-generated CC en", () => {
   expect(isAutoCaptionTrack(preferred!)).toBe(false);
   expect(captionTrackBadge(preferred!).shortLabel).toBe("人工");
   expect(captionTrackBadge(tracks[1]!).shortLabel).toBe("CC 机翻");
+  expect(cleanCaptionTrackName(tracks[1]!)).toBe("English");
+  expect(captionTrackId(preferred!)).toBe(".en");
+  expect(videoPosterUrl("abc12345678")).toBe(
+    "https://i.ytimg.com/vi/abc12345678/hqdefault.jpg",
+  );
+  expect(extractVideoId("https://youtu.be/abc12345678")).toBe("abc12345678");
 });

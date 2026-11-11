@@ -3,7 +3,6 @@ import {
   SENTENCE_PAD_MS,
   appendWithoutOverlap,
   countWords,
-  cuesFromJson3,
   difficultyFromWpm,
   mergeSentences,
 } from "./captions";
@@ -42,20 +41,10 @@ test("appendWithoutOverlap drops rolling caption word overlap", () => {
 });
 
 test("mergeSentences pads ±150ms and dedupes overlap", () => {
-  const cues = cuesFromJson3({
-    events: [
-      {
-        tStartMs: 1000,
-        dDurationMs: 1000,
-        segs: [{ utf8: "Hello " }, { utf8: "world." }],
-      },
-      {
-        tStartMs: 2500,
-        dDurationMs: 2000,
-        segs: [{ utf8: "world. This continues here." }],
-      },
-    ],
-  });
+  const cues = [
+    { startMs: 1000, endMs: 2000, text: "Hello world." },
+    { startMs: 2500, endMs: 4500, text: "world. This continues here." },
+  ];
   // First cue ends with period → flush; second is its own sentence after gap? 
   // gap 2500-2000=500 <= 650, but first already flushed on period.
   const sentences = mergeSentences(cues);
@@ -75,4 +64,19 @@ test("mergeSentences pads ±150ms and dedupes overlap", () => {
   expect(rolling[0]!.startMs).toBe(0);
   expect(rolling[0]!.endMs).toBe(1200 + SENTENCE_PAD_MS);
   expect(countWords(rolling[0]!.text)).toBe(6);
+});
+
+test("mergeSentences supports configurable modes: short, medium, and long", () => {
+  const cues = [
+    { startMs: 0, endMs: 1400, text: "In the morning," },
+    { startMs: 1400, endMs: 2800, text: "we have coffee," },
+    { startMs: 2800, endMs: 4500, text: "and we read the news." },
+  ];
+
+  const shortResult = mergeSentences(cues, { mode: "short" });
+  const longResult = mergeSentences(cues, { mode: "long" });
+
+  expect(shortResult.length).toBeGreaterThan(longResult.length);
+  expect(longResult.length).toBe(1);
+  expect(longResult[0]!.text).toBe("In the morning, we have coffee, and we read the news.");
 });

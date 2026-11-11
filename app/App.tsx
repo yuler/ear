@@ -4,6 +4,7 @@ import {
   keymap,
   lifecycle,
   mount,
+  platform,
   Scroll,
   signal,
   View,
@@ -17,7 +18,7 @@ import {
   type ClipboardVideoPreview,
 } from "./clipboard";
 import { downloadLesson } from "./library/download";
-import { deleteEntry, listEntriesSafe } from "./library/index";
+import { deleteEntry, listEntriesSafe, normalizeEntry } from "./library/index";
 import { exists } from "fs/promises";
 import process from "process";
 import {
@@ -28,11 +29,16 @@ import {
 import type { DownloadTaskProgress, LibraryEntry } from "./library/types";
 import { localMediaCandidates, localMediaFileUrl } from "./player";
 import { ActivityBanner, type ActivityKind } from "./ui/ActivityBanner";
+import { Sidebar } from "./ui/Sidebar";
 import { VideoDetailView } from "./views/VideoDetailView";
-import { SettingsPanel } from "./ui/SettingsPanel";
+import { SettingsView } from "./views/SettingsView";
 import { initSettings, settings, updateSettings } from "./ui/settings";
 import { TopBar, type MediaTab } from "./ui/TopBar";
 import { isAudioEntry, LibraryView } from "./views/LibraryView";
+import { DiscoverView } from "./views/discover/DiscoverView";
+import { DISCOVER_ITEMS } from "./views/discover/data";
+import type { DiscoverItem } from "./views/discover/types";
+import type { ViewTransitionRect } from "./views/viewTransition";
 import { hostFetch } from "./youtube/host";
 import {
   captionTrackId,
@@ -56,6 +62,7 @@ function App() {
   const error = signal<string | null>(null);
   const status = signal<string | null>(null);
   const activeTab = signal<MediaTab>("video");
+  const previousTab = signal<MediaTab>("video");
   const savedEntries = signal<LibraryEntry[]>([]);
   const clipboardPreview = signal<ClipboardVideoPreview | null>(null);
   const previewMetaMap = signal<Record<string, ClipboardVideoPreview>>({});
@@ -67,7 +74,7 @@ function App() {
   const dismissedVideoId = signal<string | null>(null);
   const playingEntry = signal<LibraryEntry | null>(null);
   const playingSrc = signal<string | null>(null);
-  const settingsOpen = signal(false);
+  const transitionOriginRect = signal<ViewTransitionRect | null>(null);
   let urlInputRef: InputRef | null = null;
   const fetchingMetaIds = new Set<string>();
   const activeDownloadIds = new Set<string>();
@@ -87,7 +94,7 @@ function App() {
     void fetchVideoPreviewMeta(preview, hostFetch, (ev) => {
       parseMessageMap.set({
         ...parseMessageMap(),
-        [vid]: ev.message,
+        [vid]: ev.message ?? "",
       });
     })
       .then((enriched) => {
@@ -96,11 +103,17 @@ function App() {
           [vid]: enriched,
         });
 
-        // Default quality selection: prefer 720p, else first available quality
+        // Default quality selection: user preferred default quality (default 360p for speed & mobile sync)
         if (!selectedQualityMap()[vid]) {
           const qs = enriched.qualities ?? [];
+          const pref = settings().defaultQuality ?? "360p";
           const defQ =
-            qs.find((q) => q.id === "720p")?.id ?? qs[0]?.id ?? "720p";
+            qs.find((q) => q.id === pref)?.id ??
+            qs.find((q) => q.id === "360p")?.id ??
+            qs.find((q) => q.id === "480p")?.id ??
+            qs.find((q) => q.id === "720p")?.id ??
+            qs[0]?.id ??
+            "360p";
           selectedQualityMap.set({
             ...selectedQualityMap(),
             [vid]: defQ,
@@ -127,7 +140,11 @@ function App() {
   };
 
   if (isAvailable) {
-    Window.setTitleBar({ style: "hidden", height: 44 });
+    if (platform.os === "macos") {
+      Window.setTitleBar({ style: "hidden", height: 44 });
+    } else {
+      Window.setMenuBar("autoHide");
+    }
   }
 
   // Auto-read clipboard on startup (when enabled) and when window becomes active
@@ -180,8 +197,9 @@ function App() {
 
   const activeSelectedQualityId = (): string => {
     const cur = activePreview();
-    if (!cur) return "720p";
-    return selectedQualityMap()[cur.videoId] ?? "720p";
+    const fallback = settings().defaultQuality ?? "360p";
+    if (!cur) return fallback;
+    return selectedQualityMap()[cur.videoId] ?? fallback;
   };
 
   const activeSelectedTrackId = (): string | null => {
@@ -248,13 +266,16 @@ function App() {
       qualityId ??
       selectedQualityMap()[vid] ??
       target.selectedQuality?.id ??
-      "720p";
+      settings().defaultQuality ??
+      "360p";
 
     // Auto-switch tab to match downloading media type immediately
-    if (effectiveQuality === "audio") {
-      activeTab.set("audio");
-    } else {
-      activeTab.set("video");
+    if (activeTab() !== "settings" && activeTab() !== "discover") {
+      if (effectiveQuality === "audio") {
+        activeTab.set("audio");
+      } else {
+        activeTab.set("video");
+      }
     }
 
     // Immediately display active download in library list at 0%
@@ -298,10 +319,12 @@ function App() {
       savedEntries.set(entries);
 
       // Auto-switch tab to match downloaded media type
-      if (isAudioEntry(entry)) {
-        activeTab.set("audio");
-      } else {
-        activeTab.set("video");
+      if (activeTab() !== "settings" && activeTab() !== "discover") {
+        if (isAudioEntry(entry)) {
+          activeTab.set("audio");
+        } else {
+          activeTab.set("video");
+        }
       }
 
       await delay(300);
@@ -366,7 +389,11 @@ function App() {
     }
   };
 
-  const handleOpenEntry = async (entry: LibraryEntry) => {
+  const handleOpenEntry = async (
+    entry: LibraryEntry,
+    originRect?: ViewTransitionRect | null,
+  ) => {
+    transitionOriginRect.set(originRect ?? null);
     const candidates = localMediaCandidates({
       videoId: entry.videoId,
       videoPath: entry.videoPath,
@@ -395,7 +422,26 @@ function App() {
   };
 
   const handleOpenFolder = async (entry: LibraryEntry) => {
-    const target = entry.videoPath || entry.audioPath || entry.captionsPath;
+    let target = entry.videoPath || entry.audioPath || null;
+    if (!target && entry.videoId) {
+      const candidates = localMediaCandidates({
+        videoId: entry.videoId,
+        videoPath: entry.videoPath,
+        audioPath: entry.audioPath,
+        dataDir: process.dataDir ?? null,
+      });
+      for (const p of candidates) {
+        try {
+          if (await exists(p)) {
+            target = p;
+            break;
+          }
+        } catch {
+          // ignore
+        }
+      }
+    }
+    target = target || entry.captionsPath || null;
     if (target) {
       await openFileParentFolder(target);
     } else {
@@ -404,23 +450,99 @@ function App() {
   };
 
   const handleDeleteEntry = async (entry: LibraryEntry) => {
-    await deleteEntry(entry.videoId);
+    await deleteEntry(entry.videoId, { deleteMediaFile: true });
     const updated = await listEntriesSafe();
     savedEntries.set(updated);
   };
 
+  const handleInspectDiscoverItem = (item: DiscoverItem) => {
+    url.set(item.url);
+    const preview = buildVideoPreview(item.url, "input");
+    if (preview) {
+      clipboardPreview.set(preview);
+      ensurePreviewEnriched(preview);
+    }
+    urlInputRef?.focus();
+  };
+
+  const handleDownloadDiscoverItem = (item: DiscoverItem) => {
+    const preview = buildVideoPreview(item.url, "input");
+    if (preview) {
+      void onStartDownload(preview);
+    }
+  };
+
+  const handlePracticeDiscoverItem = async (
+    item: DiscoverItem,
+    originRect?: ViewTransitionRect | null,
+  ) => {
+    const existing = savedEntries().find((e) => e.videoId === item.videoId);
+    if (existing) {
+      await handleOpenEntry(existing, originRect);
+      return;
+    }
+    const cand = localMediaCandidates({
+      videoId: item.videoId,
+      videoPath: null,
+      audioPath: null,
+      dataDir: process.dataDir ?? null,
+    });
+    let foundPath: string | null = null;
+    for (const p of cand) {
+      try {
+        if (await exists(p)) {
+          foundPath = p;
+          break;
+        }
+      } catch {
+        // ignore
+      }
+    }
+
+    if (foundPath) {
+      const dummyEntry = normalizeEntry({
+        videoId: item.videoId,
+        url: item.url,
+        title: item.title,
+        thumbnailUrl: item.thumbnailUrl,
+        videoPath: foundPath,
+        subtitleLabel: item.formatLabel,
+      });
+      await handleOpenEntry(dummyEntry, originRect);
+    } else {
+      handleInspectDiscoverItem(item);
+      status.set(`推荐视频《${item.title}》尚未下载，已填入下载解析栏`);
+    }
+  };
+
   keymap.bind({
-    "mod+l": () => urlInputRef?.focus(),
-    "mod+k": () => urlInputRef?.focus(),
-    "mod+,": () => settingsOpen.set(!settingsOpen()),
+    "mod+l": () => {
+      if (activeTab() === "settings") {
+        activeTab.set("video");
+      }
+      setTimeout(() => urlInputRef?.focus(), 50);
+    },
+    "mod+k": () => {
+      if (activeTab() === "settings") {
+        activeTab.set("video");
+      }
+      setTimeout(() => urlInputRef?.focus(), 50);
+    },
+    "mod+,": () => {
+      if (activeTab() === "settings") {
+        activeTab.set(previousTab());
+      } else {
+        previousTab.set(activeTab());
+        activeTab.set("settings");
+      }
+    },
     escape: () => {
       if (playingEntry()) {
-        playingEntry.set(null);
-        playingSrc.set(null);
+        // Let VideoDetailView keymap run smooth closing transition
         return;
       }
-      if (settingsOpen()) {
-        settingsOpen.set(false);
+      if (activeTab() === "settings") {
+        activeTab.set(previousTab());
         return;
       }
       const cur = activePreview();
@@ -432,83 +554,101 @@ function App() {
 
   effect(() => {
     if (!isAvailable) return;
-    const tabName = activeTab() === "video" ? "Video" : "Audio";
+    const tabName =
+      activeTab() === "video"
+        ? "Video"
+        : activeTab() === "audio"
+          ? "Audio"
+          : activeTab() === "discover"
+            ? "Discover"
+            : "Settings";
     Window.setTitle(`Ear — ${tabName}`);
 
-    Menu.setApplicationMenu([
-      {
-        label: "File",
-        submenu: [
-          {
-            label: "Focus Link Field",
-            shortcut: "mod+l",
-            onSelect: () => urlInputRef?.focus(),
-          },
-          {
-            label: "Read Link from Clipboard",
-            onSelect: () => void checkClipboard(true),
-          },
-          {
-            label: "Open Download Folder",
-            onSelect: () =>
-              void openDirectory(mediaRoot(settings().downloadFolder)),
-          },
-          { type: "separator" },
-          {
-            label: "Settings…",
-            shortcut: "mod+,",
-            onSelect: () => settingsOpen.set(true),
-          },
-          { type: "separator" },
-          { role: "quit" },
-        ],
-      },
-      {
-        label: "Edit",
-        submenu: [
-          { role: "undo" },
-          { role: "redo" },
-          { type: "separator" },
-          { role: "cut" },
-          { role: "copy" },
-          { role: "paste" },
-          { role: "selectAll" },
-        ],
-      },
-      {
-        label: "View",
-        submenu: [
-          {
-            label: "Video",
-            shortcut: "mod+1",
-            checked: activeTab() === "video",
-            onSelect: () => activeTab.set("video"),
-          },
-          {
-            label: "Audio",
-            shortcut: "mod+2",
-            checked: activeTab() === "audio",
-            onSelect: () => activeTab.set("audio"),
-          },
-          { type: "separator" },
-          {
-            label: "Switch Appearance",
-            onSelect: () =>
-              updateSettings({
-                appearance: colorScheme() === "dark" ? "light" : "dark",
-              }),
-          },
-        ],
-      },
-      {
-        label: "Window",
-        submenu: [
-          { role: "minimize" },
-          { role: "zoom" },
-          { role: "toggleFullScreen" },
-        ],
-      },
-    ]);
+    if (platform.os === "macos") {
+      Menu.setApplicationMenu([
+        {
+          label: "File",
+          submenu: [
+            {
+              label: "Focus Link Field",
+              shortcut: "mod+l",
+              onSelect: () => urlInputRef?.focus(),
+            },
+            {
+              label: "Read Link from Clipboard",
+              onSelect: () => void checkClipboard(true),
+            },
+            {
+              label: "Open Download Folder",
+              onSelect: () =>
+                void openDirectory(mediaRoot(settings().downloadFolder)),
+            },
+            { type: "separator" },
+            {
+              label: "Settings…",
+              shortcut: "mod+,",
+              onSelect: () => {
+                if (activeTab() === "settings") {
+                  activeTab.set(previousTab());
+                } else {
+                  previousTab.set(activeTab());
+                  activeTab.set("settings");
+                }
+              },
+            },
+            { type: "separator" },
+            { role: "quit" },
+          ],
+        },
+        {
+          label: "Edit",
+          submenu: [
+            { role: "undo" },
+            { role: "redo" },
+            { type: "separator" },
+            { role: "cut" },
+            { role: "copy" },
+            { role: "paste" },
+            { role: "selectAll" },
+          ],
+        },
+        {
+          label: "View",
+          submenu: [
+            {
+              label: "Video",
+              shortcut: "mod+1",
+              checked: activeTab() === "video",
+              onSelect: () => activeTab.set("video"),
+            },
+            {
+              label: "Audio",
+              shortcut: "mod+2",
+              checked: activeTab() === "audio",
+              onSelect: () => activeTab.set("audio"),
+            },
+            { type: "separator" },
+            {
+              label: "Switch Appearance",
+              onSelect: () =>
+                updateSettings({
+                  appearance: colorScheme() === "dark" ? "light" : "dark",
+                }),
+            },
+          ],
+        },
+        {
+          label: "Window",
+          submenu: [
+            { role: "minimize" },
+            { role: "zoom" },
+            { role: "toggleFullScreen" },
+          ],
+        },
+      ]);
+    } else {
+      Menu.setApplicationMenu([]);
+    }
   });
 
   const videoEntriesCount = () =>
@@ -517,115 +657,159 @@ function App() {
     savedEntries().filter((e) => isAudioEntry(e)).length;
 
   return (
-    <View class="relative flex-1 bg-background pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)]">
-      {/* 1. Top bar with expandable omnibar + Video / Audio tabs */}
-      <TopBar
-        url={url}
-        onUrlChange={(v) => {
-          url.set(v);
-          dismissedVideoId.set(null);
-        }}
-        onClearUrl={() => {
-          const cur = activePreview();
-          if (cur) dismissedVideoId.set(cur.videoId);
-          url.set("");
-        }}
-        onInputRef={(ref) => {
-          urlInputRef = ref;
-        }}
-        onSubmitParse={() => void onStartDownload()}
-        onReadClipboard={() => void checkClipboard(true)}
-        showClipboardButton={() =>
-          !settings().clipboardAuto && url().length === 0
-        }
-        loading={loading}
-        parsing={() => {
-          const cur = activePreview();
-          return cur ? Boolean(parsingMap()[cur.videoId]) : false;
-        }}
-        parseMessage={() => {
-          const cur = activePreview();
-          return cur ? (parseMessageMap()[cur.videoId] ?? "") : "";
-        }}
-        activePreview={activePreview}
-        selectedQualityId={activeSelectedQualityId}
-        onSelectQuality={(q) => {
-          const cur = activePreview();
-          if (cur) {
-            selectedQualityMap.set({
-              ...selectedQualityMap(),
-              [cur.videoId]: q,
-            });
-          }
-        }}
-        selectedTrackId={activeSelectedTrackId}
-        onSelectTrack={(t) => {
-          const cur = activePreview();
-          if (cur) {
-            selectedTrackMap.set({
-              ...selectedTrackMap(),
-              [cur.videoId]: t,
-            });
-          }
-        }}
-        onDownloadPreview={(p: ClipboardVideoPreview) => void onStartDownload(p)}
-        onDismissPreview={() => {
-          const cur = activePreview();
-          if (cur) dismissedVideoId.set(cur.videoId);
-        }}
+    <View class="relative flex-1 flex-row bg-background pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)]">
+      {/* 1. Left Navigation Sidebar (Discover, Videos, Audio, Settings) */}
+      <Sidebar
         activeTab={activeTab}
-        onSelectTab={(tab: MediaTab) => activeTab.set(tab)}
+        onSelectTab={(tab: MediaTab) => {
+          if (tab !== "settings" && activeTab() !== "settings") {
+            previousTab.set(tab);
+          }
+          activeTab.set(tab);
+        }}
         videoCount={videoEntriesCount}
         audioCount={audioEntriesCount}
+        discoverCount={() => DISCOVER_ITEMS.length}
         activeDownloadCount={() => activeDownloadsList().length}
-        onOpenSettings={() => settingsOpen.set(true)}
-        activityKind={topBarActivityKind}
-        activityProgress={topBarActivityProgress}
+        onOpenSettings={() => {
+          if (activeTab() !== "settings") {
+            previousTab.set(activeTab());
+          }
+          activeTab.set("settings");
+        }}
       />
 
-      {/* 2. Workspace scroll area: Download telemetry banner + Media list */}
-      <Scroll class="flex-1">
-        <View class="mx-auto w-full max-w-[960px] gap-4 p-4 md:p-5">
-          <ActivityBanner
-            kind={activityKind}
-            progress={activityProgress}
-            targetTitle={activityTitle}
-            error={error}
-            status={status}
-            onDismissStatus={() => {
-              error.set(null);
-              status.set(null);
+      {/* 2. feed content area: TopBar + Scroll Workspace OR Settings View */}
+      <View class="flex-1 flex-col min-w-0 h-full">
+        <If when={activeTab() === "settings"}>
+          <SettingsView onBack={() => activeTab.set(previousTab())} />
+        </If>
+
+        <If when={activeTab() !== "settings"}>
+          <TopBar
+            url={url}
+            onUrlChange={(v) => {
+              url.set(v);
+              dismissedVideoId.set(null);
             }}
-          />
-
-          <LibraryView
+            onClearUrl={() => {
+              const cur = activePreview();
+              if (cur) dismissedVideoId.set(cur.videoId);
+              url.set("");
+            }}
+            onInputRef={(ref) => {
+              urlInputRef = ref;
+            }}
+            onSubmitParse={() => void onStartDownload()}
+            onReadClipboard={() => void checkClipboard(true)}
+            showClipboardButton={() =>
+              !settings().clipboardAuto && url().length === 0
+            }
+            loading={loading}
+            parsing={() => {
+              const cur = activePreview();
+              return cur ? Boolean(parsingMap()[cur.videoId]) : false;
+            }}
+            parseMessage={() => {
+              const cur = activePreview();
+              return cur ? (parseMessageMap()[cur.videoId] ?? "") : "";
+            }}
+            activePreview={activePreview}
+            selectedQualityId={activeSelectedQualityId}
+            onSelectQuality={(q) => {
+              const cur = activePreview();
+              if (cur) {
+                selectedQualityMap.set({
+                  ...selectedQualityMap(),
+                  [cur.videoId]: q,
+                });
+              }
+            }}
+            selectedTrackId={activeSelectedTrackId}
+            onSelectTrack={(t) => {
+              const cur = activePreview();
+              if (cur) {
+                selectedTrackMap.set({
+                  ...selectedTrackMap(),
+                  [cur.videoId]: t,
+                });
+              }
+            }}
+            onDownloadPreview={(p: ClipboardVideoPreview) => void onStartDownload(p)}
+            onDismissPreview={() => {
+              const cur = activePreview();
+              if (cur) dismissedVideoId.set(cur.videoId);
+            }}
             activeTab={activeTab}
-            savedEntries={savedEntries}
-            activeDownloads={activeDownloadsList}
-            onOpenEntry={(entry) => void handleOpenEntry(entry)}
-            onOpenFolder={(entry) => void handleOpenFolder(entry)}
-            onDeleteEntry={(entry) => void handleDeleteEntry(entry)}
+            onSelectTab={(tab: MediaTab) => activeTab.set(tab)}
+            videoCount={videoEntriesCount}
+            audioCount={audioEntriesCount}
+            activeDownloadCount={() => activeDownloadsList().length}
+            discoverCount={() => DISCOVER_ITEMS.length}
+            onOpenSettings={() => {
+              if (activeTab() !== "settings") {
+                previousTab.set(activeTab());
+              }
+              activeTab.set("settings");
+            }}
+            activityKind={topBarActivityKind}
+            activityProgress={topBarActivityProgress}
           />
-        </View>
-      </Scroll>
 
-      {/* 3. Transition video practice page (Feature: enlarged video + subtitle list + mask + listen) */}
+          {/* Workspace scroll area: Download telemetry banner + Media list / Discover */}
+          <Scroll class="flex-1">
+            <View class="mx-auto w-full max-w-[960px] gap-4 p-4 md:p-5">
+              <ActivityBanner
+                kind={activityKind}
+                progress={activityProgress}
+                targetTitle={activityTitle}
+                error={error}
+                status={status}
+                onDismissStatus={() => {
+                  error.set(null);
+                  status.set(null);
+                }}
+              />
+
+              <If when={activeTab() === "discover"}>
+                <DiscoverView
+                  onInspectItem={handleInspectDiscoverItem}
+                  onPracticeItem={(item, rect) => void handlePracticeDiscoverItem(item, rect)}
+                  onDownloadItem={handleDownloadDiscoverItem}
+                  savedEntries={savedEntries}
+                  activeDownloads={activeDownloadsList}
+                />
+              </If>
+
+              <If when={activeTab() !== "discover"}>
+                <LibraryView
+                  activeTab={activeTab}
+                  savedEntries={savedEntries}
+                  activeDownloads={activeDownloadsList}
+                  onOpenEntry={(entry, rect) => void handleOpenEntry(entry, rect)}
+                  onOpenFolder={(entry) => void handleOpenFolder(entry)}
+                  onDeleteEntry={(entry) => void handleDeleteEntry(entry)}
+                />
+              </If>
+            </View>
+          </Scroll>
+        </If>
+      </View>
+
+      {/* 3. Transition video practice page (View transition: enlarged video + subtitle list + mask + listen) */}
       <If when={playingEntry() && playingSrc()}>
         {() => (
           <VideoDetailView
             entry={() => playingEntry()!}
             src={() => playingSrc()!}
+            originRect={() => transitionOriginRect()}
             onClose={() => {
               playingEntry.set(null);
               playingSrc.set(null);
+              transitionOriginRect.set(null);
             }}
           />
         )}
-      </If>
-
-      {/* 4. Settings modal overlay */}
-      <If when={settingsOpen()}>
-        <SettingsPanel onClose={() => settingsOpen.set(false)} />
       </If>
     </View>
   );

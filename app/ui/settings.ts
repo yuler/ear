@@ -3,9 +3,13 @@ import {
   DEFAULT_SETTINGS,
   hydrateSettings,
   saveSettings,
+  type EarLocale,
   type EarSettings,
+  type SentenceLengthMode,
   type SubtitleSize,
 } from "../store";
+
+export type { EarLocale, SentenceLengthMode };
 
 /** App-wide reactive settings; read anywhere, write through `updateSettings`. */
 export const settings = signal<EarSettings>({ ...DEFAULT_SETTINGS });

@@ -1,4 +1,11 @@
-import type { Sentence } from "../youtube/types";
+import type { CaptionCue, Sentence } from "../youtube/types";
+import {
+  countWords,
+  difficultyFromWpm,
+  endsSentence,
+  mergeSentences,
+  type SentenceLengthMode,
+} from "../youtube/captions";
 import { maskCaption } from "./blindFlow";
 
 /** Format milliseconds into m:ss timestamp string (e.g. 1400 -> "0:01"). */
@@ -85,4 +92,94 @@ export function isSentenceMasked(
   isRevealed: boolean,
 ): boolean {
   return isMasked && !isRevealed;
+}
+
+/**
+ * Re-segment sentences dynamically according to the chosen length mode.
+ * Prefers raw CaptionCue[] when available; falls back to slicing/combining existing Sentence[].
+ */
+export function resegmentSentences(
+  cues: CaptionCue[],
+  fallbackSentences: Sentence[],
+  mode: SentenceLengthMode,
+): Sentence[] {
+  if (cues && cues.length > 0) {
+    return mergeSentences(cues, { mode });
+  }
+  if (!fallbackSentences || fallbackSentences.length === 0) return [];
+  if (mode === "medium") return fallbackSentences;
+
+  if (mode === "short") {
+    const result: Sentence[] = [];
+    for (const s of fallbackSentences) {
+      if (s.wordCount <= 8) {
+        result.push({ ...s, index: result.length });
+        continue;
+      }
+      const clauses = s.text.match(/[^,;:—\u3001\uff0c\uff1b\uff1a-]+[,;:—\u3001\uff0c\uff1b\uff1a-]*/g);
+      if (!clauses || clauses.length <= 1) {
+        result.push({ ...s, index: result.length });
+        continue;
+      }
+      const totalDur = Math.max(s.endMs - s.startMs, 10);
+      const totalLen = Math.max(s.text.length, 1);
+      let start = s.startMs;
+      for (let i = 0; i < clauses.length; i++) {
+        const c = clauses[i]!.trim();
+        if (!c) continue;
+        const dur = Math.round((c.length / totalLen) * totalDur);
+        const end = i === clauses.length - 1 ? s.endMs : start + dur;
+        const wc = countWords(c);
+        const wpm = (wc * 60_000) / Math.max(end - start, 1);
+        result.push({
+          index: result.length,
+          startMs: start,
+          endMs: end,
+          text: c,
+          wordCount: wc,
+          wpm: Math.round(wpm),
+          difficulty: difficultyFromWpm(wpm),
+        });
+        start = end;
+      }
+    }
+    return result;
+  }
+
+  // mode === "long": combine adjacent sentences
+  const result: Sentence[] = [];
+  let cur: Sentence | null = null;
+  for (const s of fallbackSentences) {
+    if (!cur) {
+      cur = { ...s };
+      continue;
+    }
+    const gap: number = s.startMs - cur.endMs;
+    const combinedDuration: number = s.endMs - cur.startMs;
+    if (gap <= 650 && combinedDuration <= 14000) {
+      const combinedText = `${cur.text} ${s.text}`.trim();
+      const wc = countWords(combinedText);
+      const wpm: number = (wc * 60_000) / Math.max(combinedDuration, 1);
+      cur = {
+        index: result.length,
+        startMs: cur.startMs,
+        endMs: s.endMs,
+        text: combinedText,
+        wordCount: wc,
+        wpm: Math.round(wpm),
+        difficulty: difficultyFromWpm(wpm),
+      };
+      if (endsSentence(s.text)) {
+        result.push(cur);
+        cur = null;
+      }
+    } else {
+      result.push({ ...cur, index: result.length });
+      cur = { ...s };
+    }
+  }
+  if (cur) {
+    result.push({ ...cur, index: result.length });
+  }
+  return result;
 }

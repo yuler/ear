@@ -28,7 +28,7 @@ function formatMs(ms: number): string {
 
 function DiffRow(props: { tokens: () => DiffToken[] }) {
   return (
-    <View class="flex-row flex-wrap gap-1.5">
+    <View selectable class="flex-row flex-wrap gap-1.5 select-text">
       <Each of={props.tokens()} key="index">
         {(item) => (
           <View
@@ -343,9 +343,9 @@ export function LoopDojo(props: Props) {
 
             {/* Answer */}
             <If when={showAnswer()}>
-              <View class="border-t border-line pt-3">
+              <View selectable class="border-t border-line pt-3 select-text">
                 <Text
-                  class={`font-medium text-foreground ${subtitleClass(
+                  class={`select-text font-medium text-foreground ${subtitleClass(
                     settings().subtitleSize,
                   )}`}
                 >

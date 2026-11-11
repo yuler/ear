@@ -309,18 +309,29 @@ export function BlindFlow(props: Props) {
             </View>
 
             {/* Focal subtitle */}
-            <Button
-              onPress={toggleReveal}
-              class="min-h-[84px] items-center justify-center px-2 py-3"
+            <View
+              selectable
+              class="min-h-[84px] flex-col items-center justify-center gap-2 px-2 py-3 select-text"
             >
               <Text
-                class={`text-center font-medium text-foreground ${subtitleClass(
+                class={`select-text text-center font-medium text-foreground ${subtitleClass(
                   settings().subtitleSize,
                 )}`}
               >
                 {session().revealed ? get().text : maskCaption(get().text)}
               </Text>
-            </Button>
+              <Button
+                onPress={toggleReveal}
+                class="rounded-md border border-line bg-well/50 px-2.5 py-1 transition hover:bg-well active:scale-95"
+                accessibilityLabel={
+                  session().revealed ? "Hide subtitle" : "Reveal subtitle"
+                }
+              >
+                <Text class="font-mono text-[11px] text-muted-foreground">
+                  {session().revealed ? "隐藏字幕 (Space)" : "显示字幕 (Space)"}
+                </Text>
+              </Button>
+            </View>
 
             {/* Thin sentence timeline */}
             <View class="gap-2">

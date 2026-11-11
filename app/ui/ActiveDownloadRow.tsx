@@ -140,9 +140,9 @@ export function ActiveDownloadRow(props: {
         </View>
 
         {/* 2. Video Metadata & Downbit-style Live Telemetry */}
-        <View class="min-w-0 flex-1 gap-1">
+        <View selectable class="min-w-0 flex-1 gap-1 select-text">
           <View class="flex-row items-center justify-between gap-2">
-            <Text class="min-w-0 flex-1 truncate text-sm font-semibold text-foreground">
+            <Text class="select-text min-w-0 flex-1 truncate text-sm font-semibold text-foreground">
               {props.task().title}
             </Text>
             <View class="shrink-0 flex-row items-center gap-1.5">

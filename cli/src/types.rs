@@ -27,6 +27,14 @@ pub struct CaptionTrackInfo {
     pub is_auto: bool,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct CaptionCue {
+    pub start_ms: u64,
+    pub end_ms: u64,
+    pub text: String,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ParsedVideoPayload {

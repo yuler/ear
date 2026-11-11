@@ -1,4 +1,12 @@
-import { effect, keymap, LayoutAnimation, Text, View, type InputRef } from "nsh";
+import {
+  effect,
+  keymap,
+  LayoutAnimation,
+  platform,
+  Text,
+  View,
+  type InputRef,
+} from "nsh";
 import { Button, Input } from "nsh/base";
 import { titleBar } from "nsh/desktop";
 import type { ClipboardVideoPreview } from "../clipboard";
@@ -6,10 +14,10 @@ import type { ActivityKind } from "./ActivityBanner";
 import { ClipboardCard } from "./ClipboardCard";
 import { Icon } from "./Icon";
 
-export type MediaTab = "video" | "audio";
+export type MediaTab = "video" | "audio" | "discover" | "settings";
 
-const TABS: readonly { key: MediaTab; label: string }[] = [
-  { key: "video", label: "Video" },
+const TABS: readonly { key: "video" | "audio"; label: string }[] = [
+  { key: "video", label: "Videos" },
   { key: "audio", label: "Audio" },
 ];
 
@@ -37,7 +45,8 @@ export function TopBar(props: {
   videoCount: () => number;
   audioCount: () => number;
   activeDownloadCount?: () => number;
-  onOpenSettings: () => void;
+  discoverCount?: () => number;
+  onOpenSettings?: () => void;
   activityKind: () => ActivityKind;
   activityProgress: () => number;
 }) {
@@ -55,23 +64,20 @@ export function TopBar(props: {
   });
 
   return (
-    <View desktop={{ windowDrag: true }} class="border-b border-line bg-background">
+    <View
+      desktop={{ windowDrag: platform.os === "macos" }}
+      class="border-b border-line bg-background"
+    >
       <View
         style={{
-          paddingLeft: (titleBar().left || 16) + 4,
-          paddingRight: (titleBar().right || 16) + 4,
+          paddingLeft: 16,
+          paddingRight: titleBar().right ? titleBar().right + 4 : 16,
         }}
         class="pt-3"
       >
         <View class="mx-auto w-full max-w-[960px] gap-2">
-          {/* Row 1: wordmark · Downbit-style expandable omnibar · settings */}
-          <View class="w-full flex-row items-start gap-4">
-            <View class="py-1.5" accessibilityLabel="Ear">
-              <Text class="text-base font-semibold tracking-tight text-foreground">
-                Ear
-              </Text>
-            </View>
-
+          {/* Row 1: Downbit-style expandable omnibar */}
+          <View class="w-full flex-row items-start">
             {/* Expandable Omnibar + Dropdown Drawer */}
             <View class="min-w-0 flex-1">
               <View
@@ -157,7 +163,7 @@ export function TopBar(props: {
                     parsing={() => props.parsing?.() ?? false}
                     parseMessage={() => props.parseMessage?.() ?? ""}
                     selectedQualityId={() =>
-                      props.selectedQualityId?.() ?? "720p"
+                      props.selectedQualityId?.() ?? "360p"
                     }
                     onSelectQuality={(q) => props.onSelectQuality?.(q)}
                     selectedTrackId={() => props.selectedTrackId?.() ?? null}
@@ -168,63 +174,59 @@ export function TopBar(props: {
                 )}
               </If>
             </View>
-
-            <Button
-              onPress={props.onOpenSettings}
-              class="h-8 w-8 items-center justify-center rounded-md active:bg-accent"
-              accessibilityLabel="Settings"
-            >
-              <Icon name="settings" size={16} tone="muted-foreground" />
-            </Button>
           </View>
 
-          {/* Row 2: Video and Audio tabs */}
-          <View class="flex-row items-center gap-6">
-            {TABS.map((tab) => {
-              const active = () => props.activeTab() === tab.key;
-              const count = () =>
-                tab.key === "video" ? props.videoCount() : props.audioCount();
-              return (
-                <Button
-                  onPress={() => props.onSelectTab(tab.key)}
-                  class={`flex-row items-center gap-1.5 border-b-2 pt-1 pb-2 ${
-                    active() ? "border-foreground" : "border-transparent"
-                  }`}
-                >
-                  <Text
-                    class={`text-sm ${
-                      active()
-                        ? "font-semibold text-foreground"
-                        : "text-muted-foreground"
+          {/* Row 2: Video and Audio tabs for Library */}
+          <If when={props.activeTab() !== "discover" && props.activeTab() !== "settings"}>
+            <View class="flex-row items-center gap-6">
+              {TABS.map((tab) => {
+                const active = () => props.activeTab() === tab.key;
+                const count = () => {
+                  if (tab.key === "video") return props.videoCount();
+                  return props.audioCount();
+                };
+                return (
+                  <Button
+                    onPress={() => props.onSelectTab(tab.key)}
+                    class={`flex-row items-center gap-1.5 border-b-2 pt-1 pb-2 ${
+                      active() ? "border-foreground" : "border-transparent"
                     }`}
                   >
-                    {tab.label}
-                  </Text>
-                  <Text class="font-mono text-xs tabular-nums text-dim">
-                    {count()}
-                  </Text>
-                  <If
-                    when={
-                      tab.key === "video" &&
-                      (props.activeDownloadCount?.() ?? 0) > 0
-                    }
-                  >
-                    <View class="flex-row items-center gap-1 rounded-full bg-[#2f7cf6]/20 px-1.5 py-0.5">
-                      <Icon
-                        name="loader"
-                        size={10}
-                        color="#2f7cf6"
-                        class="animate-spin"
-                      />
-                      <Text class="font-mono text-[10px] font-semibold tabular-nums text-[#2f7cf6]">
-                        {props.activeDownloadCount?.()}
-                      </Text>
-                    </View>
-                  </If>
-                </Button>
-              );
-            })}
-          </View>
+                    <Text
+                      class={`text-sm ${
+                        active()
+                          ? "font-semibold text-foreground"
+                          : "text-muted-foreground"
+                      }`}
+                    >
+                      {tab.label}
+                    </Text>
+                    <Text class="font-mono text-xs tabular-nums text-dim">
+                      {count()}
+                    </Text>
+                    <If
+                      when={
+                        tab.key === "video" &&
+                        (props.activeDownloadCount?.() ?? 0) > 0
+                      }
+                    >
+                      <View class="flex-row items-center gap-1 rounded-full bg-[#2f7cf6]/20 px-1.5 py-0.5">
+                        <Icon
+                          name="loader"
+                          size={10}
+                          color="#2f7cf6"
+                          class="animate-spin"
+                        />
+                        <Text class="font-mono text-[10px] font-semibold tabular-nums text-[#2f7cf6]">
+                          {props.activeDownloadCount?.()}
+                        </Text>
+                      </View>
+                    </If>
+                  </Button>
+                );
+              })}
+            </View>
+          </If>
         </View>
       </View>
 

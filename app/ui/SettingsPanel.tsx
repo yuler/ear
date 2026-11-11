@@ -6,7 +6,7 @@ import {
   mediaRoot,
   openDirectory,
 } from "../library/paths";
-import type { Appearance } from "../store";
+import type { Appearance, DefaultQuality } from "../store";
 import { Icon } from "./Icon";
 import { settings, updateSettings } from "./settings";
 
@@ -59,6 +59,14 @@ const APPEARANCE: readonly { value: Appearance; label: string }[] = [
   { value: "light", label: "Light" },
   { value: "dark", label: "Dark" },
   { value: "system", label: "System" },
+];
+
+const DEFAULT_QUALITIES: readonly { value: DefaultQuality; label: string }[] = [
+  { value: "360p", label: "360p (极速)" },
+  { value: "480p", label: "480p" },
+  { value: "720p", label: "720p" },
+  { value: "1080p", label: "1080p" },
+  { value: "audio", label: "Audio" },
 ];
 
 /** Centered settings modal with storage details, folder quick-open, and preferences. */
@@ -127,9 +135,12 @@ export function SettingsPanel(props: { onClose: () => void }) {
             </Button>
           </View>
 
-          <Text class="font-mono text-[11px] text-dim">
-            当前位置：{currentMediaDir()}
-          </Text>
+          <View selectable class="flex-row items-center gap-1 select-text">
+            <Text class="text-xs text-muted-foreground select-text">当前位置：</Text>
+            <Text class="font-mono text-xs text-dim select-text">
+              {currentMediaDir()}
+            </Text>
+          </View>
         </View>
 
         {/* 2. Metadata & Captions Storage */}
@@ -143,10 +154,14 @@ export function SettingsPanel(props: { onClose: () => void }) {
             </Text>
           </View>
 
-          <View class="flex-row items-center justify-between gap-2">
-            <Text class="min-w-0 flex-1 truncate font-mono text-[11px] text-dim">
-              {currentLibDir()}
-            </Text>
+          <View class="flex-row items-center gap-2">
+            <Input
+              readonly
+              value={currentLibDir()}
+              autoCapitalize="none"
+              autoCorrect={false}
+              class="min-w-0 flex-1 rounded-md border border-line bg-well px-3 py-1.5 font-mono text-xs text-foreground select-text"
+            />
             <Button
               onPress={() => void openDirectory(currentLibDir())}
               class="shrink-0 flex-row items-center gap-1.5 rounded-md border border-line bg-raised px-3 py-1.5 active:bg-accent"
@@ -180,6 +195,21 @@ export function SettingsPanel(props: { onClose: () => void }) {
             options={APPEARANCE}
             value={() => settings().appearance}
             onChange={(v) => updateSettings({ appearance: v })}
+          />
+        </View>
+
+        {/* 5. Default Quality */}
+        <View class="flex-row items-center justify-between gap-6 border-b border-line py-3">
+          <View class="min-w-0 flex-1 gap-0.5">
+            <Text class="text-sm text-foreground">默认清晰度 (Default Quality)</Text>
+            <Text class="text-xs text-muted-foreground">
+              默认首选 360p（体积小/极速/手机同步友好）
+            </Text>
+          </View>
+          <Segmented
+            options={DEFAULT_QUALITIES}
+            value={() => settings().defaultQuality ?? "360p"}
+            onChange={(v) => updateSettings({ defaultQuality: v })}
           />
         </View>
 

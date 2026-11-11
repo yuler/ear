@@ -1,29 +1,24 @@
 import { Text, View } from "nsh";
-import { Button } from "nsh/base";
 import type { DownloadTaskProgress, LibraryEntry } from "../library/types";
-import type { LibraryLayoutMode } from "../store";
 import { ActiveDownloadRow } from "../ui/ActiveDownloadRow";
 import { Icon } from "../ui/Icon";
-import { settings, updateSettings } from "../ui/settings";
-import {
-  LibraryGradeCard,
-  LibraryListRow,
-  LibraryPostCard,
-} from "./LibraryCards";
+import type { MediaTab } from "../ui/TopBar";
+import { LibraryPostCard } from "./LibraryCards";
 import { formatEntryDescription, isAudioEntry } from "./libraryView";
+import type { ViewTransitionRect } from "./viewTransition";
 
 export { formatEntryDescription, isAudioEntry };
 
 /**
  * Library view:
  * Displays active downloads at the very front as horizontal bars (横条),
- * followed by saved videos/audio in List, Grade, or Post layout modes.
+ * followed by saved videos/audio in the standard responsive grid style.
  */
 export function LibraryView(props: {
-  activeTab: () => "video" | "audio";
+  activeTab: () => MediaTab;
   savedEntries: () => LibraryEntry[];
   activeDownloads?: () => DownloadTaskProgress[];
-  onOpenEntry: (entry: LibraryEntry) => void;
+  onOpenEntry: (entry: LibraryEntry, originRect?: ViewTransitionRect | null) => void;
   onOpenFolder: (entry: LibraryEntry) => void;
   onDeleteEntry?: (entry: LibraryEntry) => void;
 }) {
@@ -45,11 +40,6 @@ export function LibraryView(props: {
     });
   };
 
-  const layoutMode = () => settings().libraryLayout ?? "post";
-  const setLayoutMode = (mode: LibraryLayoutMode) => {
-    updateSettings({ libraryLayout: mode });
-  };
-
   const totalVisibleCount = () =>
     currentEntries().length + currentDownloads().length;
 
@@ -57,7 +47,7 @@ export function LibraryView(props: {
     <View class="gap-4">
       <If when={totalVisibleCount() > 0}>
         <View class="gap-3">
-          {/* Section header + List / Grade / Post mode toggle */}
+          {/* Section header */}
           <View class="flex-row items-center justify-between border-b border-line pb-1">
             <View class="flex-row items-center gap-2">
               <Text class="font-mono text-[11px] uppercase tracking-wider text-dim">
@@ -78,68 +68,6 @@ export function LibraryView(props: {
                 </View>
               </If>
             </View>
-
-            <View class="flex-row items-center rounded-lg border border-line bg-well/40 p-0.5">
-              <Button
-                onPress={() => setLayoutMode("list")}
-                class={`rounded-md px-2.5 py-1 ${
-                  layoutMode() === "list"
-                    ? "bg-primary shadow-sm"
-                    : "bg-transparent active:bg-accent"
-                }`}
-                accessibilityLabel="List view mode"
-              >
-                <Text
-                  class={`text-xs ${
-                    layoutMode() === "list"
-                      ? "font-semibold text-primary-foreground"
-                      : "font-medium text-muted-foreground"
-                  }`}
-                >
-                  List
-                </Text>
-              </Button>
-
-              <Button
-                onPress={() => setLayoutMode("grade")}
-                class={`rounded-md px-2.5 py-1 ${
-                  layoutMode() === "grade"
-                    ? "bg-primary shadow-sm"
-                    : "bg-transparent active:bg-accent"
-                }`}
-                accessibilityLabel="Grade view mode (Windows picture grid)"
-              >
-                <Text
-                  class={`text-xs ${
-                    layoutMode() === "grade"
-                      ? "font-semibold text-primary-foreground"
-                      : "font-medium text-muted-foreground"
-                  }`}
-                >
-                  Grade
-                </Text>
-              </Button>
-
-              <Button
-                onPress={() => setLayoutMode("post")}
-                class={`rounded-md px-2.5 py-1 ${
-                  layoutMode() === "post"
-                    ? "bg-primary shadow-sm"
-                    : "bg-transparent active:bg-accent"
-                }`}
-                accessibilityLabel="Post view mode (Large poster cards)"
-              >
-                <Text
-                  class={`text-xs ${
-                    layoutMode() === "post"
-                      ? "font-semibold text-primary-foreground"
-                      : "font-medium text-muted-foreground"
-                  }`}
-                >
-                  Post
-                </Text>
-              </Button>
-            </View>
           </View>
 
           {/* 1. Active Downloads: Always placed at the very front as horizontal bars (横条) */}
@@ -151,56 +79,19 @@ export function LibraryView(props: {
             </View>
           </If>
 
-          {/* 2. Finished library entries in selected layout mode */}
+          {/* 2. Finished library entries in standard responsive grid style */}
           <If when={currentEntries().length > 0}>
-            <View>
-              {/* List Mode: Classic horizontal rows */}
-              <If when={layoutMode() === "list"}>
-                <View class="gap-1">
-                  <Each of={currentEntries()} key={(entry) => entry.videoId}>
-                    {(entry) => (
-                      <LibraryListRow
-                        entry={entry()}
-                        onOpenEntry={props.onOpenEntry}
-                        onOpenFolder={props.onOpenFolder}
-                        onDeleteEntry={props.onDeleteEntry}
-                      />
-                    )}
-                  </Each>
-                </View>
-              </If>
-
-              {/* Grade Mode: Windows picture-style tiles */}
-              <If when={layoutMode() === "grade"}>
-                <View class="flex-row flex-wrap gap-3.5 pt-1">
-                  <Each of={currentEntries()} key={(entry) => entry.videoId}>
-                    {(entry) => (
-                      <LibraryGradeCard
-                        entry={entry()}
-                        onOpenEntry={props.onOpenEntry}
-                        onOpenFolder={props.onOpenFolder}
-                        onDeleteEntry={props.onDeleteEntry}
-                      />
-                    )}
-                  </Each>
-                </View>
-              </If>
-
-              {/* Post Mode: Large poster cards */}
-              <If when={layoutMode() === "post"}>
-                <View class="flex-row flex-wrap gap-5 pt-1">
-                  <Each of={currentEntries()} key={(entry) => entry.videoId}>
-                    {(entry) => (
-                      <LibraryPostCard
-                        entry={entry()}
-                        onOpenEntry={props.onOpenEntry}
-                        onOpenFolder={props.onOpenFolder}
-                        onDeleteEntry={props.onDeleteEntry}
-                      />
-                    )}
-                  </Each>
-                </View>
-              </If>
+            <View class="flex-row flex-wrap gap-5 pt-1">
+              <Each of={currentEntries()} key={(entry) => entry.videoId}>
+                {(entry) => (
+                  <LibraryPostCard
+                    entry={entry()}
+                    onOpenEntry={props.onOpenEntry}
+                    onOpenFolder={props.onOpenFolder}
+                    onDeleteEntry={props.onDeleteEntry}
+                  />
+                )}
+              </Each>
             </View>
           </If>
         </View>

@@ -38,8 +38,8 @@ export function ActivityBanner(props: {
 
       {/* 2. Error banner */}
       <If when={props.error()}>
-        <View class="flex-row items-center justify-between gap-3 rounded-md border border-danger/40 px-3 py-2">
-          <Text class="min-w-0 flex-1 text-xs text-danger">{props.error()}</Text>
+        <View selectable class="flex-row items-center justify-between gap-3 rounded-md border border-danger/40 px-3 py-2 select-text">
+          <Text class="select-text min-w-0 flex-1 text-xs text-danger">{props.error()}</Text>
           <Button
             onPress={props.onDismissStatus}
             class="h-6 w-6 items-center justify-center rounded active:opacity-70"
@@ -52,8 +52,8 @@ export function ActivityBanner(props: {
 
       {/* 3. Quiet status toast */}
       <If when={!props.kind() && !props.error() && props.status()}>
-        <View class="flex-row items-center justify-between gap-3 rounded-md border border-line px-3 py-2">
-          <Text class="min-w-0 flex-1 truncate text-xs text-muted-foreground">
+        <View selectable class="flex-row items-center justify-between gap-3 rounded-md border border-line px-3 py-2 select-text">
+          <Text class="select-text min-w-0 flex-1 truncate text-xs text-muted-foreground">
             {props.status()}
           </Text>
           <Button
