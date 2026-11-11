@@ -17,6 +17,7 @@ MIN_RUNNER_VERSION="0.0.1"
 ASSETS_DIR="."
 OUTPUT="latest.json"
 CHECKSUMS="checksums.txt"
+CHANGELOG=""
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -34,6 +35,10 @@ while [[ $# -gt 0 ]]; do
       ;;
     --repo)
       REPO="$2"
+      shift 2
+      ;;
+    --changelog)
+      CHANGELOG="$2"
       shift 2
       ;;
     --min-runner-version)
@@ -111,12 +116,16 @@ WIN_SIZE="$(get_size "$WIN_PATH")"
 
 RELEASE_DATE="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 
+if [ -z "$CHANGELOG" ]; then
+  CHANGELOG="Release $TAG"
+fi
+
 jq -n \
   --arg version "$VERSION" \
   --argjson build "$BUILD" \
   --arg minRunnerVersion "$MIN_RUNNER_VERSION" \
   --arg releaseDate "$RELEASE_DATE" \
-  --arg changelog "Release $TAG" \
+  --arg changelog "$CHANGELOG" \
   --arg bundleUrl "$BUNDLE_URL" \
   --arg bundleSha256 "$BUNDLE_SHA" \
   --arg linuxFile "$LINUX_FILE" \

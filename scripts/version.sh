@@ -41,8 +41,7 @@ get_current_version() {
 }
 
 do_sync() {
-  local version
-  version="$(get_current_version)"
+  local version="${1:-$(get_current_version)}"
   log_info "Synchronizing repository version to $version..."
 
   # 1. Update app/nsh.json via jq
@@ -54,10 +53,12 @@ do_sync() {
     log_success "Updated app/nsh.json → $version"
   fi
 
-  # 2. Update cli/Cargo.toml & Cargo.lock via sed
+  # 2. Update cli/Cargo.toml & Cargo.lock
   local cargo_toml="$ROOT_DIR/cli/Cargo.toml"
   if [ -f "$cargo_toml" ]; then
-    sed -i -E '0,/version = ".*"/s/version = ".*"/version = "'"$version"'"/' "$cargo_toml"
+    local tmp_cargo="${cargo_toml}.tmp"
+    sed -E '0,/version = ".*"/s/version = ".*"/version = "'"$version"'"/' "$cargo_toml" > "$tmp_cargo"
+    mv "$tmp_cargo" "$cargo_toml"
     log_success "Updated cli/Cargo.toml → $version"
     cargo check --manifest-path "$cargo_toml" --quiet 2>/dev/null || true
     log_success "Updated cli/Cargo.lock"
@@ -183,7 +184,8 @@ main() {
       do_bump "${1:-}"
       ;;
     sync)
-      do_sync
+      shift || true
+      do_sync "${1:-}"
       ;;
     show|get)
       show_status

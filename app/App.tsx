@@ -44,6 +44,7 @@ import {
   captionTrackId,
   loadLesson,
   loadLessonFromParsed,
+  preferBestCaptionTrack,
   preferEnglishTrack,
 } from "./youtube/parse";
 import type { LoadedLesson } from "./youtube/types";
@@ -121,9 +122,12 @@ function App() {
           });
         }
 
-        // Default subtitle track selection: prefer Manual English, then CC English
+        // Default subtitle track selection: prefer Manual track matching video language
         if (!selectedTrackMap()[vid]) {
-          const pref = preferEnglishTrack(enriched.captionTracks ?? []);
+          const pref = preferBestCaptionTrack(
+            enriched.captionTracks ?? [],
+            enriched.title,
+          );
           if (pref) {
             selectedTrackMap.set({
               ...selectedTrackMap(),
@@ -212,7 +216,7 @@ function App() {
     const explicit = selectedTrackMap()[cur.videoId];
     if (explicit) return explicit;
     const tracks = cur.captionTracks ?? [];
-    const pref = preferEnglishTrack(tracks);
+    const pref = preferBestCaptionTrack(tracks, cur.title);
     return pref ? captionTrackId(pref) : "en:manual";
   };
 

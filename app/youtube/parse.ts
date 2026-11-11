@@ -155,6 +155,38 @@ export function preferEnglishTrack(tracks: CaptionTrack[]): CaptionTrack | null 
 }
 
 /**
+ * Intelligent subtitle track selection:
+ * If the video title or metadata indicates Japanese, prefer manual Japanese tracks;
+ * otherwise prefer manual English tracks.
+ */
+export function preferBestCaptionTrack(
+  tracks: CaptionTrack[],
+  title?: string,
+): CaptionTrack | null {
+  if (tracks.length === 0) return null;
+
+  const isJapaneseVideo =
+    Boolean(title) &&
+    (/[\u3040-\u309F\u30A0-\u30FF]/.test(title!) ||
+      /japanese|jlpt|日本語|聴解/i.test(title!));
+
+  if (isJapaneseVideo) {
+    const isJa = (t: CaptionTrack) =>
+      t.languageCode === "ja" ||
+      t.languageCode.startsWith("ja-") ||
+      /japanese|日本語/i.test(t.name);
+
+    const manualJa = tracks.find((t) => isJa(t) && !isAutoCaptionTrack(t));
+    if (manualJa) return manualJa;
+
+    const autoJa = tracks.find((t) => isJa(t));
+    if (autoJa) return autoJa;
+  }
+
+  return preferEnglishTrack(tracks);
+}
+
+/**
  * Parse a YouTube video via the Rust `ear parse` binary with real-time
  * progress callbacks.
  */

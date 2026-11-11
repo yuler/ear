@@ -125,6 +125,36 @@ pub fn validate_and_convert_item(raw: RawDiscoverItem) -> Result<DiscoverItem, S
     })
 }
 
+pub fn bundled_catalog() -> (DiscoverIndex, Vec<DiscoverItem>) {
+    let index_str = include_str!("../../api/discover/index.json");
+    let index: DiscoverIndex = serde_json::from_str(index_str).unwrap_or(DiscoverIndex {
+        schema_version: SUPPORTED_SCHEMA_VERSION,
+        updated_at: "2026-11-11".to_string(),
+        files: vec!["en.json".to_string(), "ja.json".to_string()],
+    });
+
+    let mut all_items = Vec::new();
+    let en_str = include_str!("../../api/discover/en.json");
+    if let Ok(en_file) = serde_json::from_str::<RawDiscoverLanguageFile>(en_str) {
+        for item in en_file.items {
+            if let Ok(conv) = validate_and_convert_item(item) {
+                all_items.push(conv);
+            }
+        }
+    }
+
+    let ja_str = include_str!("../../api/discover/ja.json");
+    if let Ok(ja_file) = serde_json::from_str::<RawDiscoverLanguageFile>(ja_str) {
+        for item in ja_file.items {
+            if let Ok(conv) = validate_and_convert_item(item) {
+                all_items.push(conv);
+            }
+        }
+    }
+
+    (index, all_items)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

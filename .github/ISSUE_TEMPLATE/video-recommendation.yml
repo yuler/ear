@@ -1,0 +1,55 @@
+name: 推荐精听视频 (Video Recommendation)
+description: 向 Ear 的 Discover 推荐优质可理解输入精听视频 (English / Japanese)
+title: "[Recommend] "
+labels: ["discover", "content"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        感谢为 Ear 社区推荐精听材料！请确保视频为可理解输入（Comprehensible Input）材料，配有原语言人声音频及对应字幕。
+  - type: input
+    id: video_url
+    attributes:
+      label: YouTube 链接或 ID (YouTube URL or Video ID)
+      placeholder: https://www.youtube.com/watch?v=... 或 videoId
+    validations:
+      required: true
+  - type: dropdown
+    id: language
+    attributes:
+      label: 语言 (Language)
+      options:
+        - "en (English)"
+        - "ja (Japanese)"
+    validations:
+      required: true
+  - type: dropdown
+    id: level
+    attributes:
+      label: 难度等级 (Level)
+      description: 英语使用 CEFR (A1-C1)，日语使用 JLPT (N5-N1)
+      options:
+        - "A1 (English 初学入门)"
+        - "A2 (English 初级日常)"
+        - "B1 (English 中级自然交流)"
+        - "B2 (English 中高级深度)"
+        - "C1 (English 高级流利表达)"
+        - "N5 (Japanese 初级入门)"
+        - "N4 (Japanese 初级日常)"
+        - "N3 (Japanese 中级交流)"
+        - "N2 (Japanese 中高级)"
+        - "N1 (Japanese 高级听解)"
+    validations:
+      required: true
+  - type: input
+    id: tags
+    attributes:
+      label: 标签 (Tags)
+      placeholder: "#DailyLife, #Shadowing, #SlowAudio"
+  - type: textarea
+    id: description
+    attributes:
+      label: 推荐理由或内容简介 (Description)
+      placeholder: 一两句话说明为什么推荐这个视频...
+    validations:
+      required: false

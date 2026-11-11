@@ -42,6 +42,8 @@ const POPULAR_TAGS: readonly string[] = [
   "#TravelEnglish",
   "#Philosophy",
   "#日常会話",
+  "#日本文化",
+  "#学習法",
   "#ポッドキャスト",
   "#NHK",
   "#敬語",

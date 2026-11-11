@@ -4,8 +4,8 @@ use crate::cache::{
     current_time_secs, is_cache_valid, read_cache, write_cache, DiscoverCachePayload,
 };
 use crate::discover::{
-    validate_and_convert_item, DiscoverIndex, DiscoverItem, RawDiscoverLanguageFile,
-    DEFAULT_DISCOVER_BASE_URL, SUPPORTED_SCHEMA_VERSION,
+    bundled_catalog, validate_and_convert_item, DiscoverIndex, DiscoverItem,
+    RawDiscoverLanguageFile, DEFAULT_DISCOVER_BASE_URL, SUPPORTED_SCHEMA_VERSION,
 };
 use crate::emit::emit_json;
 use crate::youtube::http_get_text;
@@ -49,7 +49,7 @@ pub fn run(args: &[String]) -> Result<(), String> {
             }));
             Ok(())
         }
-        Err(fetch_err) => {
+        Err(_fetch_err) => {
             // Fallback to old cache if available
             if let Some(cache) = cached {
                 emit_json(json!({
@@ -61,7 +61,15 @@ pub fn run(args: &[String]) -> Result<(), String> {
                 }));
                 Ok(())
             } else {
-                Err(fetch_err)
+                let (index, items) = bundled_catalog();
+                emit_json(json!({
+                    "type": "result",
+                    "schemaVersion": index.schema_version,
+                    "updatedAt": index.updated_at,
+                    "fromCache": false,
+                    "items": items
+                }));
+                Ok(())
             }
         }
     }
@@ -81,7 +89,43 @@ fn get_base_url() -> String {
     DEFAULT_DISCOVER_BASE_URL.to_string()
 }
 
+fn load_local_repo_catalog() -> Option<(DiscoverIndex, Vec<DiscoverItem>)> {
+    let local_paths = ["api/discover", "../api/discover"];
+    for dir in &local_paths {
+        let index_path = std::path::Path::new(dir).join("index.json");
+        if let Ok(index_content) = std::fs::read_to_string(&index_path) {
+            if let Ok(index) = serde_json::from_str::<DiscoverIndex>(&index_content) {
+                let mut all_items = Vec::new();
+                for file in &index.files {
+                    let file_path = std::path::Path::new(dir).join(file);
+                    if let Ok(content) = std::fs::read_to_string(&file_path) {
+                        if let Ok(lang_file) =
+                            serde_json::from_str::<RawDiscoverLanguageFile>(&content)
+                        {
+                            for raw_item in lang_file.items {
+                                if let Ok(item) = validate_and_convert_item(raw_item) {
+                                    all_items.push(item);
+                                }
+                            }
+                        }
+                    }
+                }
+                if !all_items.is_empty() {
+                    return Some((index, all_items));
+                }
+            }
+        }
+    }
+    None
+}
+
 fn fetch_and_aggregate() -> Result<(DiscoverIndex, Vec<DiscoverItem>), String> {
+    if std::env::var("EAR_DISCOVER_URL").is_err() {
+        if let Some(local) = load_local_repo_catalog() {
+            return Ok(local);
+        }
+    }
+
     let base_url = get_base_url();
     let index_url = format!("{base_url}index.json");
 

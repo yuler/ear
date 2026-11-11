@@ -6,6 +6,7 @@ import {
   extractVideoId,
   isAutoCaptionTrack,
   loadLessonFromParsed,
+  preferBestCaptionTrack,
   preferEnglishTrack,
   videoPosterUrl,
 } from "./parse";
@@ -228,4 +229,22 @@ test("preferEnglishTrack selects manual en over auto-generated CC en", () => {
     "https://i.ytimg.com/vi/abc12345678/hqdefault.jpg",
   );
   expect(extractVideoId("https://youtu.be/abc12345678")).toBe("abc12345678");
+});
+
+test("preferBestCaptionTrack detects Japanese title and prefers Japanese caption track", () => {
+  const tracks = [
+    { languageCode: "en", name: "English", baseUrl: "https://example.com/en" },
+    { languageCode: "ja", name: "Japanese", baseUrl: "https://example.com/ja" },
+  ];
+  const jaSelected = preferBestCaptionTrack(
+    tracks,
+    "【5 min Japanese Listening】simple Q&A!",
+  );
+  expect(jaSelected?.languageCode).toBe("ja");
+
+  const enSelected = preferBestCaptionTrack(
+    tracks,
+    "Steve Jobs Stanford Address",
+  );
+  expect(enSelected?.languageCode).toBe("en");
 });

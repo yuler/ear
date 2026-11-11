@@ -2,12 +2,16 @@ name: release
 
 on:
   push:
-    tags:
-      - 'v*'
+    branches:
+      - main
+    paths-ignore:
+      - 'docs/**'
+      - '*.md'
+      - '.gitignore'
   workflow_dispatch:
     inputs:
       tag:
-        description: 'Release tag (e.g. v1.0.0)'
+        description: 'Release tag override (e.g. v0.0.2)'
         required: false
         default: ''
 
@@ -15,38 +19,69 @@ permissions:
   contents: write
 
 concurrency:
-  group: release-${{ github.workflow }}-${{ github.ref }}
+  group: release-main
   cancel-in-progress: false
 
 jobs:
+  quality-gate:
+    name: Quality Gate (Check & Test)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install mise + nsh
+        uses: jdx/mise-action@v5
+
+      - name: Typecheck
+        run: mise run check
+
+      - name: Test
+        run: mise run test
+
   prepare:
-    name: Prepare Release Metadata
+    name: Resolve Version & Create Tag
+    needs: quality-gate
     runs-on: ubuntu-latest
     outputs:
       tag: ${{ steps.vars.outputs.tag }}
       version: ${{ steps.vars.outputs.version }}
       build: ${{ steps.vars.outputs.build }}
+      release_title: ${{ steps.vars.outputs.release_title }}
+      changelog: ${{ steps.vars.outputs.changelog }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
-      - name: Parse Version & Tag
+      - name: Fetch All Tags
+        run: git fetch --tags --force
+
+      - name: Resolve Version & Metadata
         id: vars
         shell: bash
         run: |
-          FILE_VERSION=$(tr -d '[:space:]' < VERSION)
-          TAG="${{ github.event.inputs.tag }}"
-          if [ -z "$TAG" ]; then
-            TAG="${{ github.ref_name }}"
+          ./scripts/resolve_version.sh \
+            --override-tag "${{ github.event.inputs.tag }}" \
+            --github-output "$GITHUB_OUTPUT"
+
+      - name: Create & Push Git Tag
+        shell: bash
+        run: |
+          TAG="${{ steps.vars.outputs.tag }}"
+          if git rev-parse -q --verify "refs/tags/$TAG" >/dev/null; then
+            echo "Tag $TAG already exists."
+          else
+            echo "Tagging commit with $TAG..."
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git tag -a "$TAG" -m "${{ steps.vars.outputs.release_title }}"
+            git push origin "$TAG"
           fi
-          if [ -z "$TAG" ] || [ "$TAG" = "main" ]; then
-            TAG="v${FILE_VERSION}"
-          fi
-          VERSION="${TAG#v}"
-          BUILD=$(jq -r .build app/nsh.json 2>/dev/null || echo 1)
-          echo "tag=$TAG" >> $GITHUB_OUTPUT
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
-          echo "build=$BUILD" >> $GITHUB_OUTPUT
 
   build-desktop:
     name: Build Desktop (${{ matrix.platform }})
@@ -75,6 +110,11 @@ jobs:
 
       - name: Install mise + nsh
         uses: jdx/mise-action@v5
+
+      - name: Inject Release Version
+        shell: bash
+        run: |
+          bash scripts/version.sh sync "${{ needs.prepare.outputs.version }}"
 
       - name: Build Rust ear CLI
         shell: bash
@@ -127,9 +167,19 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
 
       - name: Install mise + nsh
         uses: jdx/mise-action@v5
+
+      - name: Inject Release Version
+        shell: bash
+        run: |
+          bash scripts/version.sh sync "${{ needs.prepare.outputs.version }}"
 
       - name: Download all build artifacts
         uses: actions/download-artifact@v4
@@ -150,14 +200,19 @@ jobs:
           cp .nsh/out/Ear/nsh/bundle.nshc dist/bundle.nshc
           ls -lh dist/bundle.nshc
 
-      - name: Generate Manifest and Checksums
+      - name: Generate Manifest, Checksums & Notes
         shell: bash
         run: |
+          bash scripts/resolve_version.sh \
+            --override-tag "${{ needs.prepare.outputs.tag }}" \
+            --notes-file dist/release_notes.md
+
           bash scripts/generate_manifest.sh \
             --version "${{ needs.prepare.outputs.version }}" \
             --build "${{ needs.prepare.outputs.build }}" \
             --tag "${{ needs.prepare.outputs.tag }}" \
             --repo "${{ github.repository }}" \
+            --changelog "${{ needs.prepare.outputs.changelog }}" \
             --assets-dir dist \
             --output dist/latest.json \
             --checksums dist/checksums.txt
@@ -169,13 +224,15 @@ jobs:
           cat dist/latest.json
           echo "=== Checksums ==="
           cat dist/checksums.txt
+          echo "=== Release Notes ==="
+          cat dist/release_notes.md
 
       - name: Publish to GitHub Releases
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ needs.prepare.outputs.tag }}
-          name: "Ear ${{ needs.prepare.outputs.tag }}"
+          name: ${{ needs.prepare.outputs.release_title }}
+          body_path: dist/release_notes.md
           files: dist/*
-          generate_release_notes: true
           draft: false
           prerelease: false
