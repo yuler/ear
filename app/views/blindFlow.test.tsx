@@ -7,7 +7,7 @@ import {
   revealCaption,
   maskCaption,
   restartBlindFlow,
-} from "./blindFlow";
+} from "./blindFlowLogic";
 
 test("applyTag advances and clears reveal", () => {
   let s = createBlindFlowSession();

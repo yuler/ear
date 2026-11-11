@@ -3,14 +3,23 @@ import { Button } from "nsh/base";
 import type { DownloadTaskProgress, LibraryEntry } from "../../library/types";
 import { Icon } from "../../ui/Icon";
 import type { ViewTransitionRect } from "../viewTransition";
-import { DISCOVER_ITEMS } from "./data";
 import { DiscoverCard } from "./DiscoverCard";
 import { DiscoverFilters } from "./DiscoverFilters";
+import {
+  discoverError,
+  discoverItems,
+  filterDiscoverItems,
+  isDiscoverLoading,
+  loadDiscover,
+} from "./source";
 import type { DiscoverFilterState, DiscoverItem } from "./types";
 
 export function DiscoverView(props: {
   onInspectItem: (item: DiscoverItem) => void;
-  onPracticeItem: (item: DiscoverItem, originRect?: ViewTransitionRect | null) => void;
+  onPracticeItem: (
+    item: DiscoverItem,
+    originRect?: ViewTransitionRect | null,
+  ) => void;
   onDownloadItem: (item: DiscoverItem) => void;
   savedEntries?: () => LibraryEntry[];
   activeDownloads?: () => DownloadTaskProgress[];
@@ -23,6 +32,15 @@ export function DiscoverView(props: {
     searchQuery: "",
   });
 
+  // Auto-load on mount if not yet loaded
+  if (
+    discoverItems().length === 0 &&
+    !isDiscoverLoading() &&
+    !discoverError()
+  ) {
+    void loadDiscover();
+  }
+
   const updateFilters = (patch: Partial<DiscoverFilterState>) => {
     filters.set({
       ...filters(),
@@ -31,43 +49,7 @@ export function DiscoverView(props: {
   };
 
   const filteredItems = (): DiscoverItem[] => {
-    const f = filters();
-    const query = f.searchQuery.trim().toLowerCase();
-
-    return DISCOVER_ITEMS.filter((item) => {
-      // 1. Language filter
-      if (f.language !== "all" && item.language !== f.language) {
-        return false;
-      }
-
-      // 2. Level filter
-      if (f.level !== "all" && item.level !== f.level) {
-        return false;
-      }
-
-      // 3. Duration tier filter (5m, 10m, 20m, 30m)
-      if (f.durationTier !== "all" && item.durationTier !== f.durationTier) {
-        return false;
-      }
-
-      // 4. Tag filter
-      if (f.tag !== null && !item.tags.includes(f.tag)) {
-        return false;
-      }
-
-      // 5. Search query
-      if (query) {
-        const titleMatch = item.title.toLowerCase().includes(query);
-        const authorMatch = item.author.toLowerCase().includes(query);
-        const tagMatch = item.tags.some((t) => t.toLowerCase().includes(query));
-        const descMatch = item.description.toLowerCase().includes(query);
-        if (!titleMatch && !authorMatch && !tagMatch && !descMatch) {
-          return false;
-        }
-      }
-
-      return true;
-    });
+    return filterDiscoverItems(discoverItems(), filters());
   };
 
   const downloadedVideoIds = () => {
@@ -94,11 +76,30 @@ export function DiscoverView(props: {
             </Text>
           </View>
 
-          <View class="flex-row items-center gap-1.5 rounded-full bg-ready/15 px-2.5 py-0.5">
-            <View class="h-1.5 w-1.5 rounded-full bg-ready" />
-            <Text class="font-mono text-[11px] font-semibold text-ready">
-              {filteredItems().length} / {DISCOVER_ITEMS.length} 部推荐视频
-            </Text>
+          <View class="flex-row items-center gap-2">
+            <If when={discoverItems().length > 0}>
+              <View class="flex-row items-center gap-1.5 rounded-full bg-ready/15 px-2.5 py-0.5">
+                <View class="h-1.5 w-1.5 rounded-full bg-ready" />
+                <Text class="font-mono text-[11px] font-semibold text-ready">
+                  {filteredItems().length} / {discoverItems().length} 部推荐视频
+                </Text>
+              </View>
+            </If>
+
+            <Button
+              onPress={() => void loadDiscover({ refresh: true })}
+              class="flex-row items-center gap-1 rounded-lg border border-line bg-well/50 px-2 py-1 text-xs text-muted-foreground transition hover:text-foreground active:scale-95"
+              accessibilityLabel="刷新推荐列表"
+            >
+              <Icon
+                name="rotate"
+                size={12}
+                class={isDiscoverLoading() ? "animate-spin" : ""}
+              />
+              <Text class="font-mono text-[11px]">
+                {isDiscoverLoading() ? "拉取中…" : "刷新"}
+              </Text>
+            </Button>
           </View>
         </View>
 
@@ -121,11 +122,49 @@ export function DiscoverView(props: {
       <DiscoverFilters
         filters={filters}
         onChange={updateFilters}
-        totalCount={() => DISCOVER_ITEMS.length}
+        totalCount={() => discoverItems().length}
         filteredCount={() => filteredItems().length}
       />
 
-      {/* 3. Recommendation Grid */}
+      {/* 3. Loading State (When empty and fetching) */}
+      <If when={isDiscoverLoading() && discoverItems().length === 0}>
+        <View class="items-center justify-center gap-3 rounded-2xl border border-line bg-well/20 py-20 text-center">
+          <Icon
+            name="loader"
+            size={24}
+            color="#2f7cf6"
+            class="animate-spin"
+          />
+          <Text class="text-sm text-muted-foreground">
+            正在从 Discover 数据源拉取精听推荐…
+          </Text>
+        </View>
+      </If>
+
+      {/* 4. Error State (When empty and failed) */}
+      <If when={Boolean(discoverError()) && discoverItems().length === 0}>
+        <View class="items-center justify-center gap-3 rounded-2xl border border-dashed border-rose-500/40 bg-rose-500/5 py-12 text-center">
+          <View class="h-10 w-10 items-center justify-center rounded-full bg-rose-500/10">
+            <Icon name="x" size={18} color="#ef4444" />
+          </View>
+          <View class="gap-1 px-4">
+            <Text class="text-sm font-semibold text-foreground">
+              加载推荐列表失败
+            </Text>
+            <Text class="text-xs text-muted-foreground">
+              {discoverError()}
+            </Text>
+          </View>
+          <Button
+            onPress={() => void loadDiscover()}
+            class="mt-2 rounded-lg bg-[#2f7cf6] px-4 py-1.5 text-xs font-semibold text-white active:scale-95"
+          >
+            重试拉取
+          </Button>
+        </View>
+      </If>
+
+      {/* 5. Recommendation Grid */}
       <If when={filteredItems().length > 0}>
         <View
           style={{
@@ -148,8 +187,12 @@ export function DiscoverView(props: {
         </View>
       </If>
 
-      {/* 4. Empty State */}
-      <If when={filteredItems().length === 0}>
+      {/* 6. Empty State */}
+      <If
+        when={
+          discoverItems().length > 0 && filteredItems().length === 0
+        }
+      >
         <View class="items-center justify-center gap-3 rounded-2xl border border-dashed border-line py-16 text-center">
           <View class="h-10 w-10 items-center justify-center rounded-full bg-well">
             <Icon name="search" size={18} tone="muted-foreground" />

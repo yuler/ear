@@ -22,8 +22,8 @@ import {
   revealCaption,
   type BlindFlowSession,
   type BlindTag,
-} from "./blindFlow";
-import { nextRate } from "./loopDojo";
+} from "./blindFlowLogic";
+import { nextRate } from "./loopDojoLogic";
 
 function formatMs(ms: number): string {
   const s = Math.floor(ms / 1000);

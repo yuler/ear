@@ -1,7 +1,7 @@
 import { expect, test } from "nsh/test";
 import type { LibraryEntry } from "../library/types";
 import { normalizeSettings } from "../store";
-import { formatEntryDescription, isAudioEntry } from "./libraryView";
+import { formatEntryDescription, isAudioEntry } from "./libraryViewHelpers";
 
 function mockEntry(over: Partial<LibraryEntry> = {}): LibraryEntry {
   return {

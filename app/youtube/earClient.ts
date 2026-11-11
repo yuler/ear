@@ -53,12 +53,16 @@ export function earBinaryCandidates(): string[] {
   return ["./ear", "./ear.exe", "ear"];
 }
 
-function spawnEar(bin: string, args: string[]): SpawnChildLike | null {
+export function spawnEar(bin: string, args: string[]): SpawnChildLike | null {
   if (currentSpawnHook) {
     return currentSpawnHook(bin, args);
   }
-  if (isNativeHost() && typeof process.spawn === "function") {
-    return process.spawn(bin, args, { lines: true, timeoutMs: 600_000 }) as unknown as SpawnChildLike;
+  try {
+    if (isNativeHost() && typeof process.spawn === "function") {
+      return process.spawn(bin, args, { lines: true, timeoutMs: 600_000 }) as unknown as SpawnChildLike;
+    }
+  } catch {
+    return null;
   }
   return null;
 }

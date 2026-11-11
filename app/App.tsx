@@ -36,7 +36,7 @@ import { initSettings, settings, updateSettings } from "./ui/settings";
 import { TopBar, type MediaTab } from "./ui/TopBar";
 import { isAudioEntry, LibraryView } from "./views/LibraryView";
 import { DiscoverView } from "./views/discover/DiscoverView";
-import { DISCOVER_ITEMS } from "./views/discover/data";
+import { discoverItems, loadDiscover } from "./views/discover/source";
 import type { DiscoverItem } from "./views/discover/types";
 import type { ViewTransitionRect } from "./views/viewTransition";
 import { hostFetch } from "./youtube/host";
@@ -149,6 +149,7 @@ function App() {
   }
 
   void checkUpdateInBackground();
+  void loadDiscover();
 
   // Auto-read clipboard on startup (when enabled) and when window becomes active
   const checkClipboard = async (forceShow = false) => {
@@ -704,7 +705,7 @@ function App() {
         }}
         videoCount={videoEntriesCount}
         audioCount={audioEntriesCount}
-        discoverCount={() => DISCOVER_ITEMS.length}
+        discoverCount={() => discoverItems().length}
         activeDownloadCount={() => activeDownloadsList().length}
         onOpenSettings={() => {
           if (activeTab() !== "settings") {
@@ -780,7 +781,7 @@ function App() {
             videoCount={videoEntriesCount}
             audioCount={audioEntriesCount}
             activeDownloadCount={() => activeDownloadsList().length}
-            discoverCount={() => DISCOVER_ITEMS.length}
+            discoverCount={() => discoverItems().length}
             onOpenSettings={() => {
               if (activeTab() !== "settings") {
                 previousTab.set(activeTab());

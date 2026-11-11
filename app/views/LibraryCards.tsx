@@ -4,7 +4,7 @@ import { formatDurationMs } from "../clipboard";
 import type { LibraryEntry } from "../library/types";
 import { Icon } from "../ui/Icon";
 import { videoPosterUrl } from "../youtube/parse";
-import { formatEntryDescription } from "./libraryView";
+import { formatEntryDescription } from "./libraryViewHelpers";
 import {
   captureElementRect,
   type ViewTransitionRect,

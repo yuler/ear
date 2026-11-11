@@ -1,0 +1,74 @@
+{
+  "items": [
+    {
+      "videoId": "3mxblcBZgqM",
+      "title": "【5 min Japanese Listening】simple Q&A! Easy but a little fast!",
+      "author": "Daily Japanese with Naoko",
+      "durationMs": 365000,
+      "language": "ja",
+      "level": "N5",
+      "tags": [
+        "#JLPT_N5",
+        "#QA",
+        "#Short"
+      ],
+      "description": "Short and natural Japanese Q&A listening drill for beginner learners."
+    },
+    {
+      "videoId": "XcgzoXpi-ms",
+      "title": "JLPT N5 Japanese Listening Practice 🇯🇵 Easy Japanese News | Vending Machines & Tokyo Train Delay",
+      "author": "Akiko_Japanese_Conversations",
+      "durationMs": 580000,
+      "language": "ja",
+      "level": "N4",
+      "tags": [
+        "#JLPT_N4",
+        "#EasyNews",
+        "#DailyTopics"
+      ],
+      "description": "Comprehensible input news stories broken down at an N4 friendly cadence."
+    },
+    {
+      "videoId": "_aCjA73ZyF4",
+      "title": "N5 Beginner Japanese immersion! The comprehensible Japanese practice! #140",
+      "author": "けんさんおかえり Japanese",
+      "durationMs": 1164000,
+      "language": "ja",
+      "level": "N3",
+      "tags": [
+        "#JLPT_N3",
+        "#Immersion",
+        "#ComprehensibleInput"
+      ],
+      "description": "Real-world conversational Japanese immersion with clear storytelling."
+    },
+    {
+      "videoId": "i4afizUr23A",
+      "title": "A Walk Through Japanese Castle Ruins 🏯 | Easy Japanese Listening, N4-N3",
+      "author": "けんさんおかえり Japanese",
+      "durationMs": 1280000,
+      "language": "ja",
+      "level": "N2",
+      "tags": [
+        "#JLPT_N2",
+        "#Culture",
+        "#WalkingTour"
+      ],
+      "description": "Atmospheric cultural walking tour discussing Japanese history and architecture."
+    },
+    {
+      "videoId": "P2k82VA2gz0",
+      "title": "Japanese Listening Practice N1 | To workout at the gym【JLPT N1の語彙文法55こ】日本語聴解",
+      "author": "RIRI Japanese Channel",
+      "durationMs": 1431000,
+      "language": "ja",
+      "level": "N1",
+      "tags": [
+        "#JLPT_N1",
+        "#Advanced",
+        "#GrammarVocabulary"
+      ],
+      "description": "Advanced conversational context with rich idioms and natural fast phrasing."
+    }
+  ]
+}

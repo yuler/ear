@@ -1,5 +1,5 @@
 import { expect, test } from "nsh/test";
-import { diffSummary, dojoQueue, nextRate, normalizeWord, wordDiff } from "./loopDojo";
+import { diffSummary, dojoQueue, nextRate, normalizeWord, wordDiff } from "./loopDojoLogic";
 import type { Sentence } from "../youtube/types";
 
 test("wordDiff marks equal mismatch missing extra", () => {

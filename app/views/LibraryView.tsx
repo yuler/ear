@@ -4,7 +4,7 @@ import { ActiveDownloadRow } from "../ui/ActiveDownloadRow";
 import { Icon } from "../ui/Icon";
 import type { MediaTab } from "../ui/TopBar";
 import { LibraryPostCard } from "./LibraryCards";
-import { formatEntryDescription, isAudioEntry } from "./libraryView";
+import { formatEntryDescription, isAudioEntry } from "./libraryViewHelpers";
 import type { ViewTransitionRect } from "./viewTransition";
 
 export { formatEntryDescription, isAudioEntry };

@@ -7,7 +7,7 @@ import {
   mergeSentences,
   type SentenceLengthMode,
 } from "../youtube/captions";
-import { maskCaption } from "./blindFlow";
+import { maskCaption } from "./blindFlowLogic";
 
 /** Format milliseconds into m:ss timestamp string (e.g. 1400 -> "0:01"). */
 export function formatSentenceTime(ms: number): string {

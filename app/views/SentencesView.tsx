@@ -2,7 +2,7 @@ import { Image, Text, View } from "nsh";
 import { Button } from "nsh/base";
 import { videoPosterUrl } from "../youtube/parse";
 import type { Difficulty, LoadedLesson, Sentence } from "../youtube/types";
-import type { BlindTag } from "./blindFlow";
+import type { BlindTag } from "./blindFlowLogic";
 
 function formatMs(ms: number): string {
   const s = Math.floor(ms / 1000);

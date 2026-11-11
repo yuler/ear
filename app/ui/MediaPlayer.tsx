@@ -1,7 +1,7 @@
 import { Image, signal, Text, Video, View } from "nsh";
 import { Button } from "nsh/base";
 import type { LibraryEntry } from "../library/types";
-import { isAudioEntry } from "../views/libraryView";
+import { isAudioEntry } from "../views/libraryViewHelpers";
 import { videoPosterUrl } from "../youtube/parse";
 import { Icon } from "./Icon";
 

@@ -10,14 +10,14 @@ import { Icon } from "../ui/Icon";
 import { settings, subtitleClass } from "../ui/settings";
 import { videoPosterUrl } from "../youtube/parse";
 import type { LoadedLesson, Sentence } from "../youtube/types";
-import type { BlindTag } from "./blindFlow";
+import type { BlindTag } from "./blindFlowLogic";
 import {
   diffSummary,
   dojoQueue,
   LOOP_RATES,
   wordDiff,
   type DiffToken,
-} from "./loopDojo";
+} from "./loopDojoLogic";
 
 function formatMs(ms: number): string {
   const s = Math.floor(ms / 1000);

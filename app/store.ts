@@ -1,5 +1,5 @@
 import { Storage } from "nsh";
-import type { BlindTag } from "./views/blindFlow";
+import type { BlindTag } from "./views/blindFlowLogic";
 import type { PlaybackRate } from "./player";
 
 export type Appearance = "dark" | "light" | "system";

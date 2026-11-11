@@ -1,0 +1,74 @@
+{
+  "items": [
+    {
+      "videoId": "zmBWacJ6CQk",
+      "title": "Slow English Conversations (A1+ comprehensible input)",
+      "author": "Miss Honey 🍯",
+      "durationMs": 2360000,
+      "language": "en",
+      "level": "A1",
+      "tags": [
+        "#DailyLife",
+        "#Shadowing",
+        "#SlowAudio"
+      ],
+      "description": "Clear, slow-paced daily conversation practice designed for A1 level comprehension."
+    },
+    {
+      "videoId": "reKgQh0E9kg",
+      "title": "My Daily Routine | Easy English Listening Practice (A2 Level)",
+      "author": "English Phrases Hub",
+      "durationMs": 769000,
+      "language": "en",
+      "level": "A2",
+      "tags": [
+        "#DailyRoutine",
+        "#ListeningPractice",
+        "#A2"
+      ],
+      "description": "Everyday routines explained in accessible A2 English."
+    },
+    {
+      "videoId": "Y681hXWwhQY",
+      "title": "The benefits of doing nothing ⏲️ 6 Minute English",
+      "author": "BBC Learning English",
+      "durationMs": 379000,
+      "language": "en",
+      "level": "B1",
+      "tags": [
+        "#BBC",
+        "#6MinuteEnglish",
+        "#B1"
+      ],
+      "description": "Natural British conversations discussing modern lifestyle and wellbeing."
+    },
+    {
+      "videoId": "N2uQWfV6Jr4",
+      "title": "4 ways to fix your attention span - Shannon Odell",
+      "author": "TED-Ed",
+      "durationMs": 326000,
+      "language": "en",
+      "level": "B2",
+      "tags": [
+        "#TEDEd",
+        "#Psychology",
+        "#Focus"
+      ],
+      "description": "Engaging animated explanation of attention science and focus habits."
+    },
+    {
+      "videoId": "UF8uR6Z6KLc",
+      "title": "Steve Jobs' 2005 Stanford Commencement Address",
+      "author": "Stanford",
+      "durationMs": 904000,
+      "language": "en",
+      "level": "C1",
+      "tags": [
+        "#Speech",
+        "#Inspiration",
+        "#Storytelling"
+      ],
+      "description": "Classic Stanford address covering connecting dots, love and loss, and mortality."
+    }
+  ]
+}

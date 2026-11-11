@@ -1,6 +1,6 @@
 import type { PlaybackRate } from "../player";
 import type { Sentence } from "../youtube/types";
-import type { BlindTag } from "./blindFlow";
+import type { BlindTag } from "./blindFlowLogic";
 
 export type DiffKind = "equal" | "mismatch" | "missing" | "extra";
 

@@ -18,7 +18,7 @@ import { videoPosterUrl } from "../youtube/parse";
 import type { CaptionCue, Sentence } from "../youtube/types";
 import type { SentenceLengthMode } from "../youtube/captions";
 import { settings, updateSettings } from "../ui/settings";
-import { isAudioEntry } from "./libraryView";
+import { isAudioEntry } from "./libraryViewHelpers";
 import {
   clampSentenceIndex,
   evaluatePlaybackProgress,
