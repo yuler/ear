@@ -1,216 +1,328 @@
 <!doctype html>
-<html lang="zh-CN">
+<!-- Modular separation: styles in prototypes/www.css, logic in prototypes/www.js -->
+<html lang="zh-CN" data-theme="dark">
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Ear www 官网原型</title>
-<style>
-  * { box-sizing: border-box; }
-  html, body { margin: 0; background: #000; color: #ddd; line-height: 1.7;
-    font-family: ui-sans-serif, system-ui, -apple-system, "PingFang SC", "Noto Sans SC", sans-serif; }
-  a { color: inherit; }
-
-  /* Switcher: nearly invisible until hovered, so the page stays dark */
-  .bar { position: fixed; top: 14px; left: 16px; z-index: 10; display: flex; gap: 6px; align-items: center;
-    opacity: .25; transition: opacity 300ms; }
-  .bar:hover { opacity: 1; }
-  .bar button { font: inherit; font-size: 12px; padding: 4px 11px; border-radius: 999px; cursor: pointer;
-    background: transparent; color: #999; border: 1px solid #333; }
-  .bar button.on { color: #fff; border-color: #888; }
-  .bar .desc { font-size: 12px; color: #888; margin-left: 8px; }
-  .keys { position: fixed; bottom: 12px; left: 0; right: 0; text-align: center; font-size: 11px; color: #333; z-index: 10; pointer-events: none; }
-  .gh { position: fixed; top: 14px; right: 18px; z-index: 10; font-size: 12px; color: #777; text-decoration: none; }
-  .gh:hover { color: #fff; }
-
-  /* ── Shared blocks ── */
-  .blk { padding: 0 0 64px; }
-  .blk h2 { font-size: 12px; letter-spacing: .2em; color: #555; font-weight: 500; margin: 0 0 18px; }
-  .blk p { margin: 0 0 10px; color: #888; }
-  .ph { height: 10px; border-radius: 5px; background: #141414; margin: 10px 0; } /* abstract placeholder line */
-  .ph.s { width: 40%; } .ph.m { width: 65%; }
-  .steps { display: grid; gap: 10px; }
-  .steps div { display: flex; gap: 14px; color: #aaa; } .steps i { font: 12px ui-monospace, monospace; color: #444; font-style: normal; padding-top: 3px; }
-  .dl { display: flex; gap: 10px; flex-wrap: wrap; }
-  .dl a { padding: 12px 18px; border: 1px solid #222; border-radius: 10px; text-decoration: none; font-size: 14px; color: #ccc; }
-  .dl a:hover { border-color: #666; color: #fff; }
-  details { border-bottom: 1px solid #141414; padding: 10px 0; }
-  summary { cursor: pointer; color: #ccc; } details p { margin: 6px 0 0 !important; font-size: 14px; }
-
-  /* The dark stage: the one action on the site. Light reveals words, Space plays. */
-  .stage { position: relative; display: grid; place-items: center; text-align: center; overflow: hidden; }
-  .stage h1 { font-size: clamp(26px, 4vw, 44px); font-weight: 600; color: #fff; margin: 0 0 6px; }
-  .stage .lead { color: #555; margin: 0 0 44px; }
-  .sent { position: relative; display: inline-block; font-size: clamp(17px, 2.2vw, 24px); cursor: pointer; }
-  .sent span { display: block; }
-  .sent .real { position: absolute; inset: 0; color: #fff;
-    -webkit-mask-image: radial-gradient(circle var(--r, 100px) at var(--x, -999px) var(--y, -999px), #000 35%, transparent 100%);
-    mask-image: radial-gradient(circle var(--r, 100px) at var(--x, -999px) var(--y, -999px), #000 35%, transparent 100%); }
-  /* Same text as .real so both layers wrap identically; blurred into dark word shapes */
-  .sent .dots { color: #1c1c1c; filter: blur(4px); transition: color 300ms; }
-  .stage.shown .sent .real { -webkit-mask-image: none; mask-image: none; }
-  .stage.playing .sent .dots { color: #3a4878; }
-  .stage .act { margin-top: 30px; font-size: 12px; color: #444; }
-  .stage .act kbd { font: 11px ui-monospace, monospace; border: 1px solid #333; border-radius: 4px; padding: 0 5px; color: #777; }
-
-  /* ── A 暗房长卷: one dark column, stage is the first screen ── */
-  .s-a main { max-width: 720px; margin: 0 auto; padding: 0 24px; }
-  .s-a .stage { height: 100vh; }
-
-  /* ── B 左暗右明: stage pinned left in the dark, content scrolls on the right ── */
-  .s-b main { display: grid; grid-template-columns: 1.1fr 1fr; }
-  .s-b .stage { position: sticky; top: 0; height: 100vh; grid-row: span 4; padding: 0 40px; background: #000; }
-  .s-b .blk { background: #0c0c0c; padding: 56px 56px 40px; }
-  .s-b .stage + .blk { padding-top: 90px; }
-  .s-b .blk h2 { color: #777; }
-
-  /* ── C 一屏一事: horizontal slides, each screen says one thing ── */
-  .s-c, .s-c body { overflow: hidden; }
-  .s-c main { display: flex; height: 100vh; transition: transform 600ms cubic-bezier(.16, 1, .3, 1);
-    transform: translateX(calc(var(--slide, 0) * -100vw)); }
-  .s-c .stage, .s-c .blk { flex: 0 0 100vw; height: 100vh; padding: 0 calc(50vw - 300px); display: flex; flex-direction: column; justify-content: center; }
-  .s-c .stage { display: grid; }
-  .s-c .blk h2 { font-size: 28px; letter-spacing: 0; color: #fff; }
-  .pager { display: none; position: fixed; bottom: 36px; left: 0; right: 0; justify-content: center; gap: 8px; z-index: 10; }
-  .s-c .pager { display: flex; }
-  .pager i { width: 6px; height: 6px; border-radius: 50%; background: #222; cursor: pointer; }
-  .pager i.on { background: #888; }
-  @media (max-width: 760px) { .s-b main { grid-template-columns: 1fr; } .s-b .stage { position: relative; grid-row: auto; } }
-</style>
+<title>Ear — 告别哑巴英语 · 可理解输入（Comprehensible Input）听力神器</title>
+<link rel="stylesheet" href="www.css" />
 </head>
-<body class="s-a">
-<div class="bar">
-  <button data-s="a">A 暗房长卷</button>
-  <button data-s="b">B 左暗右明</button>
-  <button data-s="c">C 一屏一事</button>
-  <span class="desc" id="desc"></span>
-  <button id="lang">EN</button>
-</div>
-<a class="gh" href="https://github.com/yuler/ear" target="_blank">GitHub ↗</a>
+<body>
 
-<main id="main">
-  <section class="stage" id="stage">
-    <div>
-      <h1 data-en="Subtitles off. Still with you?">关掉字幕，你还听得懂吗？</h1>
-      <p class="lead" data-en="Ear trains your ears, not your eyes.">Ear：练耳朵，不练眼睛。</p>
-      <div class="sent" id="sent"><span class="dots" id="dots"></span><span class="real" id="real"></span></div>
-      <div class="act" data-en="Move the light to peek · <kbd>Space</kbd> listen · <kbd>R</kbd> reveal">移动光圈偷看 · <kbd>Space</kbd> 听一遍 · <kbd>R</kbd> 揭晓</div>
+<header>
+  <div class="nav-inner">
+    <div class="brand">
+      <div class="brand-icon">E</div>
+      <span>Ear</span>
+      <span class="tag" data-en="Input Player">听力刻意练习</span>
+    </div>
+    <div class="nav-links">
+      <a href="#how" data-en="Workflow">流程</a>
+      <a href="#story" data-en="Philosophy">理念</a>
+      <a href="#download" data-en="Download">下载</a>
+      <a href="#faq">QA</a>
+      <div class="nav-tools">
+        <button class="btn-icon" id="theme-btn" title="切换主题">
+          <span id="theme-icon">☀️</span>
+        </button>
+        <button class="btn-icon" id="lang-btn" title="Switch Language">EN</button>
+        <a class="btn-primary" href="#download" data-en="Get Ear">免费获取</a>
+      </div>
+    </div>
+  </div>
+</header>
+
+<main class="container">
+  <section class="hero">
+    <div class="hero-tag" data-en="Stephen Krashen · Comprehensible Input Hypothesis">
+      ✦ 克拉申语言习得理论 · 桌面端听力练习工具
+    </div>
+    <h1 data-en="Subtitles off. <span>Still with you?</span>">
+      关掉字幕，你还<span>听得懂吗？</span>
+    </h1>
+    <p class="desc" data-en="Ear trains your ears, not your eyes. Rooted in Comprehensible Input (i+1), Ear removes subtitle crutches, helps you identify hearing blind spots, and cures 'mute English' forever.">
+      开着字幕时，是大脑在看字偷懒，不是耳朵在听。Ear 遵循克拉申“可理解输入”（Comprehensible Input）理念，通过首创的“盲听初筛 + 难句单环”，逼你扔掉字幕拐杖，真正听懂母语原声。
+    </p>
+    <div class="hero-actions">
+      <a class="btn-primary" href="#download" data-en="Download Ear Desktop">下载 Ear 客户端 ↗</a>
+      <a class="btn-secondary" href="https://github.com/yuler/ear" target="_blank">GitHub 源码 (开源)</a>
+    </div>
+
+    <div class="demo-window" id="how">
+      <div class="window-header">
+        <div class="window-dots">
+          <div class="dot dot-red"></div>
+          <div class="dot dot-yellow"></div>
+          <div class="dot dot-green"></div>
+        </div>
+        <div class="window-title" id="demo-indicator" data-en="Ear — 3-Step Core Workflow Animation">Ear 核心工作流演示（自动播放中）</div>
+        <div style="font-size: 11px; color: var(--text-dim);">
+          <span id="pause-badge" style="cursor:pointer;" title="点击切换暂停/播放">⏸ 自动切换</span>
+        </div>
+      </div>
+
+      <div class="step-tabs">
+        <button class="step-tab active" data-step="0">
+          <span class="num">01 / YOUTUBE</span>
+          <span data-en="1. Copy YouTube Link">1. 复制视频链接</span>
+          <div class="step-progress" id="sp-0"></div>
+        </button>
+        <button class="step-tab" data-step="1">
+          <span class="num">02 / DETECT & DL</span>
+          <span data-en="2. Auto Parse & Download">2. 自动识别并下载</span>
+          <div class="step-progress" id="sp-1"></div>
+        </button>
+        <button class="step-tab" data-step="2">
+          <span class="num">03 / BLIND FLOW</span>
+          <span data-en="3. Immersive Blind Player">3. UP 播放器沉浸听</span>
+          <div class="step-progress" id="sp-2"></div>
+        </button>
+      </div>
+
+      <div class="pane-box">
+        <div class="step-pane" id="pane-0">
+          <div class="yt-card">
+            <div class="yt-thumb">▶</div>
+            <div class="yt-info">
+              <div class="yt-title">Steve Jobs' 2005 Stanford Commencement Address</div>
+              <div class="yt-sub">Stanford University · 44M views · 15:04</div>
+            </div>
+          </div>
+          <div class="yt-bar">
+            <span style="font-size:12px; color:var(--text-dim);">URL:</span>
+            <span class="yt-url">https://www.youtube.com/watch?v=UF8uR6Z6KLc</span>
+            <button class="yt-copy-btn" id="btn-copy-mock" data-en="Copy Link">复制链接</button>
+          </div>
+          <div class="toast-copied" id="toast-copied">
+            <span>✓ 已复制视频链接到剪贴板，等待 Ear 捕获...</span>
+          </div>
+        </div>
+
+        <div class="step-pane" id="pane-1" style="display:none;">
+          <div class="dl-box">
+            <div class="dl-detect">
+              <span data-en="⚡️ Detected YouTube link in clipboard">⚡️ 检测到剪贴板链接 · 自动开始解析</span>
+              <span style="font-size:11px; background:var(--primary-bg); padding:2px 6px; border-radius:4px;">CLI Engine</span>
+            </div>
+            <div class="dl-meta">Steve Jobs' Stanford Speech · 1080p + 原生英文/双语字幕</div>
+            <div class="dl-progress-track">
+              <div class="dl-progress-bar" id="mock-bar"></div>
+            </div>
+            <div class="dl-telemetry">
+              <span id="mock-speed" data-en="Downloading: 4-thread Range HTTP">下载中：4 线程极速 Range + ffmpeg 合并</span>
+              <span id="mock-pct">78% · 4.8 MB/s</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="step-pane" id="pane-2" style="display:none;">
+          <div class="player-box" id="player-box">
+            <div class="player-meta">
+              <span>Sentence 08 / 142</span>
+              <span class="badge-level" data-en="i+1 Gold Zone · 158 WPM">i+1 黄金进阶区 · 158 WPM</span>
+              <span style="font-family:monospace;">00:01:24</span>
+            </div>
+            <div class="waves">
+              <div class="wave-bar"></div><div class="wave-bar"></div><div class="wave-bar"></div>
+              <div class="wave-bar"></div><div class="wave-bar"></div><div class="wave-bar"></div>
+              <div class="wave-bar"></div>
+            </div>
+            <div class="sub-area" id="sub-area" title="移动鼠标聚焦偷看，点击揭晓/发音">
+              <div class="sub-dots" id="sub-dots">I used to think I understood English, until I turned the subtitles off.</div>
+              <div class="sub-real" id="sub-real">I used to think I understood English, until I turned the subtitles off.</div>
+            </div>
+            <div class="player-shortcuts">
+              <span><kbd>Space</kbd> <span data-en="Listen">听一遍</span></span>
+              <span><kbd>R</kbd> <span data-en="Reveal">偷看/揭晓字幕</span></span>
+              <span><kbd>1</kbd> Pass</span>
+              <span><kbd>2</kbd> Lag</span>
+              <span><kbd>3</kbd> Blind</span>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   </section>
 
-  <section class="blk">
-    <h2 data-en="WHY">为什么</h2>
-    <p data-en="With subtitles on, your eyes do the understanding. Ear hides them, so you find out what your ears really catch, then loop only what you missed.">开着字幕时，是眼睛在理解。Ear 先遮住字幕，让你知道耳朵真正听懂了多少，再只循环没听懂的句子。</p>
-    <div class="ph m"></div><div class="ph s"></div>
-  </section>
+  <section class="section" id="story">
+    <div class="section-tag" data-en="THE PHILOSOPHY">理念与背景故事</div>
+    <h2 class="section-title" data-en="Why Comprehensible Input? Curing 'Mute English'">
+      为什么是“可理解输入”？彻底告别哑巴英语
+    </h2>
+    <p class="section-desc" data-en="Why can we read technical docs but freeze when native speakers talk? Why does watching TV shows with subtitles fail to improve our listening? Here is the neuroscience behind language acquisition.">
+      学了十几年英语，为什么一脱离字幕依然脑中一片空白？为什么天天看美剧，听力却没有实质飞跃？
+    </p>
 
-  <section class="blk">
-    <h2 data-en="QUICK START">快速使用</h2>
-    <div class="steps">
-      <div><i>01</i><span data-en="Download Ear and open it">下载并打开 Ear</span></div>
-      <div><i>02</i><span data-en="Copy a YouTube link, Ear picks it up">复制一个 YouTube 链接，Ear 自动识别</span></div>
-      <div><i>03</i><span data-en="Listen blind, then loop the hard sentences">先盲听，再循环难句</span></div>
+    <div class="story-grid">
+      <div class="story-card">
+        <h3 data-en="👀 The Visual Illusion: Eyes Reading, Ears Sleeping">
+          👀 视觉的欺骗：眼睛在看，耳朵在装懂
+        </h3>
+        <p data-en="When you watch YouTube or movies with English/bilingual subtitles, your brain's visual cortex reads the text 3x faster than your auditory cortex processes sounds.">
+          开着双语或英文字幕看视频是英语学习最大的幻觉。人类大脑的视觉处理速度远快于听觉中枢。一旦字幕开启，大脑会自动走“最轻松的捷径”——用眼睛读取文字。
+        </p>
+        <p data-en="You didn't 'hear' it; your eyes simply read it. When subtitles are gone, the auditory pathway has zero semantic connection.">
+          你以为自己“听懂了”，其实只是“看懂了”。听觉神经从来没有真正建立声音与含义的直接反射，一旦关掉字幕，立刻变成“耳聋”和“哑巴”。
+        </p>
+      </div>
+
+      <div class="story-card">
+        <h3 data-en="🧠 Krashen's Comprehensible Input (i+1)">
+          🧠 克拉申假说：唯有“可理解输入”才能真正习得
+        </h3>
+        <p data-en="Linguist Stephen Krashen proved that humans acquire languages in only one way: by receiving 'comprehensible input' just slightly above our current level (i+1).">
+          语言学泰斗斯蒂芬·克拉申（Stephen Krashen）指出：语言不是“学”出来的，而是“习得”（Acquire）出来的。人类习得语言的唯一科学规律，是大量接受略高于自身现有水平（i+1）的<b>“可理解输入”</b>。
+        </p>
+        <p data-en="Babies never memorize grammar books. They listen for thousands of hours in context. Once you truly hear and understand, speaking emerges effortlessly.">
+          婴儿从来不背单词语法，而是先听懂成千上万小时情境结合的声音。先有大量的听力理解沉淀，表达才会水到渠成；脱离听力的盲目口语，只会加重语法拼凑的“哑巴英语”。
+        </p>
+      </div>
+
+      <div class="story-card featured">
+        <h3 data-en="⚡️ How Ear Solves This">
+          ⚡️ Ear 的解法：遮掉字幕拐杖，漏斗式靶向刻意练习
+        </h3>
+        <p data-en="Ear puts your listening to the ultimate test. It masks subtitles by default (Blind Flow), requiring your ears to recognize liaison, reduction, and speed. Then it sends only the sentences you struggled with into Loop Dojo for seamless targeted repetition.">
+          Ear 坚决不当“播放器”，而是你的“听力刻意训练场”。它先用黑幕遮住字幕（盲听初筛），逼你的耳朵捕捉真实的弱读、连读与语速；然后自动把迟疑句、听不懂的句子挑出来送进“循环道场”做单句无缝切片循环，直到听懂为止。
+        </p>
+        <div class="quote-callout" data-en="“Input comes before output. When your ears truly comprehend native audio without visual crutches, speech follows naturally.”">
+          “没有大量的可理解输入，就不可能有流畅的输出。用耳朵真正听懂声音，哑巴英语不攻自破。”
+        </div>
+      </div>
     </div>
   </section>
 
-  <section class="blk">
-    <h2 data-en="DOWNLOAD">下载</h2>
-    <div class="dl">
-      <a href="https://github.com/yuler/ear/releases/latest" target="_blank">macOS</a>
-      <a href="https://github.com/yuler/ear/releases/latest" target="_blank">Windows</a>
-      <a href="https://github.com/yuler/ear/releases/latest" target="_blank">Linux</a>
+  <section class="section">
+    <div class="section-tag" data-en="THREE-STEP FUNNEL">学习流水线</div>
+    <h2 class="section-title" data-en="Funnel Learning: Never Waste Time on What You Know">
+      漏斗式三步练习：不浪费一秒在已听懂的句子上
+    </h2>
+    <div class="pipeline-grid">
+      <div class="pipe-card">
+        <div class="pipe-num">01</div>
+        <h4 data-en="Sentences Overview">Sentences 句子全景</h4>
+        <p data-en="Automatically slices video into sentence units by speech pauses. Tags i-1 (comfort zone), i+1 (golden learning zone), and Hard (fast bursts) based on WPM.">
+          根据停顿自动切分为句子切片。基于每分钟语速（WPM）自动标注 i-1（舒适区）、i+1（黄金进阶区）与 Hard（高速爆发区）。
+        </p>
+      </div>
+      <div class="pipe-card">
+        <div class="pipe-num">02</div>
+        <h4 data-en="Blind Flow Screening">Blind Flow 盲听初筛</h4>
+        <p data-en="Default masked subtitles. Press 1 (Pass), 2 (Lag), or 3 (Blind) to screen in seconds. Use flashlight peek only when you get stuck.">
+          默认圆点遮蔽字幕，纯听辨音。键盘按 1（听懂）、2（迟疑）、3（盲区）秒级初筛打标，光圈手电筒仅供卡住时临时偷看。
+        </p>
+      </div>
+      <div class="pipe-card">
+        <div class="pipe-num">03</div>
+        <h4 data-en="Loop Dojo Repetition">Loop Dojo 循环道场</h4>
+        <p data-en="Pulls only Lag & Blind sentences. Seamless A-B looping with 0.8x / 1.0x / 1.2x speeds, optional blind dictation, and word-level diff correction.">
+          靶向抓取未达标难句。A-B 无缝单句循环，0.8x/1.0x/1.2x 阶梯变速磨耳朵，支持盲打听写逐词校对（Word Diff）。
+        </p>
+      </div>
     </div>
-    <div class="ph s"></div>
   </section>
 
-  <section class="blk">
-    <h2>QA</h2>
-    <details><summary data-en="Do I need an account?">需要注册账号吗？</summary><p data-en="No. Everything stays on your computer.">不需要，所有内容都存在你自己的电脑上。</p></details>
-    <details><summary data-en="Which platforms?">支持哪些系统？</summary><p data-en="macOS, Windows and Linux. Mobile later.">macOS、Windows、Linux，移动端之后再做。</p></details>
-    <details><summary data-en="Where is the code?">代码在哪？</summary><p><a href="https://github.com/yuler/ear" target="_blank">github.com/yuler/ear</a></p></details>
+  <section class="section" id="download">
+    <div class="section-tag" data-en="DOWNLOADS">下载安装</div>
+    <h2 class="section-title" data-en="Get Ear for Desktop">获取 Ear 桌面客户端</h2>
+    <p class="section-desc" data-en="100% Local-first, zero cloud lock-in, free and open source. Runs natively on macOS, Windows, and Linux.">
+      100% 本地优先，数据与音视频完全存储在你自己的电脑上，无需注册，代码完全开源。
+    </p>
+
+    <div class="dl-grid">
+      <div class="dl-card">
+        <div>
+          <div class="dl-icon">🍎</div>
+          <div class="dl-os">macOS</div>
+          <div class="dl-hint" data-en="Apple Silicon (M1-M4) & Intel x64">Apple Silicon (M 系列) / Intel</div>
+        </div>
+        <a class="dl-btn" href="https://github.com/yuler/ear/releases/latest" target="_blank" data-en="Download .dmg">下载 .dmg ↗</a>
+      </div>
+      <div class="dl-card">
+        <div>
+          <div class="dl-icon">🪟</div>
+          <div class="dl-os">Windows</div>
+          <div class="dl-hint" data-en="Windows 10 / 11 64-bit (.exe)">Windows 10 / 11 64-bit 安装包</div>
+        </div>
+        <a class="dl-btn" href="https://github.com/yuler/ear/releases/latest" target="_blank" data-en="Download .exe">下载 .exe ↗</a>
+      </div>
+      <div class="dl-card">
+        <div>
+          <div class="dl-icon">🐧</div>
+          <div class="dl-os">Linux</div>
+          <div class="dl-hint" data-en="AppImage / deb / pacman">AppImage / deb / x64</div>
+        </div>
+        <a class="dl-btn" href="https://github.com/yuler/ear/releases/latest" target="_blank" data-en="Download AppImage">下载 AppImage ↗</a>
+      </div>
+    </div>
+
+    <div style="margin-top:20px; text-align:center; font-size:12px; color:var(--text-dim);">
+      也可以通过 Rust CLI 安装核心引擎：
+      <code style="background:var(--card); border:1px solid var(--border); padding:3px 8px; border-radius:5px; font-family:monospace; color:var(--primary);">
+        cargo install --git https://github.com/yuler/ear ear
+      </code>
+    </div>
+  </section>
+
+  <section class="section" id="faq">
+    <div class="section-tag">FAQ</div>
+    <h2 class="section-title" data-en="Frequently Asked Questions">常见问题解答</h2>
+    <div class="qa-list">
+      <details open>
+        <summary data-en="Why must subtitles be hidden? Doesn't reading subtitles also count as input?">
+          为什么一定要遮住字幕？看字幕不也算英语输入吗？
+        </summary>
+        <p data-en="Reading subtitles activates your visual word recognition, bypassing the auditory cortex. Ear forces your ears to process phonemes, pauses, and liaisons directly, preventing the 'visual crutch' illusion.">
+          看字幕是“文字输入”，不是“声音输入”。视觉对大脑皮层的刺激强度远胜于听觉，只要有字幕，大脑就会不自觉地去阅读文字并做语义翻译，听觉神经根本得不到锻炼。遮住字幕，大脑才会被迫去分辨连读、弱读与吞音，建立真正的听力反射。
+        </p>
+      </details>
+      <details>
+        <summary data-en="What exactly is Krashen's Comprehensible Input (i+1)?">
+          什么是克拉申的“可理解输入”（Comprehensible Input）与 i+1？
+        </summary>
+        <p data-en="Krashen's Input Hypothesis states that language acquisition occurs when learners are exposed to messages that are slightly beyond their current competence level (i + 1), in an authentic and understandable context.">
+          语言学家斯蒂芬·克拉申（Stephen Krashen）提出的二语习得假说。学习者只有在接触“略高于当前水平（i+1）”、且在上下文情境中能够理解的语言输入时，大脑才能自发完成语言习得。听太简单的内容（i-1）没有提升，听天书（Hard）则产生焦虑阻抗。Ear 根据语速（WPM）自动切分标注，助你精准停留在黄金区。
+        </p>
+      </details>
+      <details>
+        <summary data-en="How does Ear import YouTube videos? Do I need manual operations?">
+          如何导入 YouTube 视频？支持自动识别吗？
+        </summary>
+        <p data-en="Simply copy any YouTube URL. Ear monitors system clipboard and prompts instant import, or you can paste directly into the top search bar. The built-in Rust engine downloads audio/video and pulls original captions automatically.">
+          在浏览器中复制任意 YouTube 视频链接，Ear 会自动通过剪切板捕获并弹出导入确认；也可以在顶部输入框直接粘贴。内置的 Rust `ear` 引擎会自动高速下载视频流并提取官方或人工双语字幕，切片为独立的句子单元。
+        </p>
+      </details>
+      <details>
+        <summary data-en="Do I need to sign up for an account? Where are my videos stored?">
+          需要注册账号吗？我的视频和学习记录存放在哪里？
+        </summary>
+        <p data-en="No account is needed. Ear is 100% Local-First. All downloaded audio/video files and learning records stay on your local disk (~/Downloads and local cache). We never upload your data.">
+          完全不需要注册。Ear 遵循“本地优先”（Local-First）原则，所有下载的视频文件、字幕数据以及打标历史均 100% 存储在你的本地硬盘中，没有任何云端追踪，保护你的个人隐私与离线练习体验。
+        </p>
+      </details>
+      <details>
+        <summary data-en="Why desktop-first? Will mobile platforms be supported?">
+          为什么优先做桌面端？后续会支持手机移动端吗？
+        </summary>
+        <p data-en="Desktop offers native hotkey precision, instant A-B loops, and high-speed multi-threaded parsing without mobile battery/sandbox constraints. Mobile support is planned in future roadmaps.">
+          听力刻意练习需要高频的快捷键操作（Space 播放、R 揭晓、1/2/3 打标）以及单句毫秒级 A-B 无缝循环，桌面端能够提供极致沉浸、零延迟的操作体验。后续随着生态成熟，移动端也在计划路线图之中。
+        </p>
+      </details>
+    </div>
   </section>
 </main>
-<div class="pager" id="pager"></div>
-<div class="keys" id="keys"></div>
 
-<script>
-  const SENT = "I used to think I understood English, until I turned the subtitles off.";
-  const DESC = {
-    a: ["单栏纯黑长卷，首屏是暗处的一句话，往下依次是为什么 / 快速使用 / 下载 / QA", "One dark column; the first screen is a hidden sentence, then Why / Start / Download / QA"],
-    b: ["左半屏固定在黑暗里放那句话，右半屏滚动介绍内容", "Left half stays dark with the sentence; right half scrolls the content"],
-    c: ["横向翻页，一屏只讲一件事，第一屏是暗处的那句话", "Horizontal slides, one idea per screen; slide one is the hidden sentence"],
-  };
-  const KEYS = {
-    a: ["1 / 2 / 3 切换方案 · Space 听 · R 揭晓 · 滚动浏览", "1 / 2 / 3 switch · Space listen · R reveal · scroll"],
-    b: ["1 / 2 / 3 切换方案 · Space 听 · R 揭晓 · 右侧滚动", "1 / 2 / 3 switch · Space listen · R reveal · scroll right side"],
-    c: ["1 / 2 / 3 切换方案 · ← → 翻页 · Space 听 · R 揭晓", "1 / 2 / 3 switch · ← → slides · Space listen · R reveal"],
-  };
-  const $ = (id) => document.getElementById(id);
-  const state = { style: "a", lang: "zh", slide: 0 };
-  const L = (pair) => pair[state.lang === "en" ? 1 : 0];
+<footer>
+  <div class="container">
+    <p>Ear — 专注可理解输入的听力刻意练习工具 · 基于克拉申语言习得理论</p>
+    <p style="margin-top:6px;">
+      <a href="https://github.com/yuler/ear" target="_blank">GitHub</a> · 
+      <a href="https://github.com/yuler/ear/releases/latest" target="_blank">Releases</a> · 
+      Open Source under MIT License
+    </p>
+  </div>
+</footer>
 
-  $("real").textContent = SENT;
-  $("dots").textContent = SENT;
-
-  // Flashlight follows the pointer anywhere on the stage
-  const sent = $("sent"), stage = $("stage");
-  stage.addEventListener("pointermove", (e) => {
-    const r = sent.getBoundingClientRect();
-    sent.style.setProperty("--x", e.clientX - r.left + "px");
-    sent.style.setProperty("--y", e.clientY - r.top + "px");
-  });
-  stage.addEventListener("pointerleave", () => sent.style.setProperty("--x", "-999px"));
-
-  // TTS stands in for the real clip
-  function play() {
-    if (!("speechSynthesis" in window)) return;
-    speechSynthesis.cancel();
-    const u = new SpeechSynthesisUtterance(SENT);
-    u.lang = "en-US"; u.rate = 0.95;
-    u.onend = () => stage.classList.remove("playing");
-    stage.classList.add("playing");
-    speechSynthesis.speak(u);
-  }
-  const reveal = () => stage.classList.toggle("shown");
-  sent.addEventListener("click", play);
-
-  // Slides (style C)
-  const pages = document.querySelectorAll("main > section");
-  $("pager").innerHTML = [...pages].map((_, i) => `<i data-i="${i}"></i>`).join("");
-  $("pager").addEventListener("click", (e) => e.target.dataset.i && go(+e.target.dataset.i));
-  function go(i) {
-    state.slide = Math.max(0, Math.min(pages.length - 1, i));
-    $("main").style.setProperty("--slide", state.slide);
-    [...$("pager").children].forEach((d, k) => d.classList.toggle("on", k === state.slide));
-  }
-
-  function setStyle(s) {
-    state.style = s;
-    document.documentElement.className = document.body.className = "s-" + s;
-    document.querySelectorAll(".bar [data-s]").forEach((b) => b.classList.toggle("on", b.dataset.s === s));
-    $("desc").textContent = L(DESC[s]); $("keys").textContent = L(KEYS[s]);
-    go(0); scrollTo(0, 0);
-  }
-  function setLang(l) {
-    state.lang = l;
-    document.documentElement.lang = l === "en" ? "en" : "zh-CN";
-    document.querySelectorAll("[data-en]").forEach((el) => {
-      if (el.dataset.zh === undefined) el.dataset.zh = el.innerHTML;
-      el.innerHTML = l === "en" ? el.dataset.en : el.dataset.zh;
-    });
-    $("lang").textContent = l === "en" ? "中文" : "EN";
-    setStyle(state.style);
-  }
-
-  document.querySelectorAll(".bar [data-s]").forEach((b) => (b.onclick = () => setStyle(b.dataset.s)));
-  $("lang").onclick = () => setLang(state.lang === "en" ? "zh" : "en");
-  addEventListener("keydown", (e) => {
-    if (e.key === "1" || e.key === "2" || e.key === "3") setStyle("abc"[e.key - 1]);
-    else if (e.key === " ") { e.preventDefault(); play(); }
-    else if (e.key === "r" || e.key === "R") reveal();
-    else if (state.style === "c" && e.key === "ArrowRight") go(state.slide + 1);
-    else if (state.style === "c" && e.key === "ArrowLeft") go(state.slide - 1);
-  });
-  setStyle("a");
-</script>
+<script src="www.js"></script>
 </body>
 </html>
