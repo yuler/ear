@@ -13,6 +13,20 @@ use crate::youtube::http_get_text;
 pub fn run(args: &[String]) -> Result<(), String> {
     let refresh = args.iter().any(|a| a == "--refresh" || a == "-r");
 
+    // In local repo development, local api/discover/ files always take precedence over cache
+    if std::env::var("EAR_DISCOVER_URL").is_err() {
+        if let Some((index, items)) = load_local_repo_catalog() {
+            emit_json(json!({
+                "type": "result",
+                "schemaVersion": index.schema_version,
+                "updatedAt": index.updated_at,
+                "fromCache": false,
+                "items": items
+            }));
+            return Ok(());
+        }
+    }
+
     let cached = read_cache();
 
     if !refresh {

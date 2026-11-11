@@ -182,7 +182,62 @@ export async function fetchDiscoverItems(options?: {
     }
   }
 
-  throw new Error(lastErr);
+  // Fallback: If CLI spawn is unsupported or unavailable (e.g. web target / dev host),
+  // fetch directly from GitHub Raw API
+  try {
+    return await fetchDiscoverFromHttp();
+  } catch (httpErr) {
+    const httpMsg = httpErr instanceof Error ? httpErr.message : String(httpErr);
+    throw new Error(`${lastErr}; HTTP fallback failed: ${httpMsg}`);
+  }
+}
+
+const DEFAULT_DISCOVER_URL =
+  "https://raw.githubusercontent.com/yuler/ear/main/api/discover/";
+
+async function fetchDiscoverFromHttp(): Promise<{
+  items: DiscoverItem[];
+  updatedAt: string;
+  fromCache: boolean;
+}> {
+  const baseUrl = DEFAULT_DISCOVER_URL;
+  const indexRes = await fetch(`${baseUrl}index.json`);
+  if (!indexRes.ok) {
+    throw new Error(`Failed to fetch discover index: HTTP ${indexRes.status}`);
+  }
+  const index = (await indexRes.json()) as {
+    schemaVersion: number;
+    updatedAt: string;
+    files: string[];
+  };
+
+  const allItems: DiscoverItem[] = [];
+
+  for (const file of index.files) {
+    try {
+      const fileRes = await fetch(`${baseUrl}${file}`);
+      if (!fileRes.ok) continue;
+      const fileData = (await fileRes.json()) as {
+        items: RawDiscoverCliItem[];
+      };
+      for (const raw of fileData.items) {
+        if (!raw.durationTier) {
+          const minutes = raw.durationMs / (60 * 1000);
+          raw.durationTier =
+            minutes < 7 ? 5 : minutes < 15 ? 10 : minutes < 25 ? 20 : 30;
+        }
+        allItems.push(toDiscoverItem(raw));
+      }
+    } catch {
+      // Continue with remaining files
+    }
+  }
+
+  return {
+    items: allItems,
+    updatedAt: index.updatedAt,
+    fromCache: false,
+  };
 }
 
 export const discoverItems = signal<DiscoverItem[]>([]);

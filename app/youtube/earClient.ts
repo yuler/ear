@@ -50,7 +50,23 @@ export function setEarBinaryCandidates(candidates: string[] | null): void {
 
 export function earBinaryCandidates(): string[] {
   if (candidatesOverride) return candidatesOverride;
-  return ["./ear", "./ear.exe", "ear"];
+  const list = [
+    "./ear",
+    "./ear.exe",
+    "cli/target/debug/ear",
+    "cli/target/release/ear",
+    "../cli/target/debug/ear",
+    "../cli/target/release/ear",
+    "ear",
+  ];
+  try {
+    if (typeof process !== "undefined" && process?.env?.HOME) {
+      list.push(`${process.env.HOME}/.local/bin/ear`);
+    }
+  } catch {
+    // ignore
+  }
+  return list;
 }
 
 export function spawnEar(bin: string, args: string[]): SpawnChildLike | null {
