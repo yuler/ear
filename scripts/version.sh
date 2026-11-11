@@ -2,7 +2,6 @@
 set -euo pipefail
 
 ROOT_DIR="$(git -C "$(dirname "${BASH_SOURCE[0]}")" rev-parse --show-toplevel 2>/dev/null || (cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd))"
-VERSION_FILE="$ROOT_DIR/VERSION"
 
 # Ensure gum fallback if gum is not available
 has_gum() {
@@ -34,10 +33,17 @@ log_error() {
 }
 
 get_current_version() {
-  if [ ! -f "$VERSION_FILE" ]; then
-    echo "0.0.1" > "$VERSION_FILE"
+  local tag=""
+  if git rev-parse --git-dir >/dev/null 2>&1; then
+    tag="$(git tag --sort=-v:refname -l "v*" 2>/dev/null | head -n 1 || true)"
   fi
-  tr -d '[:space:]' < "$VERSION_FILE"
+  if [ -n "$tag" ]; then
+    echo "${tag#v}"
+  elif [ -f "$ROOT_DIR/app/nsh.json" ]; then
+    jq -r '.version // "0.0.1"' "$ROOT_DIR/app/nsh.json"
+  else
+    echo "0.0.1"
+  fi
 }
 
 do_sync() {
@@ -120,11 +126,11 @@ do_bump() {
         "custom")
 
       case "$choice" in
-        "patch ("*) target_type="patch" ;;
-        "minor ("*) target_type="minor" ;;
-        "major ("*) target_type="major" ;;
-        "custom")
-          target_type=$(gum input --placeholder "e.g. 0.0.2")
+        patch*) target_type="patch" ;;
+        minor*) target_type="minor" ;;
+        major*) target_type="major" ;;
+        custom)
+          target_type=$(gum input --placeholder "Enter custom version (e.g. 1.0.0)")
           ;;
       esac
     else
@@ -142,8 +148,6 @@ do_bump() {
     fi
   fi
 
-  echo "$next_version" > "$VERSION_FILE"
-
   # Bump build number in app/nsh.json via jq
   local nsh_json="$ROOT_DIR/app/nsh.json"
   if [ -f "$nsh_json" ]; then
@@ -152,8 +156,17 @@ do_bump() {
     mv "$tmp_json" "$nsh_json"
   fi
 
-  log_success "Bumped VERSION: $current → $next_version"
-  do_sync
+  log_success "Target Version: $current → $next_version"
+  do_sync "$next_version"
+
+  if git rev-parse --git-dir >/dev/null 2>&1; then
+    if git rev-parse -q --verify "refs/tags/v$next_version" >/dev/null; then
+      log_info "Tag v$next_version already exists."
+    else
+      git tag -a "v$next_version" -m "Release v$next_version"
+      log_success "Created Git tag: v$next_version"
+    fi
+  fi
 }
 
 show_status() {
@@ -195,7 +208,7 @@ main() {
       ;;
     *)
       log_error "Unknown command: $cmd"
-      echo "Usage: $0 [bump <patch|minor|major|version> | sync | show]"
+      echo "Usage: $0 [bump <patch|minor|major|version> | sync [version] | show]"
       exit 1
       ;;
   esac

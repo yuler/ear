@@ -18,8 +18,8 @@
 | :--------------- | :-------------------------------------------------------------------------------------------------------------------------------- |
 | **触发范围**     | 仅限 `main` 主干分支的直接 push 或 PR 合并事件。特性分支与待合入 PR 仅运行 CI 校验，不打 Tag、不发布 Release。                       |
 | **路径过滤**     | 排除纯文档提交（`docs/**`、`*.md`、`.gitignore`）。涉及业务源码（`app/**`、`cli/**`、配置文件等）时触发全流程。                     |
-| **版本控制**     | 根目录 `VERSION` 统领主次版本基准（如 `0.0.1`）；日常 CI 基于最新 Release Tag 自动自增 Patch（如 `v0.0.2`），动态注入产物，不回写主干。 |
-| **大版本演进**   | 跨 Milestone 或破坏性更新时，通过 `scripts/version.sh bump [minor\|major]` 更新 `VERSION` 合入 main，CI 自动基于新基准递增。        |
+| **版本控制**     | 纯 Git Tag 驱动（无静态 VERSION 文件）：日常 CI 读取最新 Release Tag 自动递增 Patch，动态注入产物，不回写主干。                  |
+| **大版本演进**   | 跨 Milestone 或破坏性更新时，通过 GitHub Actions `workflow_dispatch`（输入目标 Tag 如 `v0.1.0`）或本地打 Tag，CI 自动顺延。       |
 | **质量门禁**     | 前置强制通过 `nsh check`、`cargo test`、`nsh test` 及编译预检；任意一步失败即刻阻断流程，绝不打 Tag。                             |
 | **并发调度**     | 设置 `cancel-in-progress: false` 串行排队；保证每次合入 main 的 Commit / PR 都有专属独立的版本号与 Release。                     |
 | **产物形态**     | 输出 Linux x64、macOS arm64、Windows x64 完整安装包，并同步输出 Native Shell 增量字节码（`bundle.nshc`，~200KB）。               |
