@@ -1,9 +1,14 @@
-import { Text, View } from "nsh";
+import { effect, LayoutAnimation, Text, View } from "nsh";
 import type { DownloadTaskProgress, LibraryEntry } from "../library/types";
 import { ActiveDownloadRow } from "../ui/ActiveDownloadRow";
 import { Icon } from "../ui/Icon";
+import { settings } from "../ui/settings";
 import type { MediaTab } from "../ui/TopBar";
-import { LibraryPostCard } from "./LibraryCards";
+import {
+  LibraryGradeCard,
+  LibraryListRow,
+  LibraryPostCard,
+} from "./LibraryCards";
 import { formatEntryDescription, isAudioEntry } from "./libraryViewHelpers";
 import type { ViewTransitionRect } from "./viewTransition";
 
@@ -43,6 +48,32 @@ export function LibraryView(props: {
   const totalVisibleCount = () =>
     currentEntries().length + currentDownloads().length;
 
+  effect(() => {
+    // When savedEntries or downloads change, trigger LayoutAnimation to smoothly animate position updates of grid cards
+    const _entries = props.savedEntries();
+    const _downloads = props.activeDownloads?.();
+    try {
+      LayoutAnimation.configureNext({
+        duration: 380,
+        create: {
+          type: "spring",
+          property: "scaleXY",
+          springDamping: 0.78,
+        },
+        update: {
+          type: "spring",
+          springDamping: 0.78,
+        },
+        delete: {
+          type: "easeOut",
+          property: "opacity",
+        },
+      });
+    } catch {
+      // ignore on test host
+    }
+  });
+
   return (
     <View class="gap-4">
       <If when={totalVisibleCount() > 0}>
@@ -79,18 +110,49 @@ export function LibraryView(props: {
             </View>
           </If>
 
-          {/* 2. Finished library entries in standard responsive grid style */}
+          {/* 2. Finished library entries in standard responsive grid/grade style */}
           <If when={currentEntries().length > 0}>
-            <View class="flex-row flex-wrap gap-5 pt-1">
+            <View
+              class={
+                settings().libraryLayout === "grade"
+                  ? "flex-row flex-wrap gap-3.5 pt-1"
+                  : settings().libraryLayout === "list"
+                    ? "flex-col gap-1 pt-1"
+                    : "flex-row flex-wrap gap-5 pt-1"
+              }
+            >
               <Each of={currentEntries()} key={(entry) => entry.videoId}>
-                {(entry) => (
-                  <LibraryPostCard
-                    entry={entry()}
-                    onOpenEntry={props.onOpenEntry}
-                    onOpenFolder={props.onOpenFolder}
-                    onDeleteEntry={props.onDeleteEntry}
-                  />
-                )}
+                {(entry) => {
+                  const mode = () => settings().libraryLayout;
+                  return (
+                    <>
+                      <If when={mode() === "grade"}>
+                        <LibraryGradeCard
+                          entry={entry()}
+                          onOpenEntry={props.onOpenEntry}
+                          onOpenFolder={props.onOpenFolder}
+                          onDeleteEntry={props.onDeleteEntry}
+                        />
+                      </If>
+                      <If when={mode() === "list"}>
+                        <LibraryListRow
+                          entry={entry()}
+                          onOpenEntry={props.onOpenEntry}
+                          onOpenFolder={props.onOpenFolder}
+                          onDeleteEntry={props.onDeleteEntry}
+                        />
+                      </If>
+                      <If when={mode() !== "grade" && mode() !== "list"}>
+                        <LibraryPostCard
+                          entry={entry()}
+                          onOpenEntry={props.onOpenEntry}
+                          onOpenFolder={props.onOpenFolder}
+                          onDeleteEntry={props.onDeleteEntry}
+                        />
+                      </If>
+                    </>
+                  );
+                }}
               </Each>
             </View>
           </If>

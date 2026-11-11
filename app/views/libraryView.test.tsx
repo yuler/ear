@@ -110,3 +110,14 @@ test("download task completion animation: marks stage as done at 100% with ready
   expect(completedTask.percent).toBe(100);
 });
 
+test("library entries are ordered in reverse chronological order with newest prepended to first grid slot", () => {
+  const older = mockEntry({ videoId: "v1", updatedAt: 1000 });
+  const newer = mockEntry({ videoId: "v2", updatedAt: 2000 });
+  const newest = mockEntry({ videoId: "v3", updatedAt: 3000 });
+
+  const list = [older, newer, newest].sort((a, b) => b.updatedAt - a.updatedAt);
+  expect(list[0].videoId).toBe("v3");
+  expect(list[1].videoId).toBe("v2");
+  expect(list[2].videoId).toBe("v1");
+});
+

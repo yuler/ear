@@ -228,10 +228,10 @@ export function ClipboardCard(props: {
         </View>
 
         {/* Primary Action Button: Download directly, Return ↵ to download */}
-        <View class="shrink-0 items-end justify-center gap-1 sm:pl-2">
+        <View class="shrink-0 items-end justify-center gap-1.5 sm:pl-2">
           <Button
             onPress={() => props.onDownload(props.preview())}
-            class="flex-row items-center gap-1.5 rounded-lg bg-[#2f7cf6] px-4 py-2.5 active:opacity-90"
+            class="flex-row items-center gap-1.5 rounded-lg bg-[#2f7cf6] px-4 py-2.5 shadow-[0_0_14px_rgba(47,124,246,0.4)] ring-2 ring-[#2f7cf6]/60 transition active:opacity-90"
             accessibilityLabel="Download video or audio"
           >
             <If when={props.loading()}>
@@ -249,7 +249,12 @@ export function ClipboardCard(props: {
               {props.loading() ? "Downloading…" : "Download"}
             </Text>
           </Button>
-          <Text class="font-mono text-[11px] text-dim">Return ↵ to download</Text>
+          <View class="flex-row items-center gap-1">
+            <View class="rounded border border-line bg-well px-1 py-0.5 shadow-xs">
+              <Text class="font-mono text-[10px] font-semibold text-foreground">↵</Text>
+            </View>
+            <Text class="font-mono text-[11px] text-dim">Return ↵ to download</Text>
+          </View>
         </View>
       </View>
 

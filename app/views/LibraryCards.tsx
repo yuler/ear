@@ -135,12 +135,13 @@ export function LibraryGradeCard(props: {
   onDeleteEntry?: (entry: LibraryEntry) => void;
 }) {
   const enterMotion = createMotion({
-    enter: "fadeInUp",
-    duration: 340,
+    enter: "fadeInDown",
+    duration: 380,
   });
   let thumbRef: ViewRef | null = null;
   const duration = formatDurationMs(props.entry.durationMs);
   const meta = formatEntryDescription(props.entry);
+  const isRecent = () => Date.now() - props.entry.updatedAt < 4000;
 
   const handleOpen = async () => {
     let rect: ViewTransitionRect | null = null;
@@ -153,7 +154,11 @@ export function LibraryGradeCard(props: {
   return (
     <View
       style={enterMotion.style}
-      class="w-[144px] items-center gap-1.5 rounded-lg border border-transparent p-2 transition hover:border-line hover:bg-well/70"
+      class={`w-[144px] items-center gap-1.5 rounded-lg border p-2 transition hover:border-line hover:bg-well/70 ${
+        isRecent()
+          ? "border-ready/60 shadow-[0_0_12px_rgba(34,197,94,0.2)]"
+          : "border-transparent"
+      }`}
     >
       <Button
         ref={(node) => {
@@ -228,12 +233,13 @@ export function LibraryPostCard(props: {
   onDeleteEntry?: (entry: LibraryEntry) => void;
 }) {
   const enterMotion = createMotion({
-    enter: "fadeInUp",
-    duration: 360,
+    enter: "fadeInDown",
+    duration: 380,
   });
   let thumbRef: ViewRef | null = null;
   const duration = formatDurationMs(props.entry.durationMs);
   const meta = formatEntryDescription(props.entry);
+  const isRecent = () => Date.now() - props.entry.updatedAt < 4000;
 
   const handleOpen = async () => {
     let rect: ViewTransitionRect | null = null;
@@ -246,7 +252,11 @@ export function LibraryPostCard(props: {
   return (
     <View
       style={{ minWidth: 280, ...enterMotion.style }}
-      class="w-full max-w-[460px] flex-1 gap-2.5 rounded-xl border border-line/60 bg-well/15 p-3 transition hover:border-line hover:bg-well/40"
+      class={`w-full max-w-[460px] flex-1 gap-2.5 rounded-xl border bg-well/15 p-3 transition hover:border-line hover:bg-well/40 ${
+        isRecent()
+          ? "border-ready/60 shadow-[0_0_14px_rgba(34,197,94,0.25)]"
+          : "border-line/60"
+      }`}
     >
       <Button
         ref={(node) => {

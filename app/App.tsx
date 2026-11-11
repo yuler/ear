@@ -2,6 +2,7 @@ import {
   colorScheme,
   effect,
   keymap,
+  LayoutAnimation,
   lifecycle,
   mount,
   platform,
@@ -343,8 +344,29 @@ function App() {
         });
       }
 
-      // Wait 380ms for the shrink-down-and-move animation to play
+      // Wait 380ms for the shrink-down-and-move animation of ActiveDownloadRow to play
       await delay(380);
+
+      try {
+        LayoutAnimation.configureNext({
+          duration: 380,
+          create: {
+            type: "spring",
+            property: "scaleXY",
+            springDamping: 0.78,
+          },
+          update: {
+            type: "spring",
+            springDamping: 0.78,
+          },
+          delete: {
+            type: "easeOut",
+            property: "opacity",
+          },
+        });
+      } catch {
+        // ignore on test host
+      }
 
       const entries = await listEntriesSafe();
       savedEntries.set(entries);
@@ -579,6 +601,20 @@ function App() {
       status.set(`推荐视频《${item.title}》尚未下载，已填入下载解析栏`);
     }
   };
+
+  keymap.bind(
+    {
+      enter: () => {
+        if (playingEntry()) return;
+        if (activeTab() === "settings") return;
+        const cur = activePreview();
+        if (cur && !loading()) {
+          void onStartDownload(cur);
+        }
+      },
+    },
+    { when: "notEditing" },
+  );
 
   keymap.bind({
     "mod+l": () => {
