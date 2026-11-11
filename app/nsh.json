@@ -1,0 +1,55 @@
+{
+  "name": "Ear",
+  "id": "dev.yuler.ear",
+  "version": "0.0.1",
+  "build": 1,
+  "appearance": "dark",
+  "theme": "theme.json",
+  "capabilities": {
+    "clipboard": true,
+    "network": {
+      "hosts": [
+        "*"
+      ]
+    },
+    "fs": {
+      "read": [
+        "${dataDir}",
+        "${homeDir}/Downloads"
+      ],
+      "write": [
+        "${dataDir}",
+        "${homeDir}/Downloads"
+      ]
+    },
+    "process": {
+      "env": [
+        "DISPLAY",
+        "WAYLAND_DISPLAY",
+        "XDG_RUNTIME_DIR",
+        "DBUS_SESSION_BUS_ADDRESS",
+        "XDG_CURRENT_DESKTOP",
+        "XDG_DATA_DIRS",
+        "XDG_CONFIG_DIRS",
+        "USER",
+        "LOGNAME",
+        "XAUTHORITY"
+      ],
+      "execute": [
+        "ear",
+        "ear.exe",
+        "yt-dlp",
+        "ffmpeg",
+        "curl",
+        "cp",
+        "xdg-open",
+        "open",
+        "gio",
+        "nautilus",
+        "dolphin",
+        "dbus-send",
+        "gdbus"
+      ]
+    }
+  }
+}

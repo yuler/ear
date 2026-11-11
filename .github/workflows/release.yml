@@ -1,0 +1,181 @@
+name: release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag (e.g. v1.0.0)'
+        required: false
+        default: ''
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  prepare:
+    name: Prepare Release Metadata
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.vars.outputs.tag }}
+      version: ${{ steps.vars.outputs.version }}
+      build: ${{ steps.vars.outputs.build }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Parse Version & Tag
+        id: vars
+        shell: bash
+        run: |
+          FILE_VERSION=$(tr -d '[:space:]' < VERSION)
+          TAG="${{ github.event.inputs.tag }}"
+          if [ -z "$TAG" ]; then
+            TAG="${{ github.ref_name }}"
+          fi
+          if [ -z "$TAG" ] || [ "$TAG" = "main" ]; then
+            TAG="v${FILE_VERSION}"
+          fi
+          VERSION="${TAG#v}"
+          BUILD=$(jq -r .build app/nsh.json 2>/dev/null || echo 1)
+          echo "tag=$TAG" >> $GITHUB_OUTPUT
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "build=$BUILD" >> $GITHUB_OUTPUT
+
+  build-desktop:
+    name: Build Desktop (${{ matrix.platform }})
+    needs: prepare
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: linux-x64
+            os: ubuntu-latest
+            target: linux
+          - platform: macos-arm64
+            os: macos-14
+            target: macos
+          - platform: windows-x64
+            os: windows-latest
+            target: windows
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install mise + nsh
+        uses: jdx/mise-action@v5
+
+      - name: Build Rust ear CLI
+        shell: bash
+        run: cargo build --release --manifest-path cli/Cargo.toml
+
+      - name: Package NSH App (${{ matrix.target }})
+        shell: bash
+        run: nsh package --target ${{ matrix.target }} app/
+
+      # Linux archive assembly
+      - name: Assemble Linux Bundle
+        if: matrix.target == 'linux'
+        shell: bash
+        run: |
+          cp cli/target/release/ear .nsh/out/Ear/ear
+          chmod +x .nsh/out/Ear/ear
+          tar -czf "Ear-${{ needs.prepare.outputs.version }}-linux-x64.tar.gz" -C .nsh/out Ear
+
+      # macOS zip assembly
+      - name: Assemble macOS Bundle
+        if: matrix.target == 'macos'
+        shell: bash
+        run: |
+          mkdir -p .nsh/out/Ear.app/Contents/MacOS
+          cp cli/target/release/ear .nsh/out/Ear.app/Contents/MacOS/ear
+          chmod +x .nsh/out/Ear.app/Contents/MacOS/ear
+          ditto -c -k --keepParent .nsh/out/Ear.app "Ear-${{ needs.prepare.outputs.version }}-macos-arm64.zip"
+
+      # Windows zip assembly
+      - name: Assemble Windows Bundle
+        if: matrix.target == 'windows'
+        shell: pwsh
+        run: |
+          Copy-Item "cli/target/release/ear.exe" -Destination ".nsh/out/Ear/ear.exe"
+          Compress-Archive -Path ".nsh/out/Ear/*" -DestinationPath "Ear-${{ needs.prepare.outputs.version }}-windows-x64.zip"
+
+      - name: Upload Platform Asset
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.platform }}
+          path: |
+            Ear-${{ needs.prepare.outputs.version }}-*.tar.gz
+            Ear-${{ needs.prepare.outputs.version }}-*.zip
+          if-no-files-found: error
+
+  publish-release:
+    name: Publish Release & Manifest
+    needs: [prepare, build-desktop]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install mise + nsh
+        uses: jdx/mise-action@v5
+
+      - name: Download all build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: dist-raw
+
+      - name: Flatten artifacts into dist/
+        shell: bash
+        run: |
+          mkdir -p dist
+          find dist-raw -type f -exec mv {} dist/ \;
+          ls -la dist/
+
+      - name: Build Incremental Bytecode Bundle
+        shell: bash
+        run: |
+          nsh package --target linux app/
+          cp .nsh/out/Ear/nsh/bundle.nshc dist/bundle.nshc
+          ls -lh dist/bundle.nshc
+
+      - name: Generate Manifest and Checksums
+        shell: bash
+        run: |
+          bash scripts/generate_manifest.sh \
+            --version "${{ needs.prepare.outputs.version }}" \
+            --build "${{ needs.prepare.outputs.build }}" \
+            --tag "${{ needs.prepare.outputs.tag }}" \
+            --repo "${{ github.repository }}" \
+            --assets-dir dist \
+            --output dist/latest.json \
+            --checksums dist/checksums.txt
+
+      - name: Display Release Contents
+        shell: bash
+        run: |
+          echo "=== Manifest latest.json ==="
+          cat dist/latest.json
+          echo "=== Checksums ==="
+          cat dist/checksums.txt
+
+      - name: Publish to GitHub Releases
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.prepare.outputs.tag }}
+          name: "Ear ${{ needs.prepare.outputs.tag }}"
+          files: dist/*
+          generate_release_notes: true
+          draft: false
+          prerelease: false

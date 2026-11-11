@@ -3,6 +3,11 @@ set -euo pipefail
 
 mise install
 
+if command -v cargo >/dev/null 2>&1; then
+  echo "Building Ear CLI (release)…"
+  mise run build-cli
+fi
+
 # nsh Linux host needs WebKitGTK 6 for web views (see https://nsh.dev/docs/linux).
 if [[ ! -e /usr/lib/libwebkitgtk-6.0.so.4 ]]; then
   if command -v pacman >/dev/null 2>&1; then

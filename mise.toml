@@ -1,17 +1,30 @@
 [tools]
 "github:longbridge/nsh" = "latest"
 
-[tasks.check]
-run = "nsh check"
+[tasks.build-cli]
+description = "Release-build Ear CLI and install to ~/.local/bin/ear"
+run = "cargo build --release --manifest-path cli/Cargo.toml && install -Dm755 cli/target/release/ear ~/.local/bin/ear"
 
-[tasks.test]
-run = "nsh test"
-
-[tasks.setup]
-description = "Install tools and Linux host deps (WebKitGTK 6)"
-run = "bash scripts/setup.sh"
+[tasks.build-cli-dev]
+description = "Debug-build Ear CLI for develop and install to ~/.local/bin/ear"
+run = "cargo build --manifest-path cli/Cargo.toml && install -Dm755 cli/target/debug/ear ~/.local/bin/ear"
 
 [tasks.dev]
-description = "Start native host on this OS"
+description = "Rebuild CLI (debug) then start native host"
 alias = ["run"]
-run = "nsh run"
+depends = ["build-cli-dev"]
+run = "nsh run app"
+
+[tasks.check]
+run = "nsh check app"
+
+[tasks.test]
+run = "cargo test --manifest-path cli/Cargo.toml && nsh test app"
+
+[tasks.setup]
+description = "Install tools, Ear CLI (release), and Linux host deps (WebKitGTK 6)"
+run = "bash scripts/setup.sh"
+
+[tasks.version]
+description = "Manage and sync repository version"
+run = "bash scripts/version.sh"

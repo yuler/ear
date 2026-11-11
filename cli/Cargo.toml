@@ -1,0 +1,17 @@
+[package]
+name = "ear"
+version = "0.0.1"
+edition = "2021"
+description = "Ear CLI — YouTube parse, captions, and parallel range download"
+
+[lib]
+name = "ear"
+path = "src/lib.rs"
+
+[[bin]]
+name = "ear"
+path = "src/main.rs"
+
+[dependencies]
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
