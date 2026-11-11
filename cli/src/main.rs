@@ -14,7 +14,7 @@ fn main() {
 
     let res = match sub {
         "--version" | "-v" | "version" => {
-            println!("ear 0.1.0 (schema v1)");
+            println!("ear {} (schema v1)", env!("CARGO_PKG_VERSION"));
             return;
         }
         "parse" => {

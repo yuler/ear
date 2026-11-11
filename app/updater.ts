@@ -1,4 +1,5 @@
 import { platform, signal } from "nsh";
+import nshConfig from "./nsh.json";
 import { isNativeHost } from "./youtube/host";
 
 export interface PlatformAsset {
@@ -45,8 +46,8 @@ export const GITHUB_REPO = "yuler/ear";
 export const DEFAULT_MANIFEST_URL = `https://github.com/${GITHUB_REPO}/releases/latest/download/latest.json`;
 export const RELEASES_PAGE_URL = `https://github.com/${GITHUB_REPO}/releases/latest`;
 
-export const CURRENT_APP_VERSION = "1.0.0";
-export const CURRENT_APP_BUILD = 1;
+export const CURRENT_APP_VERSION = nshConfig.version;
+export const CURRENT_APP_BUILD = nshConfig.build ?? 1;
 
 export const globalUpdateAvailable = signal<boolean>(false);
 export const globalUpdateResult = signal<UpdateCheckResult | null>(null);

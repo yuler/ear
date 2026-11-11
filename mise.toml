@@ -24,3 +24,7 @@ run = "cargo test --manifest-path cli/Cargo.toml && nsh test app"
 [tasks.setup]
 description = "Install tools, Ear CLI (release), and Linux host deps (WebKitGTK 6)"
 run = "bash scripts/setup.sh"
+
+[tasks.version]
+description = "Manage and sync repository version"
+run = "bash scripts/version.sh"

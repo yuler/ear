@@ -1,0 +1,202 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+ROOT_DIR="$(git -C "$(dirname "${BASH_SOURCE[0]}")" rev-parse --show-toplevel 2>/dev/null || (cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd))"
+VERSION_FILE="$ROOT_DIR/VERSION"
+
+# Ensure gum fallback if gum is not available
+has_gum() {
+  command -v gum >/dev/null 2>&1
+}
+
+log_info() {
+  if has_gum; then
+    gum log --level info "$1"
+  else
+    echo "INFO: $1"
+  fi
+}
+
+log_success() {
+  if has_gum; then
+    gum style --foreground 82 "✔ $1"
+  else
+    echo "✔ $1"
+  fi
+}
+
+log_error() {
+  if has_gum; then
+    gum log --level error "$1"
+  else
+    echo "ERROR: $1" >&2
+  fi
+}
+
+get_current_version() {
+  if [ ! -f "$VERSION_FILE" ]; then
+    echo "0.0.1" > "$VERSION_FILE"
+  fi
+  tr -d '[:space:]' < "$VERSION_FILE"
+}
+
+do_sync() {
+  local version
+  version="$(get_current_version)"
+  log_info "Synchronizing repository version to $version..."
+
+  # 1. Update app/nsh.json via jq
+  local nsh_json="$ROOT_DIR/app/nsh.json"
+  if [ -f "$nsh_json" ]; then
+    local tmp_json="${nsh_json}.tmp"
+    jq --arg v "$version" '.version = $v' "$nsh_json" > "$tmp_json"
+    mv "$tmp_json" "$nsh_json"
+    log_success "Updated app/nsh.json → $version"
+  fi
+
+  # 2. Update cli/Cargo.toml & Cargo.lock via sed
+  local cargo_toml="$ROOT_DIR/cli/Cargo.toml"
+  if [ -f "$cargo_toml" ]; then
+    sed -i -E '0,/version = ".*"/s/version = ".*"/version = "'"$version"'"/' "$cargo_toml"
+    log_success "Updated cli/Cargo.toml → $version"
+    cargo check --manifest-path "$cargo_toml" --quiet 2>/dev/null || true
+    log_success "Updated cli/Cargo.lock"
+  fi
+
+  log_success "Version sync completed across all targets."
+}
+
+bump_semver() {
+  local current="$1"
+  local type="$2"
+
+  local clean="${current#v}"
+  local major minor patch
+  major=$(echo "$clean" | cut -d. -f1)
+  minor=$(echo "$clean" | cut -d. -f2)
+  patch=$(echo "$clean" | cut -d. -f3 | cut -d- -f1)
+
+  major=${major:-0}
+  minor=${minor:-0}
+  patch=${patch:-0}
+
+  case "$type" in
+    patch)
+      echo "$major.$minor.$((patch + 1))"
+      ;;
+    minor)
+      echo "$major.$((minor + 1)).0"
+      ;;
+    major)
+      echo "$((major + 1)).0.0"
+      ;;
+    *)
+      echo "$type"
+      ;;
+  esac
+}
+
+do_bump() {
+  local current
+  current="$(get_current_version)"
+  local target_type="${1:-}"
+
+  if [ -z "$target_type" ]; then
+    if has_gum && [ -t 0 ]; then
+      gum style --border normal --margin "1" --padding "1" --border-foreground 212 \
+        "Current version: $(gum style --bold --foreground 82 "$current")"
+
+      local patch_target minor_target major_target
+      patch_target="$(bump_semver "$current" patch)"
+      minor_target="$(bump_semver "$current" minor)"
+      major_target="$(bump_semver "$current" major)"
+
+      local choice
+      choice=$(gum choose \
+        "patch ($patch_target)" \
+        "minor ($minor_target)" \
+        "major ($major_target)" \
+        "custom")
+
+      case "$choice" in
+        "patch ("*) target_type="patch" ;;
+        "minor ("*) target_type="minor" ;;
+        "major ("*) target_type="major" ;;
+        "custom")
+          target_type=$(gum input --placeholder "e.g. 0.0.2")
+          ;;
+      esac
+    else
+      target_type="patch"
+    fi
+  fi
+
+  local next_version
+  next_version="$(bump_semver "$current" "$target_type")"
+
+  if has_gum && [ -t 0 ] && [ -z "${1:-}" ]; then
+    if ! gum confirm "Bump version from $current to $next_version?"; then
+      log_info "Version bump cancelled."
+      exit 0
+    fi
+  fi
+
+  echo "$next_version" > "$VERSION_FILE"
+
+  # Bump build number in app/nsh.json via jq
+  local nsh_json="$ROOT_DIR/app/nsh.json"
+  if [ -f "$nsh_json" ]; then
+    local tmp_json="${nsh_json}.tmp"
+    jq '.build = ((.build // 0) + 1)' "$nsh_json" > "$tmp_json"
+    mv "$tmp_json" "$nsh_json"
+  fi
+
+  log_success "Bumped VERSION: $current → $next_version"
+  do_sync
+}
+
+show_status() {
+  local current
+  current="$(get_current_version)"
+  if has_gum; then
+    gum style --foreground 212 --bold "Ear Version: " "$(gum style --foreground 82 "$current")"
+  else
+    echo "Ear Version: $current"
+  fi
+}
+
+main() {
+  local cmd="${1:-}"
+
+  if [ -z "$cmd" ]; then
+    if has_gum && [ -t 0 ]; then
+      cmd=$(gum choose "bump" "sync" "show" "exit")
+    else
+      show_status
+      exit 0
+    fi
+  fi
+
+  case "$cmd" in
+    bump)
+      shift || true
+      do_bump "${1:-}"
+      ;;
+    sync)
+      do_sync
+      ;;
+    show|get)
+      show_status
+      ;;
+    exit)
+      exit 0
+      ;;
+    *)
+      log_error "Unknown command: $cmd"
+      echo "Usage: $0 [bump <patch|minor|major|version> | sync | show]"
+      exit 1
+      ;;
+  esac
+}
+
+main "$@"

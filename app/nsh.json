@@ -1,18 +1,26 @@
 {
   "name": "Ear",
-  "id": "com.cozilla.ear",
-  "version": "1.0.0",
+  "id": "dev.yuler.ear",
+  "version": "0.0.1",
   "build": 1,
   "appearance": "dark",
   "theme": "theme.json",
   "capabilities": {
     "clipboard": true,
     "network": {
-      "hosts": ["*"]
+      "hosts": [
+        "*"
+      ]
     },
     "fs": {
-      "read": ["${dataDir}", "${homeDir}/Downloads"],
-      "write": ["${dataDir}", "${homeDir}/Downloads"]
+      "read": [
+        "${dataDir}",
+        "${homeDir}/Downloads"
+      ],
+      "write": [
+        "${dataDir}",
+        "${homeDir}/Downloads"
+      ]
     },
     "process": {
       "env": [

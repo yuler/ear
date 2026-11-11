@@ -102,7 +102,7 @@ export function SettingsView(props: { onBack?: () => void; onClose?: () => void 
     try {
       return libraryRoot();
     } catch {
-      return "~/.local/share/com.cozilla.ear/library";
+      return "~/.local/share/dev.yuler.ear/library";
     }
   };
 

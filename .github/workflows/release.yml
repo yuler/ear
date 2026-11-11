@@ -34,15 +34,16 @@ jobs:
         id: vars
         shell: bash
         run: |
+          FILE_VERSION=$(tr -d '[:space:]' < VERSION)
           TAG="${{ github.event.inputs.tag }}"
           if [ -z "$TAG" ]; then
             TAG="${{ github.ref_name }}"
           fi
           if [ -z "$TAG" ] || [ "$TAG" = "main" ]; then
-            TAG="v$(jq -r .version app/nsh.json)"
+            TAG="v${FILE_VERSION}"
           fi
           VERSION="${TAG#v}"
-          BUILD=$(jq -r .build app/nsh.json)
+          BUILD=$(jq -r .build app/nsh.json 2>/dev/null || echo 1)
           echo "tag=$TAG" >> $GITHUB_OUTPUT
           echo "version=$VERSION" >> $GITHUB_OUTPUT
           echo "build=$BUILD" >> $GITHUB_OUTPUT
@@ -127,11 +128,6 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-
       - name: Install mise + nsh
         uses: jdx/mise-action@v5
 
@@ -157,7 +153,7 @@ jobs:
       - name: Generate Manifest and Checksums
         shell: bash
         run: |
-          python3 scripts/generate_manifest.py \
+          bash scripts/generate_manifest.sh \
             --version "${{ needs.prepare.outputs.version }}" \
             --build "${{ needs.prepare.outputs.build }}" \
             --tag "${{ needs.prepare.outputs.tag }}" \

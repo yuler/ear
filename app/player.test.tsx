@@ -36,10 +36,10 @@ test("localMediaCandidates prefers dataDir library copy first", () => {
     videoId: "abc",
     videoPath: "/home/yule/Downloads/abc.mp4",
     audioPath: null,
-    dataDir: "/home/yule/.local/share/com.cozilla.ear",
+    dataDir: "/home/yule/.local/share/dev.yuler.ear",
   });
   expect(list[0]).toBe(
-    "/home/yule/.local/share/com.cozilla.ear/library/abc/video.mp4",
+    "/home/yule/.local/share/dev.yuler.ear/library/abc/video.mp4",
   );
   expect(list).toContain("/home/yule/Downloads/abc.mp4");
 });
