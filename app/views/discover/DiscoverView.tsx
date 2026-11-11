@@ -92,7 +92,7 @@ export function DiscoverView(props: {
               accessibilityLabel="刷新推荐列表"
             >
               <Icon
-                name="rotate"
+                name={isDiscoverLoading() ? "loader" : "repeat"}
                 size={12}
                 class={isDiscoverLoading() ? "animate-spin" : ""}
               />
