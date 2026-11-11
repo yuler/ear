@@ -53,6 +53,8 @@ export function TopBar(props: {
   const hasDropdown = () => Boolean(props.activePreview?.());
   const isSpinning = () =>
     props.loading() || Boolean(props.parsing?.());
+  const showTabs = () =>
+    props.activeTab() !== "discover" && props.activeTab() !== "settings";
 
   effect(() => {
     const _open = hasDropdown();
@@ -73,7 +75,7 @@ export function TopBar(props: {
           paddingLeft: 16,
           paddingRight: titleBar().right ? titleBar().right + 4 : 16,
         }}
-        class="pt-3"
+        class={`pt-3 ${showTabs() ? "" : "pb-3"}`}
       >
         <View class="mx-auto w-full max-w-[960px] gap-2">
           {/* Row 1: Downbit-style expandable omnibar */}
@@ -177,7 +179,7 @@ export function TopBar(props: {
           </View>
 
           {/* Row 2: Video and Audio tabs for Library */}
-          <If when={props.activeTab() !== "discover" && props.activeTab() !== "settings"}>
+          <If when={showTabs()}>
             <View class="flex-row items-center gap-6">
               {TABS.map((tab) => {
                 const active = () => props.activeTab() === tab.key;

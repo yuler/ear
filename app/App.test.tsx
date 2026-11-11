@@ -42,9 +42,18 @@ test("auto-reads YouTube link into omnibar dropdown with quality, Manual/CC subt
   // Subtitle badges distinguishing Manual (人工) vs CC (CC 机翻)
   expect(app.texts().some((t) => t.includes("人工"))).toBe(true);
   expect(app.texts().some((t) => t.includes("CC 机翻"))).toBe(true);
+
+  // Switch to Discover tab while preview is open
+  await app.press("Discover");
+  await app.waitFor("Discover · 精听推荐");
+
+  // Pressing Download from Discover auto-switches to Videos tab
+  await app.press("Download");
+  await app.waitFor("Videos");
+  expect(app.texts().some((t) => t.includes("Videos") || t.includes("Video"))).toBe(true);
 });
 
-test("opens Settings page as standalone view and supports back navigation", async () => {
+test("opens Settings page as standalone view without back button and supports sidebar navigation", async () => {
   const app = await open("./App.tsx");
   await app.press("Settings");
   await app.waitFor("打开文件夹");
@@ -56,10 +65,11 @@ test("opens Settings page as standalone view and supports back navigation", asyn
   expect(app.texts().some((t) => t.includes("Light"))).toBe(true);
   expect(app.texts().some((t) => t.includes("Dark"))).toBe(true);
   expect(app.texts().some((t) => t.includes("System"))).toBe(true);
-  expect(app.texts().some((t) => t.includes("返回"))).toBe(true);
+  // Settings view is a top-level tab and does not have redundant back button
+  expect(app.texts().some((t) => t === "返回")).toBe(false);
 
-  // Back button navigates back to previous tab
-  await app.press("返回");
+  // Navigate back to Videos via sidebar
+  await app.press("Videos");
   await app.waitFor("Videos");
   expect(app.texts().some((t) => t.includes("Videos") || t.includes("Video"))).toBe(true);
 });

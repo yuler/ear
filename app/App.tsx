@@ -14,9 +14,11 @@ import { isAvailable, Menu, Window } from "nsh/desktop";
 import {
   buildVideoPreview,
   fetchVideoPreviewMeta,
+  formatDurationMs,
   readSystemClipboard,
   type ClipboardVideoPreview,
 } from "./clipboard";
+import { extractVideoId } from "./youtube/parse";
 import { downloadLesson } from "./library/download";
 import { deleteEntry, listEntriesSafe, normalizeEntry } from "./library/index";
 import { exists } from "fs/promises";
@@ -187,19 +189,23 @@ function App() {
   // Active video prompt row (either from clipboard or typed YouTube link)
   const activePreview = (): ClipboardVideoPreview | null => {
     const typed = url().trim();
+    const clip = clipboardPreview();
+    const typedVid = typed ? extractVideoId(typed) : null;
     const fromInput = typed
-      ? buildVideoPreview(
-          typed,
-          clipboardPreview()?.rawUrl === typed ? "clipboard" : "input",
-        )
+      ? clip && (clip.rawUrl === typed || (typedVid && clip.videoId === typedVid))
+        ? clip
+        : buildVideoPreview(
+            typed,
+            clip?.rawUrl === typed ? "clipboard" : "input",
+          )
       : null;
-    const candidate = fromInput ?? clipboardPreview();
+    const candidate = fromInput ?? clip;
     if (!candidate) return null;
     if (dismissedVideoId() === candidate.videoId) return null;
     ensurePreviewEnriched(candidate);
     const enriched = previewMetaMap()[candidate.videoId];
     return enriched
-      ? { ...enriched, rawUrl: candidate.rawUrl, source: candidate.source }
+      ? { ...candidate, ...enriched, rawUrl: candidate.rawUrl, source: candidate.source }
       : candidate;
   };
 
@@ -396,8 +402,8 @@ function App() {
     const chosenTrackId = activeSelectedTrackId();
 
     // Auto-switch tab to match downloading media type immediately
-    if (activeTab() !== "settings" && activeTab() !== "discover") {
-      if (chosenQualityId === "audio") {
+    if (activeTab() !== "settings") {
+      if (chosenQualityId === "audio" && activeTab() !== "discover") {
         activeTab.set("audio");
       } else {
         activeTab.set("video");
@@ -496,9 +502,20 @@ function App() {
   };
 
   const handleInspectDiscoverItem = (item: DiscoverItem) => {
+    dismissedVideoId.set(null);
     url.set(item.url);
-    const preview = buildVideoPreview(item.url, "input");
-    if (preview) {
+    const basePreview = buildVideoPreview(item.url, "input");
+    if (basePreview) {
+      const preview: ClipboardVideoPreview = {
+        ...basePreview,
+        title: item.title,
+        channel: item.author,
+        thumbnailUrl: item.thumbnailUrl,
+        durationLabel: formatDurationMs(item.durationMs),
+        qualities: [],
+        captionTracks: [],
+        isParsed: false,
+      };
       clipboardPreview.set(preview);
       ensurePreviewEnriched(preview);
     }
@@ -506,8 +523,16 @@ function App() {
   };
 
   const handleDownloadDiscoverItem = (item: DiscoverItem) => {
-    const preview = buildVideoPreview(item.url, "input");
-    if (preview) {
+    const basePreview = buildVideoPreview(item.url, "input");
+    if (basePreview) {
+      const preview: ClipboardVideoPreview = {
+        ...basePreview,
+        title: item.title,
+        channel: item.author,
+        thumbnailUrl: item.thumbnailUrl,
+        durationLabel: formatDurationMs(item.durationMs),
+      };
+      activeTab.set("video");
       void onStartDownload(preview);
     }
   };
@@ -722,7 +747,7 @@ function App() {
       {/* 2. feed content area: TopBar + Scroll Workspace OR Settings View */}
       <View class="flex-1 flex-col min-w-0 h-full">
         <If when={activeTab() === "settings"}>
-          <SettingsView onBack={() => activeTab.set(previousTab())} />
+          <SettingsView />
         </If>
 
         <If when={activeTab() !== "settings"}>

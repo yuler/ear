@@ -128,6 +128,7 @@ export function ClipboardCard(props: {
     tracks().filter((t) => isAutoCaptionTrack(t)).length;
 
   const isBusy = () => props.parsing() || props.loading();
+  const isParsing = () => props.parsing() || !props.preview().isParsed;
 
   return (
     <View
@@ -203,11 +204,26 @@ export function ClipboardCard(props: {
                   : `${props.selectedQualityId()} MP4`}
               </Text>
             </View>
-            <View class="rounded bg-well px-2 py-0.5">
-              <Text class="font-mono text-[10px] text-muted-foreground">
-                人工字幕 {manualTrackCount()} · CC 机翻 {ccTrackCount()}
-              </Text>
-            </View>
+            <If when={!isParsing()}>
+              <View class="rounded bg-well px-2 py-0.5">
+                <Text class="font-mono text-[10px] text-muted-foreground">
+                  人工字幕 {manualTrackCount()} · CC 机翻 {ccTrackCount()}
+                </Text>
+              </View>
+            </If>
+            <If when={isParsing()}>
+              <View class="flex-row items-center gap-1 rounded bg-well px-2 py-0.5">
+                <Icon
+                  name="loader"
+                  size={10}
+                  tone="primary"
+                  class="animate-spin"
+                />
+                <Text class="font-mono text-[10px] text-muted-foreground">
+                  字幕解析中…
+                </Text>
+              </View>
+            </If>
           </View>
         </View>
 
@@ -244,37 +260,60 @@ export function ClipboardCard(props: {
           <Text class="w-20 shrink-0 font-mono text-[11px] uppercase tracking-wider text-dim">
             Quality
           </Text>
-          <View class="flex-row flex-wrap items-center gap-1.5">
-            {qualities().map((q) => {
-              const selected = () => props.selectedQualityId() === q.id;
-              const sizeStr = formatBytes(q.sizeBytes);
-              return (
-                <Button
-                  onPress={() => props.onSelectQuality(q.id)}
-                  class={`flex-row items-center gap-1.5 rounded-md border px-2.5 py-1 ${
-                    selected()
-                      ? "border-[#2f7cf6] bg-[#2f7cf6]/15"
-                      : "border-line bg-well active:bg-accent"
-                  }`}
-                >
-                  <Text
-                    class={`font-mono text-xs ${
+          <If when={isParsing()}>
+            <View class="flex-row items-center gap-2">
+              <View class="flex-row items-center gap-1.5">
+                <View class="h-6 w-16 animate-pulse rounded-md border border-line bg-well/70" />
+                <View class="h-6 w-16 animate-pulse rounded-md border border-line bg-well/70" />
+                <View class="h-6 w-16 animate-pulse rounded-md border border-line bg-well/70" />
+                <View class="h-6 w-20 animate-pulse rounded-md border border-line bg-well/70" />
+              </View>
+              <View class="flex-row items-center gap-1 pl-1">
+                <Icon
+                  name="loader"
+                  size={12}
+                  tone="primary"
+                  class="animate-spin"
+                />
+                <Text class="font-mono text-[11px] text-muted-foreground">
+                  {props.parseMessage() || "解析清晰度…"}
+                </Text>
+              </View>
+            </View>
+          </If>
+          <If when={!isParsing()}>
+            <View class="flex-row flex-wrap items-center gap-1.5">
+              {qualities().map((q) => {
+                const selected = () => props.selectedQualityId() === q.id;
+                const sizeStr = formatBytes(q.sizeBytes);
+                return (
+                  <Button
+                    onPress={() => props.onSelectQuality(q.id)}
+                    class={`flex-row items-center gap-1.5 rounded-md border px-2.5 py-1 ${
                       selected()
-                        ? "font-semibold text-foreground"
-                        : "text-muted-foreground"
+                        ? "border-[#2f7cf6] bg-[#2f7cf6]/15"
+                        : "border-line bg-well active:bg-accent"
                     }`}
                   >
-                    {q.label}
-                  </Text>
-                  <If when={Boolean(sizeStr)}>
-                    <Text class="font-mono text-[10px] text-dim">
-                      {sizeStr}
+                    <Text
+                      class={`font-mono text-xs ${
+                        selected()
+                          ? "font-semibold text-foreground"
+                          : "text-muted-foreground"
+                      }`}
+                    >
+                      {q.label}
                     </Text>
-                  </If>
-                </Button>
-              );
-            })}
-          </View>
+                    <If when={Boolean(sizeStr)}>
+                      <Text class="font-mono text-[10px] text-dim">
+                        {sizeStr}
+                      </Text>
+                    </If>
+                  </Button>
+                );
+              })}
+            </View>
+          </If>
         </View>
 
         {/* Subtitles Row (Manual 人工 vs CC 机器翻译) */}
@@ -284,47 +323,69 @@ export function ClipboardCard(props: {
               Subtitles
             </Text>
           </View>
-          <View class="flex-1 flex-row flex-wrap items-center gap-1.5">
-            {tracks().map((track) => {
-              const id = captionTrackId(track);
-              const badge = captionTrackBadge(track);
-              const selected = () => props.selectedTrackId() === id;
-              const isManual = badge.kind === "manual";
-              return (
-                <Button
-                  onPress={() => props.onSelectTrack(id)}
-                  class={`flex-row items-center gap-1.5 rounded-md border px-2.5 py-1 ${
-                    selected()
-                      ? "border-[#2f7cf6] bg-[#2f7cf6]/15"
-                      : "border-line bg-well active:bg-accent"
-                  }`}
-                >
-                  <Text
-                    class={`text-xs ${
+          <If when={isParsing()}>
+            <View class="flex-row items-center gap-2 pt-0.5">
+              <View class="flex-row items-center gap-1.5">
+                <View class="h-6 w-20 animate-pulse rounded-md border border-line bg-well/70" />
+                <View class="h-6 w-24 animate-pulse rounded-md border border-line bg-well/70" />
+                <View class="h-6 w-20 animate-pulse rounded-md border border-line bg-well/70" />
+              </View>
+              <View class="flex-row items-center gap-1 pl-1">
+                <Icon
+                  name="loader"
+                  size={12}
+                  tone="primary"
+                  class="animate-spin"
+                />
+                <Text class="font-mono text-[11px] text-muted-foreground">
+                  提取字幕轨…
+                </Text>
+              </View>
+            </View>
+          </If>
+          <If when={!isParsing()}>
+            <View class="flex-1 flex-row flex-wrap items-center gap-1.5">
+              {tracks().map((track) => {
+                const id = captionTrackId(track);
+                const badge = captionTrackBadge(track);
+                const selected = () => props.selectedTrackId() === id;
+                const isManual = badge.kind === "manual";
+                return (
+                  <Button
+                    onPress={() => props.onSelectTrack(id)}
+                    class={`flex-row items-center gap-1.5 rounded-md border px-2.5 py-1 ${
                       selected()
-                        ? "font-semibold text-foreground"
-                        : "text-muted-foreground"
-                    }`}
-                  >
-                    {cleanCaptionTrackName(track)}
-                  </Text>
-                  <View
-                    class={`rounded px-1.5 py-0.5 ${
-                      isManual ? "bg-ready-soft" : "bg-amber-soft"
+                        ? "border-[#2f7cf6] bg-[#2f7cf6]/15"
+                        : "border-line bg-well active:bg-accent"
                     }`}
                   >
                     <Text
-                      class={`font-mono text-[10px] font-semibold ${
-                        isManual ? "text-ready" : "text-amber"
+                      class={`text-xs ${
+                        selected()
+                          ? "font-semibold text-foreground"
+                          : "text-muted-foreground"
                       }`}
                     >
-                      {badge.shortLabel}
+                      {cleanCaptionTrackName(track)}
                     </Text>
-                  </View>
-                </Button>
-              );
-            })}
-          </View>
+                    <View
+                      class={`rounded px-1.5 py-0.5 ${
+                        isManual ? "bg-ready-soft" : "bg-amber-soft"
+                      }`}
+                    >
+                      <Text
+                        class={`font-mono text-[10px] font-semibold ${
+                          isManual ? "text-ready" : "text-amber"
+                        }`}
+                      >
+                        {badge.shortLabel}
+                      </Text>
+                    </View>
+                  </Button>
+                );
+              })}
+            </View>
+          </If>
         </View>
       </View>
     </View>

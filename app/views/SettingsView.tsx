@@ -95,8 +95,7 @@ const DEFAULT_QUALITIES: readonly { value: DefaultQuality; label: string }[] = [
 ];
 
 /** Dedicated full-page Settings view with storage directories, engine details, and preferences. */
-export function SettingsView(props: { onBack?: () => void; onClose?: () => void }) {
-  const handleClose = () => (props.onClose ?? props.onBack)?.();
+export function SettingsView(props?: { onBack?: () => void; onClose?: () => void }) {
   const currentMediaDir = () => mediaRoot(settings().downloadFolder);
   const currentLibDir = () => {
     try {
@@ -122,7 +121,7 @@ export function SettingsView(props: { onBack?: () => void; onClose?: () => void 
 
   return (
     <View class="flex-1 flex-col min-w-0 h-full bg-background">
-      {/* 1. Page Header (macOS window dragging + Title + Optional Back button) */}
+      {/* 1. Page Header (macOS window dragging + Title) */}
       <View
         desktop={{ windowDrag: platform.os === "macos" }}
         style={{
@@ -135,16 +134,6 @@ export function SettingsView(props: { onBack?: () => void; onClose?: () => void 
       >
         <View class="mx-auto w-full max-w-[760px] flex-row items-center justify-between">
           <View class="flex-row items-center gap-3">
-            <If when={Boolean(props.onBack || props.onClose)}>
-              <Button
-                onPress={handleClose}
-                class="flex-row items-center gap-1.5 rounded-lg border border-line bg-raised px-2.5 py-1.5 text-muted-foreground transition active:bg-accent"
-                accessibilityLabel="Back"
-              >
-                <Icon name="chevron-left" size={14} tone="muted-foreground" />
-                <Text class="text-xs font-medium text-foreground">返回</Text>
-              </Button>
-            </If>
             <View class="flex-col gap-0.5">
               <View class="flex-row items-center gap-2">
                 <View class="h-6 w-6 items-center justify-center rounded-lg bg-well">
