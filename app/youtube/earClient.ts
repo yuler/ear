@@ -42,8 +42,15 @@ export function setEarSpawnHook(hook: SpawnHook | null): void {
   currentSpawnHook = hook;
 }
 
+let candidatesOverride: string[] | null = null;
+
+export function setEarBinaryCandidates(candidates: string[] | null): void {
+  candidatesOverride = candidates;
+}
+
 export function earBinaryCandidates(): string[] {
-  return ["ear"];
+  if (candidatesOverride) return candidatesOverride;
+  return ["./ear", "./ear.exe", "ear"];
 }
 
 function spawnEar(bin: string, args: string[]): SpawnChildLike | null {

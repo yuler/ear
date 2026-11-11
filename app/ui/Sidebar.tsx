@@ -2,6 +2,7 @@ import { platform, Text, View } from "nsh";
 import { Button } from "nsh/base";
 import { titleBar } from "nsh/desktop";
 import { Icon } from "./Icon";
+import { globalUpdateAvailable } from "../updater";
 import type { MediaTab } from "./TopBar";
 
 export type SidebarProps = {
@@ -196,15 +197,20 @@ export function Sidebar(props: SidebarProps) {
             size={15}
             tone={isTabActive("settings") ? "primary" : "muted-foreground"}
           />
-          <Text
-            class={`text-sm ${
-              isTabActive("settings")
-                ? "font-semibold text-primary"
-                : "text-foreground"
-            }`}
-          >
-            Settings
-          </Text>
+          <View class="flex-row items-center gap-2">
+            <Text
+              class={`text-sm ${
+                isTabActive("settings")
+                  ? "font-semibold text-primary"
+                  : "text-foreground"
+              }`}
+            >
+              Settings
+            </Text>
+            {globalUpdateAvailable() && (
+              <View class="h-2 w-2 rounded-full bg-primary" />
+            )}
+          </View>
         </Button>
       </View>
     </View>

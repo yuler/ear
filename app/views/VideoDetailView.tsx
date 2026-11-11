@@ -10,24 +10,25 @@ import {
   View,
   type ViewRef,
 } from "nsh";
-import { loadLessonFromEntry } from "../library/index";
 import type { LibraryEntry } from "../library/types";
 import { clipEnded, msToSeconds, type PlaybackRate } from "../player";
 import { Icon } from "../ui/Icon";
 import { t, type EarLocale } from "../ui/i18n";
-import { hostFetch } from "../youtube/host";
-import { loadLesson, videoPosterUrl } from "../youtube/parse";
+import { videoPosterUrl } from "../youtube/parse";
 import type { CaptionCue, Sentence } from "../youtube/types";
 import type { SentenceLengthMode } from "../youtube/captions";
 import { settings, updateSettings } from "../ui/settings";
 import { isAudioEntry } from "./libraryView";
 import {
   clampSentenceIndex,
+  evaluatePlaybackProgress,
   findSentenceIndexAtTime,
   getNextSentenceIndex,
   getPrevSentenceIndex,
   resegmentSentences,
 } from "./sentencePlayer";
+// Caption data fetching & sentence segmentation helpers: app/views/videoDetailLoader.ts
+import { fetchLessonCaptions } from "./videoDetailLoader";
 import { SentenceList } from "./SentenceList";
 import { VideoDetailHeader } from "./VideoDetailHeader";
 import { VideoDetailMetaBar } from "./VideoDetailMetaBar";
@@ -36,6 +37,7 @@ import {
   calculateFallbackOriginRect,
   calculateTargetRect,
   getViewTransitionHeroStyle,
+  setupViewTransitionEnter,
   type TransitionPhase,
   type ViewTransitionRect,
 } from "./viewTransition";
@@ -95,7 +97,7 @@ export function VideoDetailView(props: VideoDetailViewProps) {
   const activeIndex = signal(0);
   const clipEndMs = signal<number | null>(null);
   const loopSingle = signal(false);
-  const autoNext = signal(false);
+  const sentencePause = signal(false);
   const muted = signal(false);
 
   // Mask state: default masked for listening practice (打码)
@@ -137,8 +139,8 @@ export function VideoDetailView(props: VideoDetailViewProps) {
     if (next) {
       if (hideTimer) clearTimeout(hideTimer);
     } else {
-      // When unpausing, if autoNext is off, bind to current sentence clip
-      if (!autoNext()) {
+      // When unpausing, if sentencePause is on, bind to current sentence clip
+      if (sentencePause()) {
         const cur = currentSentence();
         if (cur) {
           clipEndMs.set(cur.endMs);
@@ -149,10 +151,10 @@ export function VideoDetailView(props: VideoDetailViewProps) {
     }
   };
 
-  const handleToggleAutoNext = () => {
-    const next = !autoNext();
-    autoNext.set(next);
-    if (next) {
+  const handleToggleSentencePause = () => {
+    const next = !sentencePause();
+    sentencePause.set(next);
+    if (!next) {
       clipEndMs.set(null);
     } else {
       const cur = currentSentence();
@@ -206,10 +208,10 @@ export function VideoDetailView(props: VideoDetailViewProps) {
       if (!r || !sc) return;
       const rowTop = r.pagePosition.y - sc.pagePosition.y;
       const viewH = scrollViewportH || sc.bounds.size.height;
-      const rowH = r.bounds.size.height || 64;
-      // Center the active row vertically in the roller wheel viewport
-      const y = Math.max(0, scrollOffsetY + rowTop - (viewH / 2 - rowH / 2));
-      scroll.scrollTo({ y, animated: true });
+      const rowH = r.bounds.size.height || 52;
+      // Position active row at ~35% down the viewport, leaving ample room below for 2-3 upcoming sentences
+      const targetY = Math.max(0, scrollOffsetY + rowTop - (viewH * 0.35 - rowH / 2));
+      scroll.scrollTo({ y: targetY, animated: true });
     });
   });
 
@@ -222,83 +224,22 @@ export function VideoDetailView(props: VideoDetailViewProps) {
 
   // Trigger View Transition animation on mount: origin thumbnail zooms smoothly into hero player
   effect(() => {
-    let enterTimer: ReturnType<typeof setTimeout> | null = null;
-    let settleTimer: ReturnType<typeof setTimeout> | null = null;
-
-    const startEnter = () => {
-      enterTimer = setTimeout(() => {
-        try {
-          LayoutAnimation.easeInEaseOut();
-        } catch {
-          // ignore
-        }
-        phase.set("entering");
-      }, 16);
-
-      settleTimer = setTimeout(() => {
-        phase.set("settled");
-      }, 440);
-    };
-
-    if (targetBoxRef) {
-      void targetBoxRef
-        .measure()
-        .then((measureData) => {
-          if (measureData && measureData.bounds && measureData.pagePosition) {
-            measuredTargetRect.set({
-              x: Math.round(measureData.pagePosition.x),
-              y: Math.round(measureData.pagePosition.y),
-              width: Math.round(measureData.bounds.size.width),
-              height: Math.round(measureData.bounds.size.height),
-              borderRadius: 0,
-            });
-          }
-          startEnter();
-        })
-        .catch(() => {
-          startEnter();
-        });
-    } else {
-      startEnter();
-    }
-
-    return () => {
-      if (enterTimer) clearTimeout(enterTimer);
-      if (settleTimer) clearTimeout(settleTimer);
-    };
+    return setupViewTransitionEnter(
+      targetBoxRef,
+      (rect) => measuredTargetRect.set(rect),
+      (p) => phase.set(p),
+    );
   });
 
   // Load sentences from local captions or remote parse
   effect(() => {
     const cur = entry();
     loadingSentences.set(true);
-    void loadLessonFromEntry(cur)
-      .then(async (loaded) => {
-        if (loaded && (loaded.cues?.length > 0 || loaded.sentences?.length > 0)) {
-          return loaded;
-        }
-        if (cur.url) {
-          return await loadLesson(cur.url, hostFetch).catch(() => null);
-        }
-        return null;
-      })
-      .then((res) => {
-        if (res && (res.cues?.length > 0 || res.sentences?.length > 0)) {
-          const cues = res.cues ?? [];
-          const rawS = res.sentences ?? [];
-          rawCues.set(cues);
-          rawSentences.set(rawS);
-          sentences.set(resegmentSentences(cues, rawS, sentenceLength()));
-        } else {
-          rawCues.set([]);
-          rawSentences.set([]);
-          sentences.set([]);
-        }
-      })
-      .catch(() => {
-        rawCues.set([]);
-        rawSentences.set([]);
-        sentences.set([]);
+    void fetchLessonCaptions(cur, sentenceLength())
+      .then((data) => {
+        rawCues.set(data.cues);
+        rawSentences.set(data.rawSentences);
+        sentences.set(data.sentences);
       })
       .finally(() => {
         loadingSentences.set(false);
@@ -372,19 +313,28 @@ export function VideoDetailView(props: VideoDetailViewProps) {
     }
   };
 
-  // Space key handler: at start plays first sentence, otherwise advances to next sentence
+  // Space key handler:
+  // - If sentencePause is ON: when paused advances to next sentence; when playing pauses.
+  // - If sentencePause is OFF (continuous playback default): standard video play/pause toggle.
   const handleSpaceKey = () => {
     const list = sentences();
     if (list.length === 0) {
       handleTogglePlay();
       return;
     }
-    // If initially at the start and paused, play the first sentence
-    if (activeIndex() === 0 && paused() && currentTimeSec() < 0.2) {
-      playSentence(list[0]!);
+    if (sentencePause()) {
+      if (activeIndex() === 0 && paused() && currentTimeSec() < 0.2) {
+        playSentence(list[0]!);
+        return;
+      }
+      if (paused()) {
+        handleNextSentence();
+      } else {
+        handleTogglePlay();
+      }
       return;
     }
-    handleNextSentence();
+    handleTogglePlay();
   };
 
   // Toggle mask for a single sentence
@@ -487,54 +437,30 @@ export function VideoDetailView(props: VideoDetailViewProps) {
               currentTimeSec.set(e.currentTime);
               if (e.duration) durationSec.set(e.duration);
 
-              const sList = sentences();
-              if (sList.length === 0 || paused()) return;
+              const res = evaluatePlaybackProgress({
+                currentTimeSec: e.currentTime,
+                sentences: sentences(),
+                paused: paused(),
+                loopSingle: loopSingle(),
+                sentencePause: sentencePause(),
+                clipEndMs: clipEndMs(),
+                activeIndex: activeIndex(),
+              });
 
-              // 1. Single sentence loop mode
-              if (loopSingle()) {
-                const end = clipEndMs();
-                if (end != null && clipEnded(e.currentTime, end)) {
-                  const cur = currentSentence();
-                  if (cur && videoNode) {
-                    videoNode.seek(msToSeconds(cur.startMs));
-                  }
+              if (res.action === "loop" && videoNode) {
+                videoNode.seek(res.seekToSec);
+              } else if (res.action === "pause") {
+                paused.set(true);
+                if (res.newClipEndMs !== undefined) {
+                  clipEndMs.set(res.newClipEndMs);
                 }
-                return;
-              }
-
-              // 2. Auto-next mode: seamless continuous playback like normal video!
-              // Video flows naturally without seeking between sentences.
-              if (autoNext()) {
-                const lastIdx = sList.length - 1;
-                const lastSentence = sList[lastIdx];
-                if (lastSentence && clipEnded(e.currentTime, lastSentence.endMs)) {
-                  paused.set(true);
-                  clipEndMs.set(null);
-                } else {
-                  const idx = findSentenceIndexAtTime(sList, e.currentTime);
-                  if (idx !== activeIndex()) {
-                    activeIndex.set(idx);
-                  }
+              } else if (res.action === "advance") {
+                activeIndex.set(res.activeIndex);
+                if (res.newClipEndMs !== undefined) {
+                  clipEndMs.set(res.newClipEndMs);
                 }
-                return;
-              }
-
-              // 3. Auto-next OFF: single-sentence intensive listening mode.
-              // Plays current sentence and pauses cleanly at its end.
-              const end = clipEndMs();
-              if (end != null) {
-                if (clipEnded(e.currentTime, end)) {
-                  paused.set(true);
-                }
-              } else {
-                const idx = findSentenceIndexAtTime(sList, e.currentTime);
-                if (idx !== activeIndex()) {
-                  activeIndex.set(idx);
-                }
-                const cur = sList[idx];
-                if (cur) {
-                  clipEndMs.set(cur.endMs);
-                }
+              } else if (res.newClipEndMs !== undefined) {
+                clipEndMs.set(res.newClipEndMs);
               }
             }}
             onError={(e: { message?: string; code?: string }) => {
@@ -622,12 +548,12 @@ export function VideoDetailView(props: VideoDetailViewProps) {
           currentTimeSec={currentTimeSec}
           durationSec={durationSec}
           rate={rate}
-          autoNext={autoNext}
+          sentencePause={sentencePause}
           loopSingle={loopSingle}
           onPrevSentence={handlePrevSentence}
           onRepeatSentence={handleRepeatCurrent}
           onNextSentence={handleNextSentence}
-          onToggleAutoNext={handleToggleAutoNext}
+          onToggleSentencePause={handleToggleSentencePause}
           onToggleLoop={handleToggleLoop}
           onCycleRate={handleCycleRate}
           sentenceLength={sentenceLength}
@@ -636,11 +562,11 @@ export function VideoDetailView(props: VideoDetailViewProps) {
           language={language}
         />
 
-        {/* 3. Real-time scrolling subtitle roller with top & bottom vignette fade */}
+        {/* 3. Real-time scrolling subtitle roller with top & bottom subtle vignette fade */}
         <View class="relative flex-1 min-h-0 w-full overflow-hidden bg-background/40">
-          {/* Top & bottom subtle fade gradients for teleprompter / roller wheel effect */}
-          <View class="pointer-events-none absolute top-0 inset-x-0 h-10 sm:h-14 z-10 bg-gradient-to-b from-background via-background/80 to-transparent" />
-          <View class="pointer-events-none absolute bottom-0 inset-x-0 h-14 sm:h-20 z-10 bg-gradient-to-t from-background via-background/80 to-transparent" />
+          {/* Top & bottom subtle fade gradients for 3D teleprompter roller wheel */}
+          <View class="pointer-events-none absolute top-0 inset-x-0 h-6 sm:h-8 z-10 bg-gradient-to-b from-background via-background/60 to-transparent" />
+          <View class="pointer-events-none absolute bottom-0 inset-x-0 h-8 sm:h-10 z-10 bg-gradient-to-t from-background via-background/60 to-transparent" />
 
           <Scroll
             ref={(node) => {

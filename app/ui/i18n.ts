@@ -20,6 +20,10 @@ export interface I18nMessages {
   chinese: string;
 
   // Workflow & Controls
+  sentencePause: string;
+  sentencePauseOn: string;
+  sentencePauseOff: string;
+  sentencePauseToggle: string;
   autoNext: string;
   autoNextOn: string;
   autoNextOff: string;
@@ -96,6 +100,10 @@ export const MESSAGES: Record<EarLocale, I18nMessages> = {
     english: "English",
     chinese: "中文",
 
+    sentencePause: "Sentence Pause",
+    sentencePauseOn: "Sentence Pause: On",
+    sentencePauseOff: "Sentence Pause: Off",
+    sentencePauseToggle: "Toggle sentence pause for intensive listening",
     autoNext: "Auto-Next",
     autoNextOn: "Auto-Next: On",
     autoNextOff: "Auto-Next: Off",
@@ -103,7 +111,7 @@ export const MESSAGES: Record<EarLocale, I18nMessages> = {
     loopOn: "Loop: On",
     loopOff: "Loop: Off",
     tipsPrefix: "Tip",
-    listeningTips: "Press R to repeat · Space for next sentence (turn on 'Auto-Next' to play continuously)",
+    listeningTips: "Press R to repeat · Space to play/next (enable 'Sentence Pause' to pause after each sentence)",
 
     playVideo: "Play video",
     play: "Play",
@@ -165,6 +173,10 @@ export const MESSAGES: Record<EarLocale, I18nMessages> = {
     english: "English",
     chinese: "中文",
 
+    sentencePause: "逐句暂停",
+    sentencePauseOn: "逐句暂停: 开",
+    sentencePauseOff: "逐句暂停: 关",
+    sentencePauseToggle: "切换逐句暂停精听模式",
     autoNext: "自动下一句",
     autoNextOn: "自动下一句: 开",
     autoNextOff: "自动下一句: 关",
@@ -172,7 +184,7 @@ export const MESSAGES: Record<EarLocale, I18nMessages> = {
     loopOn: "单句循环: 开",
     loopOff: "单句循环: 关",
     tipsPrefix: "提示",
-    listeningTips: "按 R 重听 · 按 空格 下一句 (开启「自动下一句」可连续播放)",
+    listeningTips: "按 R 重听 · 按 空格 播放/下一句 (开启「逐句暂停」可逐句精听)",
 
     playVideo: "播放视频",
     play: "播放",

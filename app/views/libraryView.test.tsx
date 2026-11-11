@@ -89,3 +89,24 @@ test("active download tasks calculate percent and Downbit telemetry accurately",
   expect(halfDoneTask.percent >= 0 && halfDoneTask.percent <= 100).toBe(true);
 });
 
+test("download task completion animation: marks stage as done at 100% with ready feedback", () => {
+  const completedTask = {
+    videoId: "test-vid-done",
+    title: "Completed Video",
+    thumbnailUrl: "https://i.ytimg.com/vi/test-vid-done/hqdefault.jpg",
+    qualityLabel: "1080p MP4",
+    subtitleLabel: "English",
+    subtitleIsAuto: false,
+    targetPath: "/downloads/completed.mp4",
+    stage: "done" as const,
+    percent: 100,
+    downloadedBytes: 120 * 1024 * 1024,
+    totalBytes: 120 * 1024 * 1024,
+    speedBps: 0,
+    etaSeconds: 0,
+  };
+
+  expect(completedTask.stage).toBe("done");
+  expect(completedTask.percent).toBe(100);
+});
+

@@ -11,12 +11,14 @@ export type SentenceControlsBarProps = {
   currentTimeSec?: () => number;
   durationSec?: () => number;
   rate?: () => PlaybackRate;
-  autoNext: () => boolean;
+  sentencePause?: () => boolean;
+  autoNext?: () => boolean;
   loopSingle: () => boolean;
   onPrev: () => void;
   onRepeat: () => void;
   onNext: () => void;
-  onToggleAutoNext: () => void;
+  onToggleSentencePause?: () => void;
+  onToggleAutoNext?: () => void;
   onToggleLoop: () => void;
   onCycleRate?: () => void;
   sentenceLength: () => SentenceLengthMode;
@@ -28,12 +30,24 @@ export type SentenceControlsBarProps = {
  * Pinned single-line toolbar for sentence playback navigation:
  * Prev / Repeat / Next, sentence index counter,
  * [Short | Medium | Long] length segmented switch,
- * and Auto-Next / Single Loop flow switches.
+ * and Sentence Pause / Single Loop flow switches.
  */
 export function SentenceControlsBar(props: SentenceControlsBarProps) {
   const activeIdx = () => props.activeIndex();
   const total = () => props.totalSentences();
-  const autoNextActive = () => props.autoNext();
+  const pauseActive = () =>
+    props.sentencePause
+      ? props.sentencePause()
+      : props.autoNext
+      ? !props.autoNext()
+      : false;
+  const handleTogglePause = () => {
+    if (props.onToggleSentencePause) {
+      props.onToggleSentencePause();
+    } else if (props.onToggleAutoNext) {
+      props.onToggleAutoNext();
+    }
+  };
   const looping = () => props.loopSingle();
   const lang = () => props.language?.() ?? "en";
   const m = () => t(lang());
@@ -165,29 +179,29 @@ export function SentenceControlsBar(props: SentenceControlsBarProps) {
           </Button>
         </View>
 
-        {/* Switch 1: Auto-Next Toggle Button (Default OFF) */}
+        {/* Switch 1: Sentence Pause Toggle Button (Default OFF) */}
         <Button
-          onPress={props.onToggleAutoNext}
+          onPress={handleTogglePause}
           class={`flex-row items-center gap-1.5 rounded-lg border px-2.5 py-1 transition active:scale-95 ${
-            autoNextActive()
-              ? "border-emerald-500/70 bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 font-semibold"
+            pauseActive()
+              ? "border-amber-500/70 bg-amber-500/15 text-amber-600 dark:text-amber-400 font-semibold"
               : "border-border bg-background text-muted-foreground hover:text-foreground"
           }`}
-          accessibilityLabel={m().autoNextToggle}
+          accessibilityLabel={m().sentencePauseToggle}
         >
           <Icon
-            name="play"
+            name="pause"
             size={11}
-            tone={autoNextActive() ? "foreground" : "muted-foreground"}
+            tone={pauseActive() ? "foreground" : "muted-foreground"}
           />
           <Text
             class={`text-xs ${
-              autoNextActive()
-                ? "font-bold text-emerald-600 dark:text-emerald-400"
+              pauseActive()
+                ? "font-bold text-amber-600 dark:text-amber-400"
                 : "text-muted-foreground"
             }`}
           >
-            {autoNextActive() ? m().autoNextOn : m().autoNextOff}
+            {pauseActive() ? m().sentencePauseOn : m().sentencePauseOff}
           </Text>
         </Button>
 

@@ -1,6 +1,13 @@
-import { platform, Scroll, Text, View, type JSX } from "nsh";
+import { platform, Scroll, signal, Text, View, type JSX } from "nsh";
 import { Button, Input, Switch } from "nsh/base";
 import { titleBar } from "nsh/desktop";
+import {
+  checkForUpdates,
+  CURRENT_APP_VERSION,
+  openExternalUrl,
+  RELEASES_PAGE_URL,
+  type UpdateCheckResult,
+} from "../updater";
 import {
   defaultDownloadFolder,
   libraryRoot,
@@ -96,6 +103,20 @@ export function SettingsView(props: { onBack?: () => void; onClose?: () => void 
       return libraryRoot();
     } catch {
       return "~/.local/share/com.cozilla.ear/library";
+    }
+  };
+
+  const updateResult = signal<UpdateCheckResult | null>(null);
+  const updateStatus = signal<string>("idle");
+
+  const runUpdateCheck = async () => {
+    updateStatus.set("checking");
+    try {
+      const res = await checkForUpdates();
+      updateResult.set(res);
+      updateStatus.set(res.hasUpdate ? "available" : res.error ? "error" : "up_to_date");
+    } catch {
+      updateStatus.set("error");
     }
   };
 
@@ -353,17 +374,71 @@ export function SettingsView(props: { onBack?: () => void; onClose?: () => void 
             </View>
           </View>
 
-          {/* Section 4: About Ear */}
-          <View class="flex-row items-center justify-between rounded-xl border border-line bg-card px-5 py-4">
-            <View class="flex-row items-center gap-3">
-              <View class="h-8 w-8 items-center justify-center rounded-xl bg-well">
-                <Icon name="headphones" size={16} tone="primary" />
+          {/* Section 4: About Ear & Updates */}
+          <View class="flex-col rounded-2xl border border-line bg-card p-5 gap-3.5">
+            <View class="flex-row items-center justify-between">
+              <View class="flex-row items-center gap-3">
+                <View class="h-9 w-9 items-center justify-center rounded-xl bg-well">
+                  <Icon name="headphones" size={18} tone="primary" />
+                </View>
+                <View class="flex-col">
+                  <Text class="text-sm font-bold text-foreground">Ear · Immersion Player</Text>
+                  <Text class="text-xs text-muted-foreground">
+                    Local-first, zero cloud lock-in · v{CURRENT_APP_VERSION}
+                  </Text>
+                </View>
               </View>
-              <View class="flex-col">
-                <Text class="text-sm font-bold text-foreground">Ear · Immersion Player</Text>
-                <Text class="text-xs text-muted-foreground">Local-first, zero cloud lock-in · v0.1.0</Text>
-              </View>
+              <Button
+                onPress={() => void runUpdateCheck()}
+                class="rounded-lg border border-line bg-raised px-3 py-1.5 transition active:scale-95"
+              >
+                <Text class="text-xs font-semibold text-foreground">
+                  {updateStatus() === "checking" ? "检查中..." : "检查更新"}
+                </Text>
+              </Button>
             </View>
+
+            {updateResult() && (
+              <View class="rounded-xl border border-line bg-well p-3 flex-col gap-2">
+                {updateResult()?.hasUpdate ? (
+                  <View class="flex-col gap-1.5">
+                    <View class="flex-row items-center justify-between">
+                      <View class="flex-row items-center gap-2">
+                        <View class="h-2 w-2 rounded-full bg-primary" />
+                        <Text class="text-xs font-bold text-foreground">
+                          发现新版本 v{updateResult()?.latestVersion}
+                          {updateResult()?.isIncremental ? " (增量热更)" : " (全量更新)"}
+                        </Text>
+                      </View>
+                      <Button
+                        onPress={() => {
+                          const url = updateResult()?.downloadUrl ?? RELEASES_PAGE_URL;
+                          void openExternalUrl(url);
+                        }}
+                        class="rounded-md bg-primary px-3 py-1"
+                      >
+                        <Text class="text-xs font-semibold text-primary-foreground">
+                          {updateResult()?.isIncremental ? "获取更新" : "下载安装包"}
+                        </Text>
+                      </Button>
+                    </View>
+                    {updateResult()?.changelog ? (
+                      <Text class="text-xs text-muted-foreground">
+                        {updateResult()?.changelog}
+                      </Text>
+                    ) : null}
+                  </View>
+                ) : updateResult()?.error ? (
+                  <Text class="text-xs text-destructive">
+                    检查更新失败: {updateResult()?.error}
+                  </Text>
+                ) : (
+                  <Text class="text-xs text-muted-foreground">
+                    当前已是最新版本 (v{CURRENT_APP_VERSION})
+                  </Text>
+                )}
+              </View>
+            )}
           </View>
         </View>
       </Scroll>

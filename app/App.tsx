@@ -47,6 +47,7 @@ import {
   preferEnglishTrack,
 } from "./youtube/parse";
 import type { LoadedLesson } from "./youtube/types";
+import { checkUpdateInBackground } from "./updater";
 
 function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -146,6 +147,8 @@ function App() {
       Window.setMenuBar("autoHide");
     }
   }
+
+  void checkUpdateInBackground();
 
   // Auto-read clipboard on startup (when enabled) and when window becomes active
   const checkClipboard = async (forceShow = false) => {
@@ -315,6 +318,23 @@ function App() {
           });
         },
       });
+
+      // 3. Mark stage as done at 100% so the completion shrink & move animation triggers
+      const currentTask = downloadTasks()[vid];
+      if (currentTask) {
+        downloadTasks.set({
+          ...downloadTasks(),
+          [vid]: {
+            ...currentTask,
+            percent: 100,
+            stage: "done",
+          },
+        });
+      }
+
+      // Wait 380ms for the shrink-down-and-move animation to play
+      await delay(380);
+
       const entries = await listEntriesSafe();
       savedEntries.set(entries);
 
@@ -327,7 +347,7 @@ function App() {
         }
       }
 
-      await delay(300);
+      await delay(200);
       status.set(
         entry.videoPath
           ? `Downloaded (${entry.quality ?? effectiveQuality}) → ${entry.videoPath}`
@@ -355,12 +375,29 @@ function App() {
     if (!cur && !rawVal) return;
     if (loading()) return;
 
+    // 1. Immediately clear the input field and close the dropdown popup drawer
+    url.set("");
+    if (cur) {
+      dismissedVideoId.set(cur.videoId);
+    }
+    clipboardPreview.set(null);
+    urlInputRef?.blur();
+
     loading.set(true);
     error.set(null);
     status.set(null);
 
     const chosenQualityId = activeSelectedQualityId();
     const chosenTrackId = activeSelectedTrackId();
+
+    // Auto-switch tab to match downloading media type immediately
+    if (activeTab() !== "settings" && activeTab() !== "discover") {
+      if (chosenQualityId === "audio") {
+        activeTab.set("audio");
+      } else {
+        activeTab.set("video");
+      }
+    }
 
     try {
       activityKind.set("parsing");
@@ -377,8 +414,6 @@ function App() {
             chosenTrackId,
           );
 
-      if (cur) dismissedVideoId.set(cur.videoId);
-      url.set("");
       activityKind.set(null);
       void downloadTargetLesson(loaded, chosenQualityId);
     } catch (e) {

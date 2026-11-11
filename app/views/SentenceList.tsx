@@ -58,7 +58,7 @@ export function SentenceList(props: SentenceListProps) {
 
       {/* Sentences Roller Wheel */}
       <If when={props.sentences().length > 0}>
-        <View class="gap-1 py-12 sm:py-20">
+        <View class="gap-1 py-4 sm:py-6">
           <Each of={props.sentences()} key={(s) => `${s.startMs}-${s.endMs}-${s.index}`}>
             {(item) => {
               return (
@@ -72,6 +72,7 @@ export function SentenceList(props: SentenceListProps) {
                     onToggleReveal={props.onToggleReveal}
                     onListen={props.onListen}
                     language={props.language}
+                    activeIndex={props.activeIndex}
                   />
                 </View>
               );

@@ -1,4 +1,5 @@
 import type { CaptionCue, Sentence } from "../youtube/types";
+import { clipEnded, msToSeconds } from "../player";
 import {
   countWords,
   difficultyFromWpm,
@@ -182,4 +183,90 @@ export function resegmentSentences(
     result.push({ ...cur, index: result.length });
   }
   return result;
+}
+
+export type ProgressEvaluation =
+  | { action: "loop"; seekToSec: number; newClipEndMs?: number | null }
+  | { action: "pause"; newClipEndMs?: number | null }
+  | { action: "advance"; activeIndex: number; newClipEndMs?: number | null }
+  | { action: "none"; newClipEndMs?: number | null };
+
+/**
+ * Pure state evaluation of video playback progress against sentence boundaries.
+ * Supports loop single, default continuous streaming (sentencePause=false),
+ * and intensive single-sentence listening with pause (sentencePause=true).
+ */
+export function evaluatePlaybackProgress(params: {
+  currentTimeSec: number;
+  sentences: Sentence[];
+  paused: boolean;
+  loopSingle: boolean;
+  sentencePause?: boolean;
+  autoNext?: boolean;
+  clipEndMs: number | null;
+  activeIndex: number;
+}): ProgressEvaluation {
+  const {
+    currentTimeSec,
+    sentences,
+    paused,
+    loopSingle,
+    clipEndMs,
+    activeIndex,
+  } = params;
+
+  if (sentences.length === 0 || paused) return { action: "none" };
+
+  // 1. Single sentence loop mode
+  if (loopSingle) {
+    if (clipEndMs != null && clipEnded(currentTimeSec, clipEndMs)) {
+      const cur = sentences[clampSentenceIndex(activeIndex, sentences.length)];
+      if (cur) {
+        return { action: "loop", seekToSec: msToSeconds(cur.startMs) };
+      }
+    }
+    return { action: "none" };
+  }
+
+  // Sentence Pause mode (default is false -> continuous streaming)
+  const isPauseMode =
+    params.sentencePause !== undefined
+      ? params.sentencePause
+      : params.autoNext !== undefined
+      ? !params.autoNext
+      : false;
+
+  // 2. Default continuous playback mode (sentencePause is false)
+  if (!isPauseMode) {
+    const lastIdx = sentences.length - 1;
+    const lastSentence = sentences[lastIdx];
+    if (lastSentence && clipEnded(currentTimeSec, lastSentence.endMs)) {
+      return { action: "pause", newClipEndMs: null };
+    }
+    const idx = findSentenceIndexAtTime(sentences, currentTimeSec);
+    if (idx !== activeIndex) {
+      return { action: "advance", activeIndex: idx };
+    }
+    return { action: "none" };
+  }
+
+  // 3. Sentence Pause mode (sentencePause is true): pauses cleanly at the end of each sentence
+  if (clipEndMs != null) {
+    if (clipEnded(currentTimeSec, clipEndMs)) {
+      return { action: "pause" };
+    }
+  } else {
+    const idx = findSentenceIndexAtTime(sentences, currentTimeSec);
+    const cur = sentences[idx];
+    if (idx !== activeIndex) {
+      return {
+        action: "advance",
+        activeIndex: idx,
+        newClipEndMs: cur?.endMs ?? null,
+      };
+    }
+    return { action: "none", newClipEndMs: cur?.endMs ?? null };
+  }
+
+  return { action: "none" };
 }

@@ -41,6 +41,8 @@ mise run check            # runs `nsh check app`
 
 GitHub writes: Cozilla41.
 
-## CI
+## CI & Release
 
-On push/PR to `main`, [.github/workflows/ci.yml](.github/workflows/ci.yml) installs tools via [mise](https://mise.jdx.dev) (`jdx/mise-action`) from `mise.toml` and runs `mise run check` + `mise run test`.
+- **CI** ([.github/workflows/ci.yml](.github/workflows/ci.yml)): Runs on push/PR to `main`, installing tools via [mise](https://mise.jdx.dev) (`jdx/mise-action`) and running `mise run check` + `mise run test`.
+- **Release** ([.github/workflows/release.yml](.github/workflows/release.yml)): Triggered on `v*` tags or manual `workflow_dispatch`. Matrix builds Linux x64, macOS arm64, and Windows x64 desktop packages with the bundled Rust `ear` CLI, generates the `latest.json` release manifest, and outputs incremental bytecode updates (`bundle.nshc`, ~200KB) alongside full binary packages.
+- **Auto Update**: Ear checks `latest.json` from GitHub Releases. UI/logic updates are applied incrementally without re-downloading the entire runner package; major engine updates prompt full installer downloads.

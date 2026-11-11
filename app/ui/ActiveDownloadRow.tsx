@@ -31,7 +31,23 @@ export function ActiveDownloadRow(props: {
 }) {
   const slideMotion = createMotion({
     enter: "slideInDown",
-    duration: 420,
+    duration: 380,
+  });
+
+  const isDone = () => props.task().stage === "done";
+
+  effect(() => {
+    if (isDone()) {
+      void slideMotion.play({
+        keyframes: {
+          scale: [1, 0.88],
+          translateY: [0, 36],
+          opacity: [1, 0],
+        },
+        duration: 380,
+        easing: [0.16, 1, 0.3, 1],
+      });
+    }
   });
 
   effect(() => {
@@ -60,7 +76,11 @@ export function ActiveDownloadRow(props: {
   return (
     <View
       style={slideMotion.style}
-      class="relative overflow-hidden rounded-xl border border-[#2f7cf6]/50 bg-popover p-3 shadow-md transition hover:border-[#2f7cf6]"
+      class={`relative overflow-hidden rounded-xl border bg-popover p-3 shadow-md transition ${
+        isDone()
+          ? "border-ready/80 bg-ready/10"
+          : "border-[#2f7cf6]/50 hover:border-[#2f7cf6]"
+      }`}
     >
       {/* Subtle ambient progress wash behind the horizontal card */}
       <View
@@ -119,15 +139,24 @@ export function ActiveDownloadRow(props: {
             />
           </If>
 
-          {/* Center spinner overlay */}
+          {/* Center spinner overlay / checkmark when complete */}
           <View class="pointer-events-none absolute inset-0 items-center justify-center">
-            <View class="h-6 w-6 items-center justify-center rounded-full bg-black/60 backdrop-blur-sm">
-              <Icon
-                name="loader"
-                size={12}
-                color="#ffffff"
-                class="animate-spin"
-              />
+            <View
+              class={`h-6 w-6 items-center justify-center rounded-full backdrop-blur-sm ${
+                isDone() ? "bg-ready/85" : "bg-black/60"
+              }`}
+            >
+              <If when={isDone()}>
+                <Icon name="check" size={13} color="#ffffff" />
+              </If>
+              <If when={!isDone()}>
+                <Icon
+                  name="loader"
+                  size={12}
+                  color="#ffffff"
+                  class="animate-spin"
+                />
+              </If>
             </View>
           </View>
 

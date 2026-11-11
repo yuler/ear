@@ -1,3 +1,5 @@
+import { LayoutAnimation } from "nsh";
+
 /**
  * View Transition geometry and animation helpers.
  *
@@ -48,6 +50,51 @@ export async function captureElementRect(
   } catch {
     return null;
   }
+}
+
+/**
+ * Coordinate entering transition timers and target measurement on mount.
+ */
+export function setupViewTransitionEnter(
+  targetBoxRef: ViewNodeMeasureTarget | null,
+  onMeasured: (rect: ViewTransitionRect) => void,
+  onPhaseChange: (phase: TransitionPhase) => void,
+): () => void {
+  let enterTimer: ReturnType<typeof setTimeout> | null = null;
+  let settleTimer: ReturnType<typeof setTimeout> | null = null;
+
+  const startEnter = () => {
+    enterTimer = setTimeout(() => {
+      try {
+        LayoutAnimation.easeInEaseOut();
+      } catch {
+        // ignore
+      }
+      onPhaseChange("entering");
+    }, 16);
+
+    settleTimer = setTimeout(() => {
+      onPhaseChange("settled");
+    }, 440);
+  };
+
+  if (targetBoxRef) {
+    void captureElementRect(targetBoxRef, 0)
+      .then((rect) => {
+        if (rect) onMeasured(rect);
+        startEnter();
+      })
+      .catch(() => {
+        startEnter();
+      });
+  } else {
+    startEnter();
+  }
+
+  return () => {
+    if (enterTimer) clearTimeout(enterTimer);
+    if (settleTimer) clearTimeout(settleTimer);
+  };
 }
 
 /**

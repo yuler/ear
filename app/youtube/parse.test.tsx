@@ -19,7 +19,7 @@ import {
 test("earParse invokes Ear CLI binary and streams progress before resolving video payload", async () => {
   const progressStages: string[] = [];
   setEarSpawnHook((bin: string, args: string[]) => {
-    expect(bin).toBe("ear");
+    expect(["ear", "./ear", "./ear.exe"]).toContain(bin);
     expect(args).toEqual(["parse", "https://www.youtube.com/watch?v=mockId12345"]);
 
     return {

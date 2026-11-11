@@ -29,6 +29,7 @@
       ],
       "execute": [
         "ear",
+        "ear.exe",
         "yt-dlp",
         "ffmpeg",
         "curl",

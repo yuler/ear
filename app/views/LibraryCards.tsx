@@ -1,4 +1,4 @@
-import { Image, Text, View, type ViewRef } from "nsh";
+import { createMotion, Image, Text, View, type ViewRef } from "nsh";
 import { Button } from "nsh/base";
 import { formatDurationMs } from "../clipboard";
 import type { LibraryEntry } from "../library/types";
@@ -17,6 +17,10 @@ export function LibraryListRow(props: {
   onOpenFolder: (entry: LibraryEntry) => void;
   onDeleteEntry?: (entry: LibraryEntry) => void;
 }) {
+  const enterMotion = createMotion({
+    enter: "fadeInUp",
+    duration: 340,
+  });
   let thumbRef: ViewRef | null = null;
   const duration = formatDurationMs(props.entry.durationMs);
   const meta = formatEntryDescription(props.entry);
@@ -31,7 +35,10 @@ export function LibraryListRow(props: {
   };
 
   return (
-    <View class="flex-row items-center justify-between gap-4 rounded-lg border-b border-line px-2 py-3 transition hover:bg-well/30">
+    <View
+      style={enterMotion.style}
+      class="flex-row items-center justify-between gap-4 rounded-lg border-b border-line px-2 py-3 transition hover:bg-well/30"
+    >
       {/* Clickable thumbnail to play */}
       <Button
         ref={(node) => {
@@ -127,6 +134,10 @@ export function LibraryGradeCard(props: {
   onOpenFolder: (entry: LibraryEntry) => void;
   onDeleteEntry?: (entry: LibraryEntry) => void;
 }) {
+  const enterMotion = createMotion({
+    enter: "fadeInUp",
+    duration: 340,
+  });
   let thumbRef: ViewRef | null = null;
   const duration = formatDurationMs(props.entry.durationMs);
   const meta = formatEntryDescription(props.entry);
@@ -140,7 +151,10 @@ export function LibraryGradeCard(props: {
   };
 
   return (
-    <View class="w-[144px] items-center gap-1.5 rounded-lg border border-transparent p-2 transition hover:border-line hover:bg-well/70">
+    <View
+      style={enterMotion.style}
+      class="w-[144px] items-center gap-1.5 rounded-lg border border-transparent p-2 transition hover:border-line hover:bg-well/70"
+    >
       <Button
         ref={(node) => {
           thumbRef = node;
@@ -213,6 +227,10 @@ export function LibraryPostCard(props: {
   onOpenFolder: (entry: LibraryEntry) => void;
   onDeleteEntry?: (entry: LibraryEntry) => void;
 }) {
+  const enterMotion = createMotion({
+    enter: "fadeInUp",
+    duration: 360,
+  });
   let thumbRef: ViewRef | null = null;
   const duration = formatDurationMs(props.entry.durationMs);
   const meta = formatEntryDescription(props.entry);
@@ -227,7 +245,7 @@ export function LibraryPostCard(props: {
 
   return (
     <View
-      style={{ minWidth: 280 }}
+      style={{ minWidth: 280, ...enterMotion.style }}
       class="w-full max-w-[460px] flex-1 gap-2.5 rounded-xl border border-line/60 bg-well/15 p-3 transition hover:border-line hover:bg-well/40"
     >
       <Button

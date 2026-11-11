@@ -2,6 +2,7 @@ import { expect, test } from "nsh/test";
 import {
   clampSentenceIndex,
   displaySentenceText,
+  evaluatePlaybackProgress,
   findSentenceIndexAtTime,
   formatSentenceTime,
   formatTimeRange,
@@ -134,4 +135,48 @@ test("resegmentSentences slices fallback sentences without cues in short mode", 
   expect(shortResult[2]!.text).toBe("third clause ends.");
   expect(shortResult[0]!.startMs).toBe(0);
   expect(shortResult[2]!.endMs).toBe(6000);
+});
+
+test("evaluatePlaybackProgress handles single sentence loop, sentencePause, and continuous streaming", () => {
+  // 1. Loop single mode: when reaching sentence end, triggers loop action with seekToSec
+  const loopRes = evaluatePlaybackProgress({
+    currentTimeSec: 4.1,
+    sentences: mockSentences,
+    paused: false,
+    loopSingle: true,
+    sentencePause: false,
+    clipEndMs: 4000,
+    activeIndex: 0,
+  });
+  expect(loopRes.action).toBe("loop");
+  if (loopRes.action === "loop") {
+    expect(loopRes.seekToSec).toBe(1); // startMs of sentence 0 is 1000ms = 1s
+  }
+
+  // 2. Default mode (sentencePause: false): continuous playback seamlessly without seek
+  const advanceRes = evaluatePlaybackProgress({
+    currentTimeSec: 5.0,
+    sentences: mockSentences,
+    paused: false,
+    loopSingle: false,
+    sentencePause: false,
+    clipEndMs: null,
+    activeIndex: 0,
+  });
+  expect(advanceRes.action).toBe("advance");
+  if (advanceRes.action === "advance") {
+    expect(advanceRes.activeIndex).toBe(1);
+  }
+
+  // 3. Sentence Pause mode (sentencePause: true): pauses at clipEndMs for difficult sentences
+  const pauseRes = evaluatePlaybackProgress({
+    currentTimeSec: 4.1,
+    sentences: mockSentences,
+    paused: false,
+    loopSingle: false,
+    sentencePause: true,
+    clipEndMs: 4000,
+    activeIndex: 0,
+  });
+  expect(pauseRes.action).toBe("pause");
 });

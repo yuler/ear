@@ -1,6 +1,4 @@
-import { Text, View } from "nsh";
-import { Button } from "nsh/base";
-import { Icon } from "../ui/Icon";
+import { Text, View, type TransformStep, type ViewStyle } from "nsh";
 import { t, type EarLocale } from "../ui/i18n";
 import type { Sentence } from "../youtube/types";
 import {
@@ -18,37 +16,170 @@ export type SentenceRowProps = {
   onToggleReveal: (index: number) => void;
   onListen: (sentence: Sentence) => void;
   language?: () => EarLocale;
+  activeIndex?: () => number;
 };
 
 /**
- * Immersive subtitle row:
- * Inactive sentences are soft, secondary, and button-free (click to jump & play).
- * Active sentence is prominently focused as the cinema center stage with inline reveal and repeat actions.
+ * Compute 3D cylinder wheel perspective transform and opacity based on distance from active sentence.
+ * - Active (diff === 0): Faces straight forward (0deg), 100% scale, fully focused.
+ * - Preceding ("前面" diff < 0): Curves backwards along the upper drum with rotateX and depth perspective.
+ * - Upcoming ("后面" diff > 0): Curves gently downwards with multiple sentences visible ahead.
+ */
+export function getSentence3DStyle(diff: number): ViewStyle {
+  const common = {
+    transitionProperty: "transform, opacity",
+    transitionDuration: "280ms" as const,
+    transitionTimingFunction: "cubic-bezier(0.16, 1, 0.3, 1)" as const,
+  };
+
+  if (diff === 0) {
+    return {
+      ...common,
+      transform: [
+        { perspective: 800 },
+        { rotateX: "0deg" },
+        { scale: 1.02 },
+      ],
+      transformOrigin: "center center",
+      opacity: 1,
+    };
+  }
+
+  // Preceding sentences ("前面") - 3D curve backwards into the upper drum
+  if (diff === -1) {
+    return {
+      ...common,
+      transform: [
+        { perspective: 800 },
+        { rotateX: "16deg" },
+        { translateY: -2 },
+        { scale: 0.96 },
+      ],
+      transformOrigin: "center bottom",
+      opacity: 0.55,
+    };
+  }
+  if (diff === -2) {
+    return {
+      ...common,
+      transform: [
+        { perspective: 800 },
+        { rotateX: "28deg" },
+        { translateY: -6 },
+        { scale: 0.91 },
+      ],
+      transformOrigin: "center bottom",
+      opacity: 0.32,
+    };
+  }
+  if (diff <= -3) {
+    return {
+      ...common,
+      transform: [
+        { perspective: 800 },
+        { rotateX: "38deg" },
+        { translateY: -10 },
+        { scale: 0.85 },
+      ],
+      transformOrigin: "center bottom",
+      opacity: 0.16,
+    };
+  }
+
+  // Upcoming sentences ("后面") - 3D curve downwards with 2-3 sentences clearly readable
+  if (diff === 1) {
+    return {
+      ...common,
+      transform: [
+        { perspective: 800 },
+        { rotateX: "-10deg" },
+        { translateY: 2 },
+        { scale: 0.98 },
+      ],
+      transformOrigin: "center top",
+      opacity: 0.72,
+    };
+  }
+  if (diff === 2) {
+    return {
+      ...common,
+      transform: [
+        { perspective: 800 },
+        { rotateX: "-18deg" },
+        { translateY: 5 },
+        { scale: 0.95 },
+      ],
+      transformOrigin: "center top",
+      opacity: 0.52,
+    };
+  }
+  if (diff === 3) {
+    return {
+      ...common,
+      transform: [
+        { perspective: 800 },
+        { rotateX: "-26deg" },
+        { translateY: 8 },
+        { scale: 0.91 },
+      ],
+      transformOrigin: "center top",
+      opacity: 0.36,
+    };
+  }
+  return {
+    ...common,
+    transform: [
+      { perspective: 800 },
+      { rotateX: "-34deg" },
+      { translateY: 12 },
+      { scale: 0.87 },
+    ],
+    transformOrigin: "center top",
+    opacity: 0.22,
+  };
+}
+
+/**
+ * 3D Rolling Subtitle Item:
+ * Pure typography with zero button clutter.
+ * Preceding sentences tilt back in 3D perspective; upcoming sentences roll in smoothly below.
  */
 export function SentenceRow(props: SentenceRowProps) {
   const s = () => props.sentence();
   const active = () => props.isActive();
-  const playing = () => props.isPlaying();
   const masked = () => isSentenceMasked(props.isMaskAll(), props.isRevealed());
   const displayText = () =>
     displaySentenceText(s().text, props.isMaskAll(), props.isRevealed());
   const lang = () => props.language?.() ?? "en";
   const m = () => t(lang());
 
+  const diff = () =>
+    props.activeIndex != null ? s().index - props.activeIndex() : active() ? 0 : 1;
+
+  const style3D = () => getSentence3DStyle(diff());
+
   const handleRowPress = () => {
+    props.onListen(s());
+  };
+
+  const handleTextPress = () => {
+    if (props.isMaskAll()) {
+      props.onToggleReveal(s().index);
+    }
     props.onListen(s());
   };
 
   return (
     <View
       onPress={handleRowPress}
-      class={`group relative flex-row items-center justify-between gap-3 rounded-2xl transition-all duration-300 ease-out cursor-pointer ${
+      style={style3D()}
+      class={`group relative flex-row items-center justify-between gap-3 rounded-2xl transition cursor-pointer select-text ${
         active()
-          ? "border border-primary/35 bg-primary/10 dark:bg-white/10 px-4 py-3.5 shadow-md ring-1 ring-primary/20 scale-[1.01] opacity-100"
-          : "border border-transparent bg-transparent px-3 py-2.5 opacity-40 hover:opacity-85 hover:bg-muted/30"
+          ? "border border-primary/35 bg-primary/10 dark:bg-white/10 px-4 py-3 shadow-md ring-1 ring-primary/20"
+          : "border border-transparent bg-transparent px-3 py-2 hover:bg-muted/30"
       }`}
     >
-      {/* Left: Index badge + Subtitle text + Timestamp */}
+      {/* Index badge + Subtitle text + Timestamp */}
       <View class="min-w-0 flex-1 flex-row items-center gap-3">
         {/* Index indicator */}
         <View
@@ -68,7 +199,11 @@ export function SentenceRow(props: SentenceRowProps) {
         </View>
 
         {/* Subtitle text container */}
-        <View selectable class="min-w-0 flex-1 flex-col justify-center gap-1 select-text">
+        <View
+          onPress={handleTextPress}
+          selectable
+          class="min-w-0 flex-1 flex-col justify-center gap-1 select-text"
+        >
           <Text
             class={`select-text transition leading-relaxed ${
               active()
@@ -97,51 +232,6 @@ export function SentenceRow(props: SentenceRowProps) {
           </View>
         </View>
       </View>
-
-      {/* Right: Actions - ONLY shown on the focused active sentence to avoid visual noise */}
-      <If when={active()}>
-        <View class="shrink-0 flex-row items-center gap-1.5 pointer-events-auto">
-          {/* Quick Reveal / Mask button */}
-          <Button
-            onPress={() => {
-              props.onToggleReveal(s().index);
-            }}
-            class="h-8 items-center justify-center rounded-lg border border-border/80 bg-background/90 px-2.5 shadow-2xs transition hover:bg-muted active:scale-95"
-            accessibilityLabel={masked() ? m().revealSentence : m().maskSentence}
-          >
-            <Icon
-              name={masked() ? "eye" : "eye-off"}
-              size={13}
-              tone={masked() ? "muted-foreground" : "foreground"}
-            />
-            <Text class="hidden text-xs font-medium text-foreground sm:inline ml-1">
-              {masked() ? m().revealSentence : m().maskSentence}
-            </Text>
-          </Button>
-
-          {/* Play/Repeat active sentence button */}
-          <Button
-            onPress={() => {
-              props.onListen(s());
-            }}
-            class={`h-8 flex-row items-center gap-1.5 rounded-lg px-3 shadow-xs transition active:scale-95 ${
-              playing()
-                ? "bg-emerald-600 text-white"
-                : "bg-primary text-primary-foreground hover:opacity-90"
-            }`}
-            accessibilityLabel={`${m().listen} ${s().index + 1}`}
-          >
-            <Icon
-              name={playing() ? "pause" : "repeat"}
-              size={12}
-              tone="primary-foreground"
-            />
-            <Text class="text-xs font-bold text-primary-foreground">
-              {playing() ? m().playing : m().repeatSentence}
-            </Text>
-          </Button>
-        </View>
-      </If>
     </View>
   );
 }
