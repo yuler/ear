@@ -1,0 +1,435 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="dark">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Ear — 关掉字幕，真正听懂英语原声 · Comprehensible Input 桌面听力工具</title>
+  <meta name="description" content="Ear 是基于可理解输入（Comprehensible Input）理念的本地优先听力练习工具。通过盲听初筛和难句单环，打破字幕拐杖，真正听懂母语原声。" />
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  <link rel="stylesheet" href="/style.css" />
+  <link rel="stylesheet" href="/player.css" />
+</head>
+<body>
+<div class="bg-glow"></div>
+<!-- ── Navigation Bar ── -->
+<header>
+  <div class="nav-container">
+    <a href="/" class="brand" aria-label="Ear Comprehensible Input">
+      <div class="brand-icon">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M3 14h3a2 2 0 0 1 2 2v3a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-7a9 9 0 0 1 18 0v7a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3"/>
+        </svg>
+      </div>
+      <div class="brand-text">
+        <span class="brand-title">Ear</span>
+        <span class="brand-sub">Comprehensible Input</span>
+      </div>
+    </a>
+    <nav class="nav-links">
+      <a href="#how" data-i18n="nav_how">怎么用</a>
+      <a href="#download" data-i18n="nav_download">下载</a>
+      <a href="#faq" data-i18n="nav_faq">常见问题</a>
+    </nav>
+    <div class="nav-actions">
+      <button class="btn-icon" id="theme-btn" title="切换主题" aria-label="切换主题">
+        <span id="theme-icon">☀️</span>
+      </button>
+      <button class="btn-icon" id="lang-btn" title="Switch Language" aria-label="Switch Language">EN</button>
+      <a class="btn-cta" href="#download" data-i18n="nav_cta">免费获取</a>
+    </div>
+  </div>
+</header>
+<main class="container">
+  <!-- ── Hero Section ── -->
+  <section class="hero">
+    <div class="hero-pill" data-i18n="hero_pill">
+      ✦ 可理解输入理论 · 本地优先桌面客户端
+    </div>
+    <h1 class="hero-title" data-i18n="hero_title">
+      关掉字幕，<span>真正听懂英语原声</span>
+    </h1>
+    <p class="hero-subtitle" data-i18n="hero_subtitle">
+      开着字幕时，是大脑在看字偷懒，不是耳朵在听。Ear 遵循“可理解输入”（Comprehensible Input）理念，通过盲听初筛和难句单环，打破字幕拐杖，真正听懂母语原声。
+    </p>
+    <div class="hero-actions">
+      <a class="btn-primary-hero" id="hero-dl-btn" href="/download">
+        <span id="hero-dl-icon">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.81-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M15.97 6.37c.61-.75 1.04-1.8 1.01-2.87-.96.04-2.14.65-2.8 1.43-.58.67-1.1 1.74-1.01 2.78 1.08.08 2.19-.58 2.8-1.34z"/>
+          </svg>
+        </span>
+        <span id="hero-dl-text">下载客户端 ↗</span>
+      </a>
+      <a class="btn-secondary-hero" href="https://github.com/yuler/ear" target="_blank" rel="noopener noreferrer">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor">
+          <path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/>
+        </svg>
+        <span>GitHub 源码</span>
+      </a>
+    </div>
+    <!-- ── Interactive Desktop App Mockup ── -->
+    <div class="app-window" id="how">
+      <div class="window-titlebar">
+        <div class="window-dots">
+          <div class="dot dot-red"></div>
+          <div class="dot dot-yellow"></div>
+          <div class="dot dot-green"></div>
+        </div>
+        <div class="window-nav-steps">
+          <button class="step-btn active" data-step="0" data-i18n="step_0">1. 复制链接</button>
+          <button class="step-btn" data-step="1" data-i18n="step_1">2. 解析切片</button>
+          <button class="step-btn" data-step="2" data-i18n="step_2">3. 视频练习</button>
+        </div>
+        <div class="window-status">
+          <span class="status-indicator"></span>
+          <span id="auto-cycle-label" style="cursor:pointer;" title="点击切换自动播放/手动">演示播放中</span>
+        </div>
+      </div>
+      <div class="app-frame">
+        <!-- Sidebar -->
+        <aside class="app-sidebar">
+          <div>
+            <div class="sidebar-brand">
+              <div class="brand-icon" style="width:24px; height:24px;">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+                  <path d="M3 14h3a2 2 0 0 1 2 2v3a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-7a9 9 0 0 1 18 0v7a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3"/>
+                </svg>
+              </div>
+              <span style="font-size:13px; font-weight:700;">Ear</span>
+            </div>
+            <div class="sidebar-nav">
+              <div class="sidebar-item">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"/></svg>
+                <span>推荐发现</span>
+              </div>
+              <div class="sidebar-item active">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="2" width="20" height="20" rx="2.18" ry="2.18"/><line x1="7" y1="2" x2="7" y2="22"/><line x1="17" y1="2" x2="17" y2="22"/><line x1="2" y1="12" x2="22" y2="12"/></svg>
+                <span>视频练习</span>
+                <span class="sidebar-badge">8</span>
+              </div>
+              <div class="sidebar-item">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
+                <span>音频播客</span>
+                <span class="sidebar-badge">3</span>
+              </div>
+            </div>
+          </div>
+          <div class="sidebar-item" style="color:var(--text-dim);">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+            <span>偏好设置</span>
+          </div>
+        </aside>
+        <!-- Main Workspace -->
+        <div class="app-main">
+          <!-- Top Bar -->
+          <div class="app-topbar">
+            <div class="app-search-input" id="mock-input-field" title="点击重新触发解析演示">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+              <span id="mock-url-text">https://www.youtube.com/watch?v=UF8uR6Z6KLc</span>
+            </div>
+          </div>
+          <!-- Stage 1: Copy Link & Auto Detect -->
+          <div class="stage-pane active" id="pane-0">
+            <div class="step-guide-tag" data-i18n="step_0_guide">第一步 · 复制 YouTube 链接 → 剪贴板毫秒级自动捕获</div>
+            <div class="import-card">
+              <div class="import-thumb">
+                <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.7)" stroke-width="1.8"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+                <span class="thumb-tag">15:04</span>
+              </div>
+              <div class="import-info">
+                <div class="import-title">Steve Jobs' 2005 Stanford Commencement Address</div>
+                <div class="import-meta">
+                  <span>Stanford University</span> · <span>44M views</span>
+                </div>
+                <div class="import-badges">
+                  <span class="badge-tag accent">1080p Full HD</span>
+                  <span class="badge-tag">English (CC) 原声字幕</span>
+                  <span class="badge-tag">4 线程极速</span>
+                </div>
+                <button class="import-btn" id="btn-mock-start" data-i18n="step_1_btn">立即下载并切片 ↗</button>
+              </div>
+            </div>
+          </div>
+          <!-- Stage 2: Fast Parallel Download & Sentence Slicing -->
+          <div class="stage-pane" id="pane-1">
+            <div class="step-guide-tag" data-i18n="step_1_guide">第二步 · 4 线程极速下载与智能句子停顿切片</div>
+            <div class="slice-card">
+              <div class="slice-header">
+                <div class="slice-title-row">
+                  <div class="spinner-icon"></div>
+                  <div class="slice-target-title">Steve Jobs' 2005 Stanford Commencement Address</div>
+                </div>
+                <span class="badge-tag accent">Rust CLI Engine</span>
+              </div>
+              <!-- Progress Track -->
+              <div class="slice-progress-track">
+                <div class="slice-progress-bar" id="slice-bar"></div>
+              </div>
+              <!-- Telemetry -->
+              <div class="slice-telemetry">
+                <span id="slice-status-text">并行极速下载中：5.4 MB/s · ETA: 1s</span>
+                <span id="slice-pct-text">82%</span>
+              </div>
+              <div class="slice-chips">
+                <span class="chip-item active">✓ 1080p 视频流</span>
+                <span class="chip-item active">✓ 无损音频流</span>
+                <span class="chip-item active">✓ 官方英文字幕</span>
+                <span class="chip-item active">⚡️ 句子切片 (共 142 句)</span>
+              </div>
+            </div>
+          </div>
+          <!-- Stage 3: High-Fidelity App Practice Player with Real Video -->
+          <div class="stage-pane" id="pane-2">
+            <div class="player-stage">
+              <!-- Top Header (VideoDetailHeader mockup) -->
+              <div class="player-top-header">
+                <div class="player-header-left">
+                  <button class="player-back-btn" id="player-back-step" title="返回上一阶段">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg>
+                  </button>
+                  <div class="player-video-title">Steve Jobs' 2005 Stanford Commencement Address</div>
+                  <span class="badge-tag">1080p</span>
+                  <span class="badge-tag">142 句</span>
+                </div>
+                <button class="mask-toggle-btn" id="btn-mask-toggle">
+                  <span id="mask-icon">👁️</span>
+                  <span id="mask-label">全遮罩已开启</span>
+                </button>
+              </div>
+              <!-- Real Video Player Container -->
+              <div class="video-container" id="video-wrapper">
+                <video id="practice-video" src="/sample.mp4" playsinline preload="auto" loop muted></video>
+                <div class="video-center-play" id="video-center-btn">
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><polygon points="6 4 20 12 6 20 6 4"/></svg>
+                </div>
+                <!-- Video Bottom Controls Bar -->
+                <div class="video-controls-bar">
+                  <button class="ctrl-btn" id="ctrl-play-btn" title="播放/暂停 (Space)">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" id="ctrl-play-icon"><polygon points="6 4 20 12 6 20 6 4"/></svg>
+                  </button>
+                  <button class="ctrl-btn" id="ctrl-prev-btn" title="上一句">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><polygon points="19 20 9 12 19 4 19 20"/><line x1="5" y1="4" x2="5" y2="20" stroke="currentColor" stroke-width="2"/></svg>
+                  </button>
+                  <button class="ctrl-btn" id="ctrl-repeat-btn" title="单句循环">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>
+                  </button>
+                  <button class="ctrl-btn" id="ctrl-next-btn" title="下一句">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 4 15 12 5 20 5 4"/><line x1="19" y1="4" x2="19" y2="20" stroke="currentColor" stroke-width="2"/></svg>
+                  </button>
+                  <div class="video-time-display">
+                    <span id="video-cur-time">00:01:20</span> / <span id="video-total-time">00:15:04</span>
+                  </div>
+                  <div class="video-scrubber-track" id="video-scrubber">
+                    <div class="video-scrubber-fill" id="video-scrubber-bar"></div>
+                  </div>
+                  <button class="ctrl-btn" id="ctrl-sound-btn" title="点击开启/关闭声音">
+                    <span id="sound-icon-text">🔇</span>
+                  </button>
+                  <span class="speed-badge" id="ctrl-speed-btn">1.0x</span>
+                </div>
+              </div>
+              <!-- Sentence Roller Wheel (仿 APP 3D 句子滚动视盘) -->
+              <div class="sentence-roller-area">
+                <!-- Preceding Sentence -->
+                <div class="sentence-row preceding">
+                  <span class="s-time">00:01:16</span>
+                  <span class="s-text">You have to trust that the dots will somehow connect in your future.</span>
+                </div>
+                <!-- Active In-Focus Sentence -->
+                <div class="sentence-row active" id="active-sentence-card">
+                  <div class="s-active-meta">
+                    <span class="s-tag-idx">Sentence 08 / 142 · 00:01:20 - 00:01:28</span>
+                    <span class="badge-tag accent">i+1 黄金进阶区 · 158 WPM</span>
+                  </div>
+                  <div class="s-caption-box" id="s-caption-box" title="点击或按 Space/R 偷看揭晓字幕">
+                    <div class="s-mask-line" id="s-mask-line">••••••• ••••• •• ••••• •••• ••• ••••• •••• •••• •• ••••</div>
+                    <div class="s-real-line" id="s-real-line">My second story is about love and loss. I was lucky — I found what I loved to do early in life.</div>
+                  </div>
+                  <div class="s-hint-line" data-i18n="step_2_hint">💡 默认遮蔽字幕阻断看字幻觉 · 点击文字或按 Space/R 随时偷看/揭晓</div>
+                </div>
+                <!-- Upcoming Sentence -->
+                <div class="sentence-row upcoming">
+                  <span class="s-time">00:01:28</span>
+                  <span class="s-text">Woz and I started Apple in my parents garage when I was 20.</span>
+                </div>
+              </div>
+              <!-- Bottom Deliberate Practice Rating Actions -->
+              <div class="player-actions-bar">
+                <button class="action-pill reveal-btn" id="btn-player-reveal" data-i18n="step_2_reveal">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+                  <span id="player-reveal-text">揭晓字幕</span> <kbd>Space</kbd>
+                </button>
+                <button class="action-pill pass" id="btn-player-pass" data-i18n="step_2_pass">
+                  <span>✓ 听懂</span> <kbd>1</kbd> <span id="player-count-pass" style="font-size:10px; opacity:0.8;">(14)</span>
+                </button>
+                <button class="action-pill lag" id="btn-player-lag" data-i18n="step_2_lag">
+                  <span>? 迟疑</span> <kbd>2</kbd> <span id="player-count-lag" style="font-size:10px; opacity:0.8;">(3)</span>
+                </button>
+                <button class="action-pill blind" id="btn-player-blind" data-i18n="step_2_blind">
+                  <span>✕ 盲区</span> <kbd>3</kbd> <span id="player-count-blind" style="font-size:10px; opacity:0.8;">(2)</span>
+                </button>
+                <button class="action-pill loop" id="btn-player-loop" data-i18n="step_2_loop">
+                  <span>🔁 A-B 难句单环</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+  <!-- ── Download Section ── -->
+  <section class="section" id="download">
+    <div class="section-header">
+      <div class="section-tag" data-i18n="dl_tag">极简交付</div>
+      <h2 class="section-title" data-i18n="dl_title">获取 Ear 桌面客户端</h2>
+      <p class="section-subtitle" data-i18n="dl_subtitle">
+        100% 本地优先，免注册、无云端追踪、完全开源免费。数据和音视频完整存储在你的本地硬盘中。
+      </p>
+    </div>
+    <div class="download-grid">
+      <!-- macOS -->
+      <div class="download-card">
+        <div>
+          <div class="download-card-icon" aria-label="macOS">
+            <svg width="26" height="26" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.81-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M15.97 6.37c.61-.75 1.04-1.8 1.01-2.87-.96.04-2.14.65-2.8 1.43-.58.67-1.1 1.74-1.01 2.78 1.08.08 2.19-.58 2.8-1.34z"/>
+            </svg>
+          </div>
+          <div class="download-card-title">macOS</div>
+          <div class="download-card-desc" data-i18n="dl_mac_desc">
+            Apple Silicon (M1-M4 原生支持)<br />macOS 12+ · 一键解压运行
+          </div>
+        </div>
+        <a class="download-card-btn" id="dl-mac-link" href="/download/mac">
+          <span data-i18n="dl_mac_btn">下载 macOS 版</span>
+          <span>↗</span>
+        </a>
+      </div>
+      <!-- Windows -->
+      <div class="download-card">
+        <div>
+          <div class="download-card-icon" aria-label="Windows">
+            <svg width="26" height="26" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M0 3.449L9.75 2.1v9.451H0m10.949-9.602L24 0v11.4H10.949M0 12.6h9.75v9.451L0 20.699M10.949 12.6H24V24l-12.951-1.801"/>
+            </svg>
+          </div>
+          <div class="download-card-title">Windows</div>
+          <div class="download-card-desc" data-i18n="dl_win_desc">
+            Windows 10 / 11 64 位<br />绿色便携免安装包
+          </div>
+        </div>
+        <a class="download-card-btn" id="dl-win-link" href="/download/windows">
+          <span data-i18n="dl_win_btn">下载 Windows 版</span>
+          <span>↗</span>
+        </a>
+      </div>
+      <!-- Linux -->
+      <div class="download-card">
+        <div>
+          <div class="download-card-icon" aria-label="Linux">
+            <svg width="26" height="26" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M12.012 0c-3.13 0-5.32 2.45-5.32 5.79 0 1.25.32 2.57.86 3.65-.24.58-.58 1.41-.74 1.95-.54 1.77-.38 2.94.34 3.79.46.54 1.15.82 2.05.82.2 0 .42-.02.66-.05.52.88 1.28 1.5 2.15 1.78v1.75c-1.36.42-3.18 1.22-3.18 2.39 0 .61.47 1.05 1.51 1.43 1.18.43 2.87.7 4.67.7 1.8 0 3.49-.27 4.67-.7 1.04-.38 1.51-.82 1.51-1.43 0-1.17-1.82-1.97-3.18-2.39v-1.75c.87-.28 1.63-.9 2.15-1.78.24.03.46.05.66.05.9 0 1.59-.28 2.05-.82.72-.85.88-2.02.34-3.79-.16-.54-.5-1.37-.74-1.95.54-1.08.86-2.4.86-3.65C17.332 2.45 15.142 0 12.012 0z"/>
+            </svg>
+          </div>
+          <div class="download-card-title">Linux</div>
+          <div class="download-card-desc" data-i18n="dl_linux_desc">
+            x86_64 GNU/Linux<br />打包便携归档 (.tar.gz)
+          </div>
+        </div>
+        <a class="download-card-btn" id="dl-linux-link" href="/download/linux">
+          <span data-i18n="dl_linux_btn">下载 Linux 版</span>
+          <span>↗</span>
+        </a>
+      </div>
+    </div>
+    <!-- AI Agent 1-Click Install Prompt Box -->
+    <div class="ai-box">
+      <div class="ai-box-header">
+        <div class="ai-box-title">
+          <span class="ai-box-badge">✦ AI 一键安装</span>
+          <span class="ai-box-hint" data-i18n="ai_hint">复制提示词发送给你的 AI 助手（Claude Code / Cursor / Windsurf 等），让它自动为你下载配置：</span>
+        </div>
+        <button class="ai-copy-btn" id="btn-copy-prompt">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+          </svg>
+          <span id="copy-btn-text">复制提示词</span>
+        </button>
+      </div>
+      <div class="ai-prompt-content" id="ai-prompt-text" title="点击一键复制" data-i18n="ai_prompt">请帮我安装并配置 Ear 听力练习工具（https://github.com/yuler/ear）：检查 GitHub 最新 Release，根据我当前的操作系统（macOS / Windows / Linux）自动下载对应的桌面客户端或 CLI 并安装就绪。</div>
+    </div>
+  </section>
+  <!-- ── FAQ Section ── -->
+  <section class="section" id="faq">
+    <div class="section-header">
+      <div class="section-tag" data-i18n="faq_tag">简单 QA</div>
+      <h2 class="section-title" data-i18n="faq_title">常见问题解答</h2>
+    </div>
+    <div class="faq-list">
+      <details class="faq-item" open>
+        <summary class="faq-question">
+          <span data-i18n="faq_1_q">为什么一定要遮住字幕？看字幕不也算英语输入吗？</span>
+          <span class="faq-icon">▼</span>
+        </summary>
+        <div class="faq-answer" data-i18n="faq_1_a">
+          看字幕是“文字输入”，不是“声音输入”。视觉处理速度远快于听觉，只要有字幕，大脑就会偷懒去读字，听觉神经根本得不到刺激。遮住字幕，耳朵才会被迫去分辨连读、弱读与吞音，建立真正的听觉神经反射。
+        </div>
+      </details>
+      <details class="faq-item">
+        <summary class="faq-question">
+          <span data-i18n="faq_2_q">如何导入 YouTube 视频？</span>
+          <span class="faq-icon">▼</span>
+        </summary>
+        <div class="faq-answer" data-i18n="faq_2_a">
+          只需在浏览器中复制任意 YouTube 视频链接，Ear 会自动捕获并弹出确认卡片；也可以直接在软件顶部粘贴。内置的 Rust 引擎会自动下载视频流并提取官方/双语字幕，切片为独立的句子单元。
+        </div>
+      </details>
+      <details class="faq-item">
+        <summary class="faq-question">
+          <span data-i18n="faq_3_q">需要注册账号吗？我的视频和学习记录存放在哪里？</span>
+          <span class="faq-icon">▼</span>
+        </summary>
+        <div class="faq-answer" data-i18n="faq_3_a">
+          完全不需要注册。Ear 遵循“本地优先”（Local-First）原则，所有下载的视频文件、字幕数据以及打标历史均 100% 存储在你的本地硬盘中，没有任何云端追踪，充分保护你的隐私。
+        </div>
+      </details>
+      <details class="faq-item">
+        <summary class="faq-question">
+          <span data-i18n="faq_4_q">为什么优先做桌面端？后续会有手机版吗？</span>
+          <span class="faq-icon">▼</span>
+        </summary>
+        <div class="faq-answer" data-i18n="faq_4_a">
+          听力刻意练习需要高频的快捷键操作（Space 播放、R 揭晓、1/2/3 打标）以及单句毫秒级 A-B 无缝循环，桌面端能提供零延迟的沉浸体验。移动端已在后续生态规划中。
+        </div>
+      </details>
+      <details class="faq-item">
+        <summary class="faq-question">
+          <span data-i18n="faq_5_q">Ear 免费且开源吗？</span>
+          <span class="faq-icon">▼</span>
+        </summary>
+        <div class="faq-answer" data-i18n="faq_5_a">
+          是的，Ear 是一个完全开源、免费的项目，遵循 MIT 开源协议。所有代码均在 GitHub 公开透明。
+        </div>
+      </details>
+    </div>
+  </section>
+</main>
+<!-- ── Footer ── -->
+<footer>
+  <div class="container">
+    <p>Ear — 专注可理解输入的听力刻意练习播放器 · 告别字幕拐杖</p>
+    <div class="footer-links">
+      <a href="https://github.com/yuler/ear" target="_blank" rel="noopener noreferrer">GitHub</a>
+      <span>·</span>
+      <a href="https://github.com/yuler/ear/releases/latest" target="_blank" rel="noopener noreferrer">Releases</a>
+      <span>·</span>
+      <span>MIT License</span>
+    </div>
+  </div>
+</footer>
+<script src="/i18n.js"></script>
+<script src="/main.js"></script>
+</body>
+</html>

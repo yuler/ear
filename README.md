@@ -49,9 +49,10 @@ Community contributions are warmly welcome! You can recommend videos in two ways
 
 ```sh
 mise run setup            # installs nsh, release `ear` CLI, Linux WebKitGTK 6
-mise run build-cli        # release-build + install `ear` → ~/.local/bin/ear
-mise run build-cli-dev    # debug-build + install `ear` (used by `dev`)
-mise run dev              # rebuilds CLI (debug) then `nsh run app`
+mise run cli:build        # release-build + install `ear` → ~/.local/bin/ear
+mise run cli:dev          # debug-build + install `ear` (used by app:dev)
+mise run app:dev          # rebuilds CLI (debug) then starts native desktop app (alias: dev)
+mise run www:dev          # local preview for website & Cloudflare Worker (wrangler dev)
 mise run test             # `cargo test` (cli) + `nsh test app`
 mise run check            # runs `nsh check app`
 ```

@@ -5,7 +5,7 @@ mise install
 
 if command -v cargo >/dev/null 2>&1; then
   echo "Building Ear CLI (release)…"
-  mise run build-cli
+  mise run cli:build
 fi
 
 # nsh Linux host needs WebKitGTK 6 for web views (see https://nsh.dev/docs/linux).

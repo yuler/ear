@@ -42,7 +42,7 @@ export function Sidebar(props: SidebarProps) {
               <Text class="text-sm font-bold tracking-tight text-foreground">
                 Ear
               </Text>
-              <Text class="text-[10px] text-dim">Immersion Player</Text>
+              <Text class="text-[10px] text-dim">Comprehensible Input</Text>
             </View>
           </View>
         </View>
