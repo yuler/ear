@@ -24,6 +24,7 @@ export type EarDownloadParams = {
   outputPath: string;
   videoUrl?: string | null;
   audioUrl?: string | null;
+  signal?: AbortSignal;
   onProgress?: (ev: DownloadProgressEvent) => void;
 };
 
@@ -241,6 +242,17 @@ export async function earDownload(
               new Error("process.spawn not supported in current environment"),
             );
             return;
+          }
+
+          if (params.signal) {
+            params.signal.addEventListener("abort", () => {
+              try {
+                (child as any).kill?.();
+              } catch {
+                // ignore
+              }
+              reject(new Error("Download paused by user"));
+            });
           }
 
           child.on("stdout", (line: string) => {

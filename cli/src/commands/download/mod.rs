@@ -1,220 +1,28 @@
+pub mod checkpoint;
+pub mod library_sync;
+pub mod transfer;
+
+use crate::commands::download::checkpoint::PartCheckpoint;
+use crate::commands::download::library_sync::{
+    fetch_and_save_captions, get_default_downloads_dir, get_library_dir,
+    sync_entry_paused, sync_entry_progress, sync_entry_ready, LibraryEntrySync,
+};
+use crate::commands::download::transfer::{
+    download_stream_parallel, download_stream_sequential, probe_remote_size, StreamDownloadParams,
+};
 use crate::emit::emit_json;
 use crate::youtube::{
-    build_quality_options, extract_visitor_data, fetch_visionos_player, http_get_text,
-    parse_clen_from_url, pick_best_audio, WATCH_UA, VISIONOS_UA,
+    build_quality_options, extract_video_id, extract_visitor_data, fetch_visionos_player,
+    http_get_text, pick_best_audio, WATCH_UA,
 };
 use serde_json::json;
-use std::fs::{self, File, OpenOptions};
-use std::io::{BufRead, BufReader, Read, Write};
-#[cfg(unix)]
-use std::os::unix::fs::FileExt;
+use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
-use std::sync::Arc;
+use std::sync::{Arc, RwLock};
 use std::thread;
 use std::time::{Duration, Instant};
-
-const RANGE_CHUNK_SIZE: u64 = 4 * 1024 * 1024; // 4 MiB chunks for parallel range download
-const WORKER_COUNT: usize = 4;
-
-fn probe_remote_size(url: &str) -> Option<u64> {
-    if let Some(clen) = parse_clen_from_url(url) {
-        return Some(clen);
-    }
-    let out = Command::new("curl")
-        .args([
-            "-sS",
-            "-L",
-            "-I",
-            "--max-time",
-            "15",
-            "-A",
-            VISIONOS_UA,
-            "-r",
-            "0-0",
-            url,
-        ])
-        .output()
-        .ok()?;
-    let headers = String::from_utf8_lossy(&out.stdout);
-    for line in headers.lines() {
-        let lower = line.to_ascii_lowercase();
-        if lower.starts_with("content-range:") {
-            if let Some(slash) = line.rfind('/') {
-                if let Ok(total) = line[slash + 1..].trim().parse::<u64>() {
-                    if total > 0 {
-                        return Some(total);
-                    }
-                }
-            }
-        }
-    }
-    None
-}
-
-#[cfg(unix)]
-fn download_stream_parallel(
-    url: &str,
-    dest: &Path,
-    total_size: u64,
-    global_downloaded: &Arc<AtomicU64>,
-    failed: &Arc<AtomicBool>,
-) -> Result<(), String> {
-    let file = OpenOptions::new()
-        .create(true)
-        .write(true)
-        .truncate(true)
-        .open(dest)
-        .map_err(|e| format!("failed to open {}: {e}", dest.display()))?;
-    file.set_len(total_size)
-        .map_err(|e| format!("failed to allocate {}: {e}", dest.display()))?;
-    let file = Arc::new(file);
-
-    let mut chunks: Vec<(u64, u64)> = Vec::new();
-    let mut offset = 0u64;
-    while offset < total_size {
-        let end = (offset + RANGE_CHUNK_SIZE - 1).min(total_size - 1);
-        chunks.push((offset, end));
-        offset = end + 1;
-    }
-
-    let next_chunk = Arc::new(AtomicU64::new(0));
-    let chunks = Arc::new(chunks);
-
-    thread::scope(|s| {
-        let mut handles = Vec::new();
-        for _ in 0..WORKER_COUNT.min(chunks.len().max(1)) {
-            let file = Arc::clone(&file);
-            let chunks = Arc::clone(&chunks);
-            let next_chunk = Arc::clone(&next_chunk);
-            let global_downloaded = Arc::clone(global_downloaded);
-            let failed = Arc::clone(failed);
-            let url_owned = url.to_string();
-
-            handles.push(s.spawn(move || -> Result<(), String> {
-                loop {
-                    if failed.load(Ordering::Relaxed) {
-                        return Err("aborted".to_string());
-                    }
-                    let idx = next_chunk.fetch_add(1, Ordering::SeqCst) as usize;
-                    if idx >= chunks.len() {
-                        break;
-                    }
-                    let (start, end) = chunks[idx];
-                    let range_arg = format!("{start}-{end}");
-
-                    let mut child = Command::new("curl")
-                        .args([
-                            "-sS",
-                            "-L",
-                            "--fail",
-                            "--retry",
-                            "3",
-                            "--retry-delay",
-                            "1",
-                            "-A",
-                            VISIONOS_UA,
-                            "-r",
-                            &range_arg,
-                            &url_owned,
-                        ])
-                        .stdout(Stdio::piped())
-                        .stderr(Stdio::null())
-                        .spawn()
-                        .map_err(|e| {
-                            failed.store(true, Ordering::Relaxed);
-                            format!("curl spawn error: {e}")
-                        })?;
-
-                    let mut stdout = child.stdout.take().ok_or_else(|| {
-                        failed.store(true, Ordering::Relaxed);
-                        "missing curl stdout".to_string()
-                    })?;
-
-                    let mut buf = [0u8; 64 * 1024];
-                    let mut pos = start;
-                    loop {
-                        let n = stdout.read(&mut buf).map_err(|e| {
-                            failed.store(true, Ordering::Relaxed);
-                            format!("read error: {e}")
-                        })?;
-                        if n == 0 {
-                            break;
-                        }
-                        file.write_all_at(&buf[..n], pos).map_err(|e| {
-                            failed.store(true, Ordering::Relaxed);
-                            format!("write error: {e}")
-                        })?;
-                        pos += n as u64;
-                        global_downloaded.fetch_add(n as u64, Ordering::Relaxed);
-                    }
-
-                    let status = child.wait().map_err(|e| {
-                        failed.store(true, Ordering::Relaxed);
-                        format!("curl wait error: {e}")
-                    })?;
-                    let expected_len = end - start + 1;
-                    if !status.success() || (pos - start) != expected_len {
-                        failed.store(true, Ordering::Relaxed);
-                        return Err(format!(
-                            "range {start}-{end} incomplete (got {}, expected {expected_len})",
-                            pos - start
-                        ));
-                    }
-                }
-                Ok(())
-            }));
-        }
-
-        for h in handles {
-            h.join().map_err(|_| "worker thread panicked".to_string())??;
-        }
-        Ok(())
-    })
-}
-
-#[cfg(not(unix))]
-fn download_stream_parallel(
-    url: &str,
-    dest: &Path,
-    _total_size: u64,
-    global_downloaded: &Arc<AtomicU64>,
-    failed: &Arc<AtomicBool>,
-) -> Result<(), String> {
-    download_stream_sequential(url, dest, global_downloaded, failed)
-}
-
-fn download_stream_sequential(
-    url: &str,
-    dest: &Path,
-    global_downloaded: &Arc<AtomicU64>,
-    failed: &Arc<AtomicBool>,
-) -> Result<(), String> {
-    let mut file = File::create(dest).map_err(|e| format!("create {}: {e}", dest.display()))?;
-    let mut child = Command::new("curl")
-        .args(["-sS", "-L", "--fail", "-A", VISIONOS_UA, url])
-        .stdout(Stdio::piped())
-        .stderr(Stdio::null())
-        .spawn()
-        .map_err(|e| format!("curl spawn: {e}"))?;
-    let mut stdout = child.stdout.take().ok_or("no stdout")?;
-    let mut buf = [0u8; 64 * 1024];
-    loop {
-        let n = stdout.read(&mut buf).map_err(|e| e.to_string())?;
-        if n == 0 {
-            break;
-        }
-        file.write_all(&buf[..n]).map_err(|e| e.to_string())?;
-        global_downloaded.fetch_add(n as u64, Ordering::Relaxed);
-    }
-    let st = child.wait().map_err(|e| e.to_string())?;
-    if !st.success() {
-        failed.store(true, Ordering::Relaxed);
-        return Err("curl download failed".to_string());
-    }
-    Ok(())
-}
 
 fn fallback_yt_dlp(video_id: &str, quality: &str, output_path: &Path) -> Result<u64, String> {
     let url = format!("https://www.youtube.com/watch?v={video_id}");
@@ -249,32 +57,6 @@ fn fallback_yt_dlp(video_id: &str, quality: &str, output_path: &Path) -> Result<
         .spawn()
         .map_err(|e| format!("yt-dlp fallback failed to start: {e}"))?;
 
-    if let Some(stdout) = child.stdout.take() {
-        let reader = BufReader::new(stdout);
-        for line in reader.lines().map_while(Result::ok) {
-            if line.contains("[download]") && line.contains('%') {
-                // Parse percentage if present
-                if let Some(pct_idx) = line.find('%') {
-                    let prefix = &line[..pct_idx];
-                    if let Some(num_str) = prefix.split_whitespace().last() {
-                        if let Ok(pct) = num_str.parse::<f64>() {
-                            emit_json(json!({
-                                "v": 1,
-                                "type": "progress",
-                                "stage": "downloading",
-                                "percent": pct.clamp(0.0, 99.0),
-                                "downloadedBytes": 0,
-                                "totalBytes": 0,
-                                "speedBps": 0,
-                                "etaSeconds": null
-                            }));
-                        }
-                    }
-                }
-            }
-        }
-    }
-
     let st = child.wait().map_err(|e| e.to_string())?;
     if !st.success() || !output_path.exists() {
         return Err("yt-dlp failed to download media".to_string());
@@ -289,6 +71,8 @@ pub fn run(args: &[String]) -> Result<(), String> {
     let mut video_url: Option<String> = None;
     let mut audio_url: Option<String> = None;
     let mut quality = "720p".to_string();
+    let mut concurrency: usize = 4;
+    let mut no_captions = false;
 
     let mut i = 0;
     while i < args.len() {
@@ -300,6 +84,19 @@ pub fn run(args: &[String]) -> Result<(), String> {
             "--output" | "-o" => {
                 i += 1;
                 output_str = args.get(i).cloned().unwrap_or_default();
+            }
+            "--quality" | "-q" => {
+                i += 1;
+                quality = args.get(i).cloned().unwrap_or_else(|| "720p".to_string());
+            }
+            "--concurrency" | "-c" => {
+                i += 1;
+                if let Some(c) = args.get(i).and_then(|s| s.parse::<usize>().ok()) {
+                    concurrency = c.clamp(1, 16);
+                }
+            }
+            "--no-captions" => {
+                no_captions = true;
             }
             "--video-url" => {
                 i += 1;
@@ -315,12 +112,8 @@ pub fn run(args: &[String]) -> Result<(), String> {
                     audio_url = Some(a);
                 }
             }
-            "--quality" | "-q" => {
-                i += 1;
-                quality = args.get(i).cloned().unwrap_or_else(|| "720p".to_string());
-            }
             arg if !arg.starts_with('-') && video_id.is_empty() => {
-                if let Some(id) = crate::youtube::extract_video_id(arg) {
+                if let Some(id) = extract_video_id(arg) {
                     video_id = id;
                 } else {
                     video_id = arg.to_string();
@@ -332,17 +125,20 @@ pub fn run(args: &[String]) -> Result<(), String> {
     }
 
     if video_id.is_empty() && video_url.is_none() && audio_url.is_none() {
-        return Err("Missing video ID or URL. Usage: ear download <URL|ID> [--output <path>] [--quality <q>]".to_string());
+        return Err("Missing video ID or URL. Usage: ear download <URL|ID> [-o <path>] [-q <q>] [-c <concurrency>]".to_string());
     }
 
+    let is_audio_only = quality == "audio";
+    let ext = if is_audio_only { "m4a" } else { "mp4" };
+
     if output_str.is_empty() {
-        let ext = if quality == "audio" { "m4a" } else { "mp4" };
         let base = if !video_id.is_empty() {
             &video_id
         } else {
             "media"
         };
-        output_str = format!("./{base}.{ext}");
+        let dl_dir = get_default_downloads_dir();
+        output_str = dl_dir.join(format!("{base}.{ext}")).to_string_lossy().to_string();
     }
 
     let output_path = PathBuf::from(&output_str);
@@ -350,13 +146,23 @@ pub fn run(args: &[String]) -> Result<(), String> {
         fs::create_dir_all(parent).map_err(|e| format!("mkdir {}: {e}", parent.display()))?;
     }
 
-    // If neither video_url nor audio_url was provided, resolve them first
-    if video_url.is_none() && audio_url.is_none() && !video_id.is_empty() {
+    let library_dir = get_library_dir();
+    let mut player_json: Option<serde_json::Value> = None;
+    let mut video_title = video_id.clone();
+    let mut thumbnail_url: Option<String> = None;
+
+    // Resolve stream URLs via YouTube VisionOS player API
+    if !video_id.is_empty() {
         let watch_url = format!("https://www.youtube.com/watch?v={video_id}");
         let visitor = http_get_text(&watch_url, WATCH_UA)
             .ok()
             .and_then(|h| extract_visitor_data(&h));
         if let Some(player) = fetch_visionos_player(&video_id, visitor.as_deref()) {
+            if let Some(details) = player.get("videoDetails") {
+                if let Some(t) = details.get("title").and_then(|t| t.as_str()) {
+                    video_title = t.to_string();
+                }
+            }
             let streaming = player.get("streamingData");
             let formats = streaming
                 .and_then(|s| s.get("formats"))
@@ -370,14 +176,38 @@ pub fn run(args: &[String]) -> Result<(), String> {
                 .unwrap_or_default();
             let best_audio = pick_best_audio(&adaptive);
             let qualities = build_quality_options(&formats, &adaptive, best_audio.as_ref());
+
             if let Some(q) = qualities
                 .iter()
                 .find(|q| q.id == quality)
                 .or_else(|| qualities.first())
             {
-                video_url = q.video_url.clone();
-                audio_url = q.audio_url.clone();
+                if video_url.is_none() {
+                    video_url = q.video_url.clone();
+                }
+                if audio_url.is_none() {
+                    audio_url = q.audio_url.clone();
+                }
             }
+            thumbnail_url = Some(format!("https://i.ytimg.com/vi/{video_id}/hqdefault.jpg"));
+            player_json = Some(player);
+        }
+    }
+
+    // Initialize or update library entry with state: downloading
+    if let Some(ref lib_dir) = library_dir {
+        if !video_id.is_empty() {
+            let mut entry = LibraryEntrySync::load_or_new(
+                lib_dir,
+                &video_id,
+                &video_title,
+                &quality,
+                thumbnail_url.clone(),
+            );
+            entry.video_path = if is_audio_only { None } else { Some(output_path.to_string_lossy().to_string()) };
+            entry.audio_path = if is_audio_only { Some(output_path.to_string_lossy().to_string()) } else { None };
+            entry.state = "downloading".to_string();
+            let _ = entry.save(lib_dir);
         }
     }
 
@@ -404,9 +234,12 @@ pub fn run(args: &[String]) -> Result<(), String> {
     let failed = Arc::new(AtomicBool::new(false));
     let finished_transfer = Arc::new(AtomicBool::new(false));
 
-    // Start background reporter thread for real-time speed, efficiency & progress
+    // Live telemetry reporter thread
     let rep_downloaded = Arc::clone(&global_downloaded);
     let rep_done = Arc::clone(&finished_transfer);
+    let rep_lib_dir = library_dir.clone();
+    let rep_vid = video_id.clone();
+
     let reporter = thread::spawn(move || {
         let start_inst = Instant::now();
         let mut last_inst = start_inst;
@@ -414,7 +247,7 @@ pub fn run(args: &[String]) -> Result<(), String> {
         let mut smoothed_speed = 0.0f64;
 
         while !rep_done.load(Ordering::Relaxed) {
-            thread::sleep(Duration::from_millis(120));
+            thread::sleep(Duration::from_millis(150));
             if rep_done.load(Ordering::Relaxed) {
                 break;
             }
@@ -444,35 +277,128 @@ pub fn run(args: &[String]) -> Result<(), String> {
                 None
             };
 
+            let rounded_pct = (pct * 10.0).round() / 10.0;
+            let speed_bps = smoothed_speed.round() as u64;
+
             emit_json(json!({
                 "v": 1,
                 "type": "progress",
                 "stage": "downloading",
-                "percent": (pct * 10.0).round() / 10.0,
+                "percent": rounded_pct,
                 "downloadedBytes": cur_bytes,
                 "totalBytes": total_bytes,
-                "speedBps": smoothed_speed.round() as u64,
+                "speedBps": speed_bps,
                 "etaSeconds": eta_seconds
             }));
+
+            if let Some(ref lib) = rep_lib_dir {
+                if !rep_vid.is_empty() {
+                    sync_entry_progress(lib, &rep_vid, cur_bytes, total_bytes, rounded_pct, speed_bps, eta_seconds);
+                }
+            }
         }
     });
 
     let mut transfer_res: Result<(), String> = Ok(());
 
+    // Helper for URL refresh
+    let vid_for_refresh = video_id.clone();
+    let quality_for_refresh = quality.clone();
+    let make_url_refresher = move |is_video: bool| -> Arc<dyn Fn() -> Option<String> + Send + Sync> {
+        let vid = vid_for_refresh.clone();
+        let qid = quality_for_refresh.clone();
+        Arc::new(move || {
+            let watch_url = format!("https://www.youtube.com/watch?v={vid}");
+            let visitor = http_get_text(&watch_url, WATCH_UA)
+                .ok()
+                .and_then(|h| extract_visitor_data(&h));
+            let player = fetch_visionos_player(&vid, visitor.as_deref())?;
+            let streaming = player.get("streamingData")?;
+            let formats = streaming.get("formats").and_then(|f| f.as_array()).cloned().unwrap_or_default();
+            let adaptive = streaming.get("adaptiveFormats").and_then(|f| f.as_array()).cloned().unwrap_or_default();
+            let best_audio = pick_best_audio(&adaptive);
+            let qualities = build_quality_options(&formats, &adaptive, best_audio.as_ref());
+            let target_q = qualities.iter().find(|q| q.id == qid).or_else(|| qualities.first())?;
+            if is_video {
+                target_q.video_url.clone()
+            } else {
+                target_q.audio_url.clone()
+            }
+        })
+    };
+
     if let Some(ref vurl) = video_url {
-        transfer_res = if let Some(vs) = v_size {
-            download_stream_parallel(vurl, &video_part, vs, &global_downloaded, &failed)
+        let url_state = Arc::new(RwLock::new(vurl.clone()));
+        let refresher = if !video_id.is_empty() {
+            Some(make_url_refresher(true))
         } else {
-            download_stream_sequential(vurl, &video_part, &global_downloaded, &failed)
+            None
+        };
+
+        transfer_res = if let Some(vs) = v_size {
+            download_stream_parallel(StreamDownloadParams {
+                video_id: &video_id,
+                stream_type: "video",
+                dest: &video_part,
+                total_size: vs,
+                concurrency,
+                global_downloaded: &global_downloaded,
+                failed: &failed,
+                url_state,
+                url_refresher: refresher,
+                on_progress: None,
+            })
+        } else {
+            download_stream_sequential(StreamDownloadParams {
+                video_id: &video_id,
+                stream_type: "video",
+                dest: &video_part,
+                total_size: 0,
+                concurrency: 1,
+                global_downloaded: &global_downloaded,
+                failed: &failed,
+                url_state,
+                url_refresher: refresher,
+                on_progress: None,
+            })
         };
     }
 
     if transfer_res.is_ok() {
         if let Some(ref aurl) = audio_url {
-            transfer_res = if let Some(asize) = a_size {
-                download_stream_parallel(aurl, &audio_part, asize, &global_downloaded, &failed)
+            let url_state = Arc::new(RwLock::new(aurl.clone()));
+            let refresher = if !video_id.is_empty() {
+                Some(make_url_refresher(false))
             } else {
-                download_stream_sequential(aurl, &audio_part, &global_downloaded, &failed)
+                None
+            };
+
+            transfer_res = if let Some(asize) = a_size {
+                download_stream_parallel(StreamDownloadParams {
+                    video_id: &video_id,
+                    stream_type: "audio",
+                    dest: &audio_part,
+                    total_size: asize,
+                    concurrency,
+                    global_downloaded: &global_downloaded,
+                    failed: &failed,
+                    url_state,
+                    url_refresher: refresher,
+                    on_progress: None,
+                })
+            } else {
+                download_stream_sequential(StreamDownloadParams {
+                    video_id: &video_id,
+                    stream_type: "audio",
+                    dest: &audio_part,
+                    total_size: 0,
+                    concurrency: 1,
+                    global_downloaded: &global_downloaded,
+                    failed: &failed,
+                    url_state,
+                    url_refresher: refresher,
+                    on_progress: None,
+                })
             };
         }
     }
@@ -480,7 +406,17 @@ pub fn run(args: &[String]) -> Result<(), String> {
     finished_transfer.store(true, Ordering::Relaxed);
     let _ = reporter.join();
 
-    if transfer_res.is_ok() && (video_url.is_some() || audio_url.is_some()) {
+    if let Err(ref e) = transfer_res {
+        // Record paused or error state into library entry
+        if let Some(ref lib) = library_dir {
+            if !video_id.is_empty() {
+                sync_entry_paused(lib, &video_id, e);
+            }
+        }
+        return Err(format!("Download failed or paused: {e}"));
+    }
+
+    if video_url.is_some() || audio_url.is_some() {
         match (video_url.is_some(), audio_url.is_some()) {
             (true, true) => {
                 emit_json(json!({
@@ -510,8 +446,12 @@ pub fn run(args: &[String]) -> Result<(), String> {
                     ])
                     .status()
                     .map_err(|e| format!("ffmpeg execution failed: {e}"))?;
+
                 let _ = fs::remove_file(&video_part);
                 let _ = fs::remove_file(&audio_part);
+                PartCheckpoint::cleanup(&video_part);
+                PartCheckpoint::cleanup(&audio_part);
+
                 if !st.success() {
                     let _ = fs::remove_file(&mux_part);
                     return Err("ffmpeg failed to mux video and audio".to_string());
@@ -522,10 +462,12 @@ pub fn run(args: &[String]) -> Result<(), String> {
             (true, false) => {
                 fs::rename(&video_part, &output_path)
                     .map_err(|e| format!("rename video failed: {e}"))?;
+                PartCheckpoint::cleanup(&video_part);
             }
             (false, true) => {
                 fs::rename(&audio_part, &output_path)
                     .map_err(|e| format!("rename audio failed: {e}"))?;
+                PartCheckpoint::cleanup(&audio_part);
             }
             (false, false) => unreachable!(),
         }
@@ -533,6 +475,33 @@ pub fn run(args: &[String]) -> Result<(), String> {
         let final_size = fs::metadata(&output_path)
             .map(|m| m.len())
             .unwrap_or(total_bytes);
+
+        // Fetch and save captions if not disabled
+        let mut saved_captions_path: Option<String> = None;
+        if !no_captions && !video_id.is_empty() {
+            if let Some(ref lib) = library_dir {
+                if let Some(ref p) = player_json {
+                    if let Some(cpath) = fetch_and_save_captions(&video_id, &video_title, lib, p) {
+                        saved_captions_path = Some(cpath.to_string_lossy().to_string());
+                    }
+                }
+            }
+        }
+
+        // Mark library entry as ready
+        if let Some(ref lib) = library_dir {
+            if !video_id.is_empty() {
+                sync_entry_ready(
+                    lib,
+                    &video_id,
+                    &output_path,
+                    saved_captions_path.as_deref(),
+                    final_size,
+                    is_audio_only,
+                );
+            }
+        }
+
         emit_json(json!({
             "v": 1,
             "type": "done",
@@ -543,13 +512,19 @@ pub fn run(args: &[String]) -> Result<(), String> {
         return Ok(());
     }
 
-    // Cleanup partial files and try yt-dlp fallback
-    let _ = fs::remove_file(&video_part);
-    let _ = fs::remove_file(&audio_part);
-    let _ = fs::remove_file(&mux_part);
-
+    // Fallback to yt-dlp if needed
     if !video_id.is_empty() {
         let size = fallback_yt_dlp(&video_id, &quality, &output_path)?;
+        if let Some(ref lib) = library_dir {
+            sync_entry_ready(
+                lib,
+                &video_id,
+                &output_path,
+                None,
+                size,
+                is_audio_only,
+            );
+        }
         emit_json(json!({
             "v": 1,
             "type": "done",
@@ -560,6 +535,5 @@ pub fn run(args: &[String]) -> Result<(), String> {
         return Ok(());
     }
 
-    Err(transfer_res.err().unwrap_or_else(|| "Download failed".to_string()))
+    Err("Download failed".to_string())
 }
-

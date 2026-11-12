@@ -6,6 +6,7 @@ import {
   Text,
   View,
 } from "nsh";
+import { Button } from "nsh/base";
 import {
   formatEta,
   formatSizeProgress,
@@ -25,9 +26,13 @@ const THUMBNAIL_HEIGHT = 88;
  * 2. Visual color-to-grayscale transition across the video picture:
  *    left X% in full vibrant color, right (100 - X)% in grayscale.
  * 3. Live Downbit-style telemetry (MB/s, ETA, transferred size, stage).
+ * 4. Interactive Pause / Resume and Cancel controls for breakpoint resuming.
  */
 export function ActiveDownloadRow(props: {
   task: () => DownloadTaskProgress;
+  onPause?: (videoId: string) => void;
+  onResume?: (videoId: string) => void;
+  onCancel?: (videoId: string) => void;
 }) {
   const slideMotion = createMotion({
     enter: "slideInDown",
@@ -35,6 +40,8 @@ export function ActiveDownloadRow(props: {
   });
 
   const isDone = () => props.task().stage === "done";
+  const isPaused = () => props.task().stage === "paused";
+  const isError = () => props.task().stage === "error";
 
   effect(() => {
     if (isDone()) {
@@ -70,22 +77,40 @@ export function ActiveDownloadRow(props: {
     if (stage === "starting") return "Starting background download…";
     if (stage === "merging") return "Merging video & audio (FFmpeg)…";
     if (stage === "done") return "Download complete";
+    if (stage === "paused") return "已暂停 · 点击继续下载";
+    if (stage === "error") return props.task().error || "下载中断 · 点击重试";
     return "Downloading to ~/Downloads…";
+  };
+
+  const barColor = () => {
+    if (isDone()) return "bg-ready";
+    if (isPaused()) return "bg-amber";
+    if (isError()) return "bg-destructive";
+    return "bg-[#2f7cf6]";
+  };
+
+  const cardBorder = () => {
+    if (isDone()) return "border-ready/80 bg-ready/10";
+    if (isPaused()) return "border-amber/50 bg-amber-soft/10";
+    if (isError()) return "border-destructive/50 bg-destructive/10";
+    return "border-[#2f7cf6]/50 hover:border-[#2f7cf6]";
   };
 
   return (
     <View
       style={slideMotion.style}
-      class={`relative overflow-hidden rounded-xl border bg-popover p-3 shadow-md transition ${
-        isDone()
-          ? "border-ready/80 bg-ready/10"
-          : "border-[#2f7cf6]/50 hover:border-[#2f7cf6]"
-      }`}
+      class={`relative overflow-hidden rounded-xl border bg-popover p-3 shadow-md transition ${cardBorder()}`}
     >
       {/* Subtle ambient progress wash behind the horizontal card */}
       <View
         style={{ width: `${percent()}%` }}
-        class="pointer-events-none absolute inset-y-0 left-0 bg-[#2f7cf6]/5 transition-all duration-150"
+        class={`pointer-events-none absolute inset-y-0 left-0 transition-all duration-150 ${
+          isPaused()
+            ? "bg-amber/5"
+            : isError()
+              ? "bg-destructive/5"
+              : "bg-[#2f7cf6]/5"
+        }`}
       />
 
       <View class="flex-row items-center gap-3.5">
@@ -135,21 +160,39 @@ export function ActiveDownloadRow(props: {
           <If when={percent() > 0 && percent() < 100}>
             <View
               style={{ left: `${percent()}%` }}
-              class="absolute inset-y-0 w-[2px] -translate-x-1/2 bg-white shadow-[0_0_8px_#ffffff]"
+              class={`absolute inset-y-0 w-[2px] -translate-x-1/2 shadow-[0_0_8px_#ffffff] ${
+                isPaused()
+                  ? "bg-amber"
+                  : isError()
+                    ? "bg-destructive"
+                    : "bg-white"
+              }`}
             />
           </If>
 
-          {/* Center spinner overlay / checkmark when complete */}
+          {/* Center spinner overlay / checkmark when complete / pause icon */}
           <View class="pointer-events-none absolute inset-0 items-center justify-center">
             <View
               class={`h-6 w-6 items-center justify-center rounded-full backdrop-blur-sm ${
-                isDone() ? "bg-ready/85" : "bg-black/60"
+                isDone()
+                  ? "bg-ready/85"
+                  : isPaused()
+                    ? "bg-amber/85"
+                    : isError()
+                      ? "bg-destructive/85"
+                      : "bg-black/60"
               }`}
             >
               <If when={isDone()}>
                 <Icon name="check" size={13} color="#ffffff" />
               </If>
-              <If when={!isDone()}>
+              <If when={isPaused()}>
+                <Icon name="pause" size={11} color="#ffffff" />
+              </If>
+              <If when={isError()}>
+                <Icon name="repeat" size={11} color="#ffffff" />
+              </If>
+              <If when={!isDone() && !isPaused() && !isError()}>
                 <Icon
                   name="loader"
                   size={12}
@@ -200,10 +243,18 @@ export function ActiveDownloadRow(props: {
             </View>
           </View>
 
-          {/* Telemetry line: Percent · Size · Speed · ETA */}
+          {/* Telemetry line: Percent · Size · Speed · ETA & Action Buttons */}
           <View class="flex-row flex-wrap items-center justify-between gap-2 pt-0.5">
             <View class="flex-row flex-wrap items-center gap-2">
-              <Text class="font-mono text-xs font-bold tabular-nums text-[#2f7cf6]">
+              <Text
+                class={`font-mono text-xs font-bold tabular-nums ${
+                  isPaused()
+                    ? "text-amber"
+                    : isError()
+                      ? "text-destructive"
+                      : "text-[#2f7cf6]"
+                }`}
+              >
                 {roundedPercent()}%
               </Text>
               <If when={Boolean(sizeStr())}>
@@ -211,23 +262,56 @@ export function ActiveDownloadRow(props: {
                   · {sizeStr()}
                 </Text>
               </If>
-              <If when={Boolean(speedStr())}>
+              <If when={Boolean(speedStr()) && !isPaused() && !isError()}>
                 <View class="rounded bg-[#2f7cf6]/15 px-1.5 py-0.5">
                   <Text class="font-mono text-[11px] font-semibold tabular-nums text-[#2f7cf6]">
                     ↓ {speedStr()}
                   </Text>
                 </View>
               </If>
-              <If when={Boolean(etaStr())}>
+              <If when={Boolean(etaStr()) && !isPaused() && !isError()}>
                 <Text class="font-mono text-xs tabular-nums text-dim">
                   · {etaStr()}
                 </Text>
               </If>
             </View>
 
-            <Text class="font-mono text-[11px] text-dim">
-              {stageText()}
-            </Text>
+            <View class="flex-row items-center gap-2">
+              <Text class="font-mono text-[11px] text-dim">
+                {stageText()}
+              </Text>
+
+              {/* Action Buttons: Pause / Resume / Cancel */}
+              <If when={!isDone()}>
+                <View class="flex-row items-center gap-1.5 pl-1">
+                  <If when={isPaused() || isError()}>
+                    <Button
+                      onPress={() => props.onResume?.(props.task().videoId)}
+                      class="flex-row items-center gap-1 rounded bg-[#2f7cf6] px-2 py-0.5 transition hover:opacity-90 active:scale-95"
+                    >
+                      <Icon name="play" size={10} color="#ffffff" />
+                      <Text class="font-mono text-[10px] font-bold text-white">
+                        {isError() ? "重试" : "继续"}
+                      </Text>
+                    </Button>
+                  </If>
+                  <If when={!isPaused() && !isError()}>
+                    <Button
+                      onPress={() => props.onPause?.(props.task().videoId)}
+                      class="rounded border border-line bg-well p-1 transition hover:bg-hover active:scale-95"
+                    >
+                      <Icon name="pause" size={11} tone="foreground" />
+                    </Button>
+                  </If>
+                  <Button
+                    onPress={() => props.onCancel?.(props.task().videoId)}
+                    class="rounded border border-line bg-well p-1 transition hover:bg-destructive/20 active:scale-95"
+                  >
+                    <Icon name="x" size={11} tone="muted-foreground" />
+                  </Button>
+                </View>
+              </If>
+            </View>
           </View>
         </View>
       </View>
@@ -238,7 +322,7 @@ export function ActiveDownloadRow(props: {
           style={{
             width: `${Math.max(2, percent())}%`,
           }}
-          class="h-full bg-[#2f7cf6] transition-all duration-150"
+          class={`h-full ${barColor()} transition-all duration-150`}
         />
       </View>
     </View>

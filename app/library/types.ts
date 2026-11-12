@@ -1,9 +1,15 @@
-/** Entry lifecycle: captions ready to practice, or failed. */
-export type LibraryEntryState = "pending" | "ready" | "error";
+/** Entry lifecycle: downloading in progress, paused, ready to practice, or failed. */
+export type LibraryEntryState =
+  | "pending"
+  | "downloading"
+  | "paused"
+  | "ready"
+  | "error";
 
 export type DownloadStage =
   | "starting"
   | "downloading"
+  | "paused"
   | "merging"
   | "done"
   | "error";
@@ -57,6 +63,14 @@ export type LibraryEntry = {
   subtitleIsAuto?: boolean | null;
   /** Downloaded media file size in bytes. */
   sizeBytes?: number | null;
+  /** Dynamically downloaded bytes so far. */
+  downloadedBytes?: number | null;
+  /** Download percentage (0.0 - 100.0). */
+  percent?: number | null;
+  /** Current speed in bytes per second. */
+  speedBps?: number | null;
+  /** Estimated time remaining in seconds. */
+  etaSeconds?: number | null;
   /** Why media was not saved, or parse/download error detail. */
   note: string | null;
   createdAt: number;

@@ -84,6 +84,8 @@ export type DownloadOptions = {
   downloadFolder?: string | null;
   /** Chosen quality ID (e.g. "1080p", "720p", "480p", "360p", "audio"). */
   qualityId?: string | null;
+  /** Optional abort / pause signal */
+  signal?: AbortSignal;
   /** Real-time progress callback for Downbit-style background download UI. */
   onProgress?: (progress: DownloadTaskProgress) => void;
 };
@@ -269,6 +271,7 @@ export async function downloadLesson(
           ? null
           : (chosenQuality?.videoUrl ?? video.videoUrl ?? null),
         audioUrl: chosenQuality?.audioUrl ?? video.audioUrl ?? null,
+        signal: options.signal,
         onProgress: (ev: DownloadProgressEvent) => {
           emitProgress({
             stage: ev.stage as DownloadStage,
@@ -291,14 +294,16 @@ export async function downloadLesson(
       }
     } catch (e) {
       audioNote = e instanceof Error ? e.message : String(e);
-      emitProgress({ stage: "error", error: audioNote });
+      const isPaused = options.signal?.aborted || audioNote.toLowerCase().includes("pause");
+      const finalStage: DownloadStage = isPaused ? "paused" : "error";
+      emitProgress({ stage: finalStage, error: isPaused ? null : audioNote });
       const entry: LibraryEntry = {
         videoId: video.videoId,
         url: watchUrl,
         title: video.title,
         thumbnailUrl,
         site: "YouTube",
-        state: "error",
+        state: isPaused ? "paused" : "error",
         captionsPath,
         videoPath: null,
         audioPath: null,
@@ -310,7 +315,7 @@ export async function downloadLesson(
         subtitleLabel,
         subtitleIsAuto,
         sizeBytes: null,
-        note: audioNote,
+        note: isPaused ? "Paused" : audioNote,
         createdAt: existing?.createdAt ?? now,
         updatedAt: Date.now(),
       };

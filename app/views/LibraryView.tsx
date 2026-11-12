@@ -26,11 +26,16 @@ export function LibraryView(props: {
   onOpenEntry: (entry: LibraryEntry, originRect?: ViewTransitionRect | null) => void;
   onOpenFolder: (entry: LibraryEntry) => void;
   onDeleteEntry?: (entry: LibraryEntry) => void;
+  onPauseDownload?: (videoId: string) => void;
+  onResumeDownload?: (videoId: string) => void;
+  onCancelDownload?: (videoId: string) => void;
 }) {
   const currentEntries = () => {
     const isAudio = props.activeTab() === "audio";
     return props.savedEntries().filter((e) =>
-      isAudio ? isAudioEntry(e) : !isAudioEntry(e),
+      e.state !== "downloading" &&
+      e.state !== "paused" &&
+      (isAudio ? isAudioEntry(e) : !isAudioEntry(e)),
     );
   };
 
@@ -105,7 +110,14 @@ export function LibraryView(props: {
           <If when={currentDownloads().length > 0}>
             <View class="gap-2.5">
               <Each of={currentDownloads()} key={(t) => t.videoId}>
-                {(getTask) => <ActiveDownloadRow task={getTask} />}
+                {(getTask) => (
+                  <ActiveDownloadRow
+                    task={getTask}
+                    onPause={props.onPauseDownload}
+                    onResume={props.onResumeDownload}
+                    onCancel={props.onCancelDownload}
+                  />
+                )}
               </Each>
             </View>
           </If>

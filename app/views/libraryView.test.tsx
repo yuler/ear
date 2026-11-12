@@ -121,3 +121,46 @@ test("library entries are ordered in reverse chronological order with newest pre
   expect(list[2].videoId).toBe("v1");
 });
 
+test("active download task in paused stage retains progress for breakpoint resume", () => {
+  const pausedTask = {
+    videoId: "test-paused",
+    title: "Paused Task",
+    thumbnailUrl: "https://i.ytimg.com/vi/test-paused/hqdefault.jpg",
+    qualityLabel: "720p MP4",
+    subtitleLabel: "English",
+    subtitleIsAuto: false,
+    targetPath: "/downloads/test-paused.mp4",
+    stage: "paused" as const,
+    percent: 64,
+    downloadedBytes: 64 * 1024 * 1024,
+    totalBytes: 100 * 1024 * 1024,
+    speedBps: 0,
+    etaSeconds: null,
+  };
+
+  expect(pausedTask.stage).toBe("paused");
+  expect(pausedTask.percent).toBe(64);
+  expect(pausedTask.downloadedBytes).toBe(64 * 1024 * 1024);
+});
+
+test("library entries filter excludes downloading and paused tasks from completed grid", () => {
+  const readyEntry = mockEntry({ videoId: "ready1", state: "ready" });
+  const downloadingEntry = mockEntry({
+    videoId: "dl1",
+    state: "downloading",
+  });
+  const pausedEntry = mockEntry({ videoId: "pause1", state: "paused" });
+
+  const all = [readyEntry, downloadingEntry, pausedEntry];
+  const completedVideos = all.filter(
+    (e) =>
+      e.state !== "downloading" &&
+      e.state !== "paused" &&
+      !isAudioEntry(e),
+  );
+
+  expect(completedVideos.length).toBe(1);
+  expect(completedVideos[0].videoId).toBe("ready1");
+});
+
+

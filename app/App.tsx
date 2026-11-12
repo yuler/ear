@@ -21,7 +21,14 @@ import {
 } from "./clipboard";
 import { extractVideoId } from "./youtube/parse";
 import { downloadLesson } from "./library/download";
-import { deleteEntry, listEntriesSafe, normalizeEntry } from "./library/index";
+import {
+  deleteEntry,
+  listEntriesSafe,
+  loadLessonFromEntry,
+  normalizeEntry,
+  readEntry,
+  upsertEntry,
+} from "./library/index";
 import { exists } from "fs/promises";
 import process from "process";
 import {
@@ -76,6 +83,7 @@ function App() {
   const selectedQualityMap = signal<Record<string, string>>({});
   const selectedTrackMap = signal<Record<string, string>>({});
   const downloadTasks = signal<Record<string, DownloadTaskProgress>>({});
+  const activeDownloadControllers = new Map<string, AbortController>();
   const dismissedVideoId = signal<string | null>(null);
   const playingEntry = signal<LibraryEntry | null>(null);
   const playingSrc = signal<string | null>(null);
@@ -187,6 +195,20 @@ function App() {
     }
   });
 
+  // Periodically refresh library to reflect background CLI downloads and status changes
+  effect(() => {
+    if (lifecycle() !== "active") return;
+    const interval = setInterval(async () => {
+      try {
+        const entries = await listEntriesSafe();
+        savedEntries.set(entries);
+      } catch {
+        // ignore
+      }
+    }, 1500);
+    return () => clearInterval(interval);
+  });
+
   // Active video prompt row (either from clipboard or typed YouTube link)
   const activePreview = (): ClipboardVideoPreview | null => {
     const typed = url().trim();
@@ -227,8 +249,35 @@ function App() {
     return pref ? captionTrackId(pref) : "en:manual";
   };
 
-  const activeDownloadsList = (): DownloadTaskProgress[] =>
-    Object.values(downloadTasks());
+  const activeDownloadsList = (): DownloadTaskProgress[] => {
+    const fromSignals = { ...downloadTasks() };
+    const libraryEntries = savedEntries();
+    for (const e of libraryEntries) {
+      if (e.state === "downloading" || e.state === "paused") {
+        if (!fromSignals[e.videoId]) {
+          fromSignals[e.videoId] = {
+            videoId: e.videoId,
+            title: e.title,
+            thumbnailUrl:
+              e.thumbnailUrl ||
+              `https://i.ytimg.com/vi/${e.videoId}/hqdefault.jpg`,
+            qualityLabel: e.quality || "720p",
+            subtitleLabel: e.subtitleLabel || "English",
+            subtitleIsAuto: e.subtitleIsAuto ?? false,
+            targetPath: e.videoPath || e.audioPath || "",
+            stage: e.state === "paused" ? "paused" : "downloading",
+            percent: e.percent ?? 0,
+            downloadedBytes: e.downloadedBytes ?? 0,
+            totalBytes: e.sizeBytes ?? 0,
+            speedBps: e.speedBps ?? 0,
+            etaSeconds: e.etaSeconds ?? null,
+            error: e.note ?? null,
+          };
+        }
+      }
+    }
+    return Object.values(fromSignals);
+  };
 
   const topBarActivityKind = (): ActivityKind => {
     if (activityKind()) return activityKind();
@@ -318,11 +367,15 @@ function App() {
       },
     });
 
+    const ctrl = new AbortController();
+    activeDownloadControllers.set(vid, ctrl);
+
     try {
       const { entry, audioNote } = await downloadLesson(target, {
         fetchImpl: hostFetch,
         downloadFolder: settings().downloadFolder,
         qualityId: effectiveQuality,
+        signal: ctrl.signal,
         onProgress: (prog) => {
           downloadTasks.set({
             ...downloadTasks(),
@@ -393,12 +446,63 @@ function App() {
     } catch (e) {
       error.set(e instanceof Error ? e.message : String(e));
     } finally {
+      activeDownloadControllers.delete(vid);
       activeDownloadIds.delete(vid);
       const next = { ...downloadTasks() };
       delete next[vid];
       downloadTasks.set(next);
       saving.set(activeDownloadIds.size > 0);
     }
+  };
+
+  const handlePauseDownload = async (vid: string) => {
+    const ctrl = activeDownloadControllers.get(vid);
+    if (ctrl) {
+      ctrl.abort();
+      activeDownloadControllers.delete(vid);
+    }
+    const current = downloadTasks()[vid];
+    if (current) {
+      downloadTasks.set({
+        ...downloadTasks(),
+        [vid]: { ...current, stage: "paused" },
+      });
+    }
+    const entry = await readEntry(vid);
+    if (entry) {
+      await upsertEntry({ ...entry, state: "paused", note: "Paused" });
+      const entries = await listEntriesSafe();
+      savedEntries.set(entries);
+    }
+  };
+
+  const handleResumeDownload = async (vid: string) => {
+    const existing = await readEntry(vid);
+    if (!existing) return;
+    const lesson = await loadLessonFromEntry(existing).catch(() => null);
+    if (lesson) {
+      void downloadTargetLesson(lesson);
+    } else {
+      const candidateUrl =
+        existing.url || `https://www.youtube.com/watch?v=${vid}`;
+      url.set(candidateUrl);
+      void onStartDownload();
+    }
+  };
+
+  const handleCancelDownload = async (vid: string) => {
+    const ctrl = activeDownloadControllers.get(vid);
+    if (ctrl) {
+      ctrl.abort();
+      activeDownloadControllers.delete(vid);
+    }
+    const next = { ...downloadTasks() };
+    delete next[vid];
+    downloadTasks.set(next);
+    activeDownloadIds.delete(vid);
+    await deleteEntry(vid, { deleteMediaFile: true });
+    const entries = await listEntriesSafe();
+    savedEntries.set(entries);
   };
 
   // User triggers download (either via button or Return ↵ in omnibar)
@@ -890,6 +994,9 @@ function App() {
                   onOpenEntry={(entry, rect) => void handleOpenEntry(entry, rect)}
                   onOpenFolder={(entry) => void handleOpenFolder(entry)}
                   onDeleteEntry={(entry) => void handleDeleteEntry(entry)}
+                  onPauseDownload={handlePauseDownload}
+                  onResumeDownload={handleResumeDownload}
+                  onCancelDownload={handleCancelDownload}
                 />
               </If>
             </View>

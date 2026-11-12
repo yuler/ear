@@ -48,7 +48,11 @@ export function normalizeEntry(raw: Partial<LibraryEntry> & { videoId: string })
   const captionsPath =
     typeof raw.captionsPath === "string" ? raw.captionsPath : null;
   const state =
-    raw.state === "pending" || raw.state === "ready" || raw.state === "error"
+    raw.state === "pending" ||
+    raw.state === "downloading" ||
+    raw.state === "paused" ||
+    raw.state === "ready" ||
+    raw.state === "error"
       ? raw.state
       : captionsPath
         ? "ready"
@@ -80,6 +84,12 @@ export function normalizeEntry(raw: Partial<LibraryEntry> & { videoId: string })
     subtitleIsAuto:
       typeof raw.subtitleIsAuto === "boolean" ? raw.subtitleIsAuto : null,
     sizeBytes: typeof raw.sizeBytes === "number" ? raw.sizeBytes : null,
+    downloadedBytes:
+      typeof raw.downloadedBytes === "number" ? raw.downloadedBytes : null,
+    percent: typeof raw.percent === "number" ? raw.percent : null,
+    speedBps: typeof raw.speedBps === "number" ? raw.speedBps : null,
+    etaSeconds:
+      typeof raw.etaSeconds === "number" ? raw.etaSeconds : null,
     note: typeof raw.note === "string" ? raw.note : null,
     createdAt: typeof raw.createdAt === "number" ? raw.createdAt : now,
     updatedAt: typeof raw.updatedAt === "number" ? raw.updatedAt : now,
@@ -214,6 +224,22 @@ export async function deleteEntry(
       if (entry.audioPath && (await exists(entry.audioPath))) {
         await unlink(entry.audioPath).catch(() => {});
       }
+      // Also clean up partial download files and checkpoints
+      const baseTargets = [
+        entry.videoPath,
+        entry.audioPath,
+        videoFile(videoId),
+        audioFile(videoId),
+      ].filter(Boolean) as string[];
+      for (const target of baseTargets) {
+        const videoPart = target.replace(/\.[^.]+$/, ".video.part");
+        const audioPart = target.replace(/\.[^.]+$/, ".audio.part");
+        for (const p of [videoPart, audioPart, `${videoPart}.meta`, `${audioPart}.meta`]) {
+          if (await exists(p)) {
+            await unlink(p).catch(() => {});
+          }
+        }
+      }
     }
   } catch {
     // ignore
@@ -259,6 +285,15 @@ export async function refreshEntry(
       // ignore
     }
     return null;
+  }
+
+  // Active downloading, paused, or pending tasks must not be treated as zombies
+  if (
+    entry.state === "downloading" ||
+    entry.state === "paused" ||
+    entry.state === "pending"
+  ) {
+    return entry;
   }
 
   const captionsOk = entry.captionsPath
