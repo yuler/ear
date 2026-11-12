@@ -159,6 +159,8 @@ header {
   font-size: 13px;
   font-weight: 500;
   color: var(--text-muted);
+  margin-left: 36px;
+  margin-right: auto;
 }
 
 .nav-links a:hover {
@@ -219,7 +221,7 @@ header {
 
 /* ── Hero ── */
 .hero {
-  padding: 72px 0 36px;
+  padding: 36px 0 16px;
   text-align: center;
 }
 
@@ -234,16 +236,16 @@ header {
   color: var(--accent);
   font-size: 12px;
   font-weight: 600;
-  margin-bottom: 24px;
+  margin-bottom: 14px;
 }
 
 .hero-title {
-  font-size: clamp(32px, 5vw, 54px);
+  font-size: clamp(30px, 4.2vw, 48px);
   font-weight: 800;
   letter-spacing: -0.03em;
   line-height: 1.15;
   color: var(--text);
-  margin-bottom: 18px;
+  margin-bottom: 12px;
 }
 
 .hero-title span {
@@ -254,10 +256,10 @@ header {
 
 .hero-subtitle {
   max-width: 620px;
-  margin: 0 auto 32px;
-  font-size: clamp(15px, 2vw, 17px);
+  margin: 0 auto 18px;
+  font-size: clamp(14px, 1.8vw, 16px);
   color: var(--text-muted);
-  line-height: 1.6;
+  line-height: 1.55;
 }
 
 .hero-actions {
@@ -266,7 +268,7 @@ header {
   justify-content: center;
   flex-wrap: wrap;
   gap: 12px;
-  margin-bottom: 48px;
+  margin-bottom: 24px;
 }
 
 .btn-primary-hero {
@@ -637,5 +639,11 @@ footer {
   .ai-copy-btn {
     width: 100%;
     justify-content: center;
+  }
+}
+
+@media (max-width: 640px) {
+  .nav-links {
+    display: none;
   }
 }
