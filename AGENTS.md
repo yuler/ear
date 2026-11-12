@@ -12,5 +12,5 @@ Guidelines for coding agents for this repo
 - Do not use superpower or other speculative-driven skills unless explicitly declared.
 - If something is unclear, ask questions. Keep everything from design to code as simple as possible.
 - Keep each agent-authored file under 5,000 tokens (bytes ÷ 4). Lockfiles and generated code sit outside this limit. Split a file that would cross it by responsibility: one module per concern, helpers and types in a sibling file, and a one-line pointer in the original naming the new path.
-- Single source of truth for versioning is Git Tags (`v*`). Releases are 100% automated by CI upon merge/push to `main` (inspired by `yetone/magpie`). Subprojects (`app/nsh.json`, `cli/Cargo.toml`) have their release version dynamically injected during CI packaging. For local version inspection and synchronization, use `scripts/version.sh [show|sync|bump]` (powered by `gum`).
+- Single source of truth for versioning is Git Tags (`v*`). Releases are 100% automated by CI upon merge/push to `main` (inspired by `yetone/magpie`). Subprojects (`app/nsh.json`, `cli/Cargo.toml`) use `"0.0.0"` locally as development placeholders, and have their release version dynamically injected during CI packaging.
 

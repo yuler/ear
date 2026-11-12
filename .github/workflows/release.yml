@@ -6,6 +6,7 @@ on:
       - main
     paths-ignore:
       - 'docs/**'
+      - 'www/**'
       - '*.md'
       - '.gitignore'
   workflow_dispatch:
@@ -65,9 +66,33 @@ jobs:
         id: vars
         shell: bash
         run: |
-          ./scripts/resolve_version.sh \
-            --override-tag "${{ github.event.inputs.tag }}" \
-            --github-output "$GITHUB_OUTPUT"
+          OVERRIDE_TAG="${{ github.event.inputs.tag }}"
+          if [ -n "$OVERRIDE_TAG" ]; then
+            TAG="$OVERRIDE_TAG"
+            VERSION="${TAG#v}"
+          else
+            LATEST_TAG=$(git tag --sort=-v:refname -l "v*" 2>/dev/null | head -n 1 || true)
+            if [ -z "$LATEST_TAG" ]; then
+              VERSION="0.0.1"
+            else
+              V_CLEAN="${LATEST_TAG#v}"
+              MAJOR=$(echo "$V_CLEAN" | cut -d. -f1)
+              MINOR=$(echo "$V_CLEAN" | cut -d. -f2)
+              PATCH=$(echo "$V_CLEAN" | cut -d. -f3 | cut -d- -f1)
+              NEXT_PATCH=$((PATCH + 1))
+              VERSION="${MAJOR:-0}.${MINOR:-0}.${NEXT_PATCH}"
+            fi
+            TAG="v$VERSION"
+          fi
+
+          BUILD=$(git rev-list --count HEAD 2>/dev/null || echo 1)
+          COMMIT_SUBJECT=$(git log -1 --format="%s" 2>/dev/null || echo "Release $TAG")
+
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "build=$BUILD" >> "$GITHUB_OUTPUT"
+          echo "release_title=$TAG — $COMMIT_SUBJECT" >> "$GITHUB_OUTPUT"
+          echo "changelog=$TAG — $COMMIT_SUBJECT" >> "$GITHUB_OUTPUT"
 
       - name: Create & Push Git Tag
         shell: bash
@@ -114,7 +139,9 @@ jobs:
       - name: Inject Release Version
         shell: bash
         run: |
-          bash scripts/version.sh sync "${{ needs.prepare.outputs.version }}"
+          VERSION="${{ needs.prepare.outputs.version }}"
+          jq --arg v "$VERSION" '.version = $v' app/nsh.json > app/nsh.json.tmp && mv app/nsh.json.tmp app/nsh.json
+          sed -E "0,/version = \".*\"/s/version = \".*\"/version = \"$VERSION\"/" cli/Cargo.toml > cli/Cargo.toml.tmp && mv cli/Cargo.toml.tmp cli/Cargo.toml
 
       - name: Build Rust ear CLI
         shell: bash
@@ -179,7 +206,9 @@ jobs:
       - name: Inject Release Version
         shell: bash
         run: |
-          bash scripts/version.sh sync "${{ needs.prepare.outputs.version }}"
+          VERSION="${{ needs.prepare.outputs.version }}"
+          jq --arg v "$VERSION" '.version = $v' app/nsh.json > app/nsh.json.tmp && mv app/nsh.json.tmp app/nsh.json
+          sed -E "0,/version = \".*\"/s/version = \".*\"/version = \"$VERSION\"/" cli/Cargo.toml > cli/Cargo.toml.tmp && mv cli/Cargo.toml.tmp cli/Cargo.toml
 
       - name: Download all build artifacts
         uses: actions/download-artifact@v4
@@ -203,9 +232,22 @@ jobs:
       - name: Generate Manifest, Checksums & Notes
         shell: bash
         run: |
-          bash scripts/resolve_version.sh \
-            --override-tag "${{ needs.prepare.outputs.tag }}" \
-            --notes-file dist/release_notes.md
+          COMMIT_SUBJECT=$(git log -1 --format="%s" 2>/dev/null || echo "Release ${{ needs.prepare.outputs.tag }}")
+          COMMIT_BODY=$(git log -1 --format="%b" 2>/dev/null || true)
+          SHORT_SHA=$(git log -1 --format="%h" 2>/dev/null || echo "")
+          COMMIT_SHA=$(git log -1 --format="%H" 2>/dev/null || echo "")
+          AUTHOR=$(git log -1 --format="%an" 2>/dev/null || echo "Maintainer")
+
+          cat <<EOF > dist/release_notes.md
+### What's Changed
+**${COMMIT_SUBJECT}**
+
+${COMMIT_BODY}
+
+---
+- **Commit**: [\`${SHORT_SHA}\`](https://github.com/${{ github.repository }}/commit/${COMMIT_SHA})
+- **Author**: ${AUTHOR}
+EOF
 
           bash scripts/generate_manifest.sh \
             --version "${{ needs.prepare.outputs.version }}" \

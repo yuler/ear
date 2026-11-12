@@ -1,30 +1,50 @@
 [tools]
 "github:longbridge/nsh" = "latest"
+wrangler = "latest"
 
-[tasks.build-cli]
+[tasks."cli:build"]
 description = "Release-build Ear CLI and install to ~/.local/bin/ear"
+alias = ["build-cli"]
 run = "cargo build --release --manifest-path cli/Cargo.toml && install -Dm755 cli/target/release/ear ~/.local/bin/ear"
 
-[tasks.build-cli-dev]
-description = "Debug-build Ear CLI for develop and install to ~/.local/bin/ear"
+[tasks."cli:dev"]
+description = "Debug-build Ear CLI for development and install to ~/.local/bin/ear"
+alias = ["build-cli-dev"]
 run = "cargo build --manifest-path cli/Cargo.toml && install -Dm755 cli/target/debug/ear ~/.local/bin/ear"
 
-[tasks.dev]
+[tasks."cli:test"]
+description = "Run Ear CLI Rust test suite"
+run = "cargo test --manifest-path cli/Cargo.toml"
+
+[tasks."app:dev"]
 description = "Rebuild CLI (debug) then start native host"
-alias = ["run"]
-depends = ["build-cli-dev"]
+alias = ["dev", "run"]
+depends = ["cli:dev"]
 run = "nsh run app"
 
-[tasks.check]
+[tasks."app:check"]
+description = "Run TypeScript and styling checks on Native Shell desktop app"
+alias = ["check"]
 run = "nsh check app"
 
+[tasks."app:test"]
+description = "Run tests on Native Shell desktop app"
+run = "nsh test app"
+
+[tasks."www:dev"]
+description = "Start Cloudflare Worker & static site preview locally via Wrangler"
+dir = "www"
+run = "wrangler dev"
+
+[tasks."www:deploy"]
+description = "Deploy website & Cloudflare Worker to Cloudflare"
+dir = "www"
+run = "wrangler deploy"
+
 [tasks.test]
-run = "cargo test --manifest-path cli/Cargo.toml && nsh test app"
+description = "Run all tests across subprojects (CLI + App)"
+depends = ["cli:test", "app:test"]
 
 [tasks.setup]
 description = "Install tools, Ear CLI (release), and Linux host deps (WebKitGTK 6)"
 run = "bash scripts/setup.sh"
-
-[tasks.version]
-description = "Manage and sync repository version"
-run = "bash scripts/version.sh"

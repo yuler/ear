@@ -149,6 +149,19 @@ export async function checkForUpdates(options?: {
   const manifestUrl = options?.manifestUrl ?? DEFAULT_MANIFEST_URL;
   const fetcher = options?.fetchFn ?? fetchUpdateManifest;
 
+  if (currentVer === "0.0.0" && !options?.currentVersion) {
+    return {
+      hasUpdate: false,
+      isIncremental: false,
+      currentVersion: currentVer,
+      latestVersion: currentVer,
+      currentBuild: currentBld,
+      latestBuild: currentBld,
+      changelog: "开发构建版本不参与线上更新",
+      downloadUrl: RELEASES_PAGE_URL,
+    };
+  }
+
   try {
     const manifest = await fetcher(manifestUrl);
     const verCompare = compareSemVer(manifest.version, currentVer);
