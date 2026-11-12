@@ -1,4 +1,4 @@
-name: www:deploy
+name: "www:deploy"
 
 on:
   push:
@@ -16,7 +16,6 @@ jobs:
   deploy:
     name: Deploy to Cloudflare Workers
     runs-on: ubuntu-latest
-    if: ${{ secrets.CLOUDFLARE_API_TOKEN != '' || github.event_name == 'workflow_dispatch' }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4

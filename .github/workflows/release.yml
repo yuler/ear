@@ -238,16 +238,8 @@ jobs:
           COMMIT_SHA=$(git log -1 --format="%H" 2>/dev/null || echo "")
           AUTHOR=$(git log -1 --format="%an" 2>/dev/null || echo "Maintainer")
 
-          cat <<EOF > dist/release_notes.md
-### What's Changed
-**${COMMIT_SUBJECT}**
-
-${COMMIT_BODY}
-
----
-- **Commit**: [\`${SHORT_SHA}\`](https://github.com/${{ github.repository }}/commit/${COMMIT_SHA})
-- **Author**: ${AUTHOR}
-EOF
+          printf "### What's Changed\n**%%s**\n\n%%s\n\n---\n- **Commit**: [\`%%s\`](https://github.com/${{ github.repository }}/commit/%%s)\n- **Author**: %%s\n" \
+            "${COMMIT_SUBJECT}" "${COMMIT_BODY}" "${SHORT_SHA}" "${COMMIT_SHA}" "${AUTHOR}" > dist/release_notes.md
 
           bash scripts/generate_manifest.sh \
             --version "${{ needs.prepare.outputs.version }}" \
