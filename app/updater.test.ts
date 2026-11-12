@@ -1,10 +1,13 @@
 import { expect, test } from "nsh/test";
 import {
+  applyUpdate,
   checkForUpdates,
   compareSemVer,
   isRunnerCompatible,
   parseSemVer,
   resolvePlatformKey,
+  type AppUpdate,
+  type PackageUpdate,
   type UpdateManifest,
 } from "./updater";
 
@@ -110,4 +113,107 @@ test("checkForUpdates handles fetch failure gracefully", async () => {
 
   expect(res.hasUpdate).toBe(false);
   expect(res.error).toContain("Network unreachable");
+});
+
+test("checkForUpdates detects OTA package update via checkPackageFn", async () => {
+  const mockPkg: PackageUpdate = {
+    version: "0.2.0",
+    build: 5,
+    notes: "OTA instant bytecode update",
+    size: 204800,
+  };
+
+  const res = await checkForUpdates({
+    currentVersion: "0.1.0",
+    currentBuild: 1,
+    checkPackageFn: async () => mockPkg,
+  });
+
+  expect(res.hasUpdate).toBe(true);
+  expect(res.isIncremental).toBe(true);
+  expect(res.latestVersion).toBe("0.2.0");
+  expect(res.latestBuild).toBe(5);
+  expect(res.changelog).toBe("OTA instant bytecode update");
+  expect(res.packageUpdate).toEqual(mockPkg);
+});
+
+test("checkForUpdates falls back to full app update when no package is found", async () => {
+  const mockApp: AppUpdate = {
+    version: "1.0.0",
+    notes: "Full runtime package upgrade",
+    url: "https://example.com/Ear-1.0.0.tar.gz",
+    canInstall: true,
+  };
+
+  const res = await checkForUpdates({
+    currentVersion: "0.1.0",
+    currentBuild: 1,
+    checkPackageFn: async () => null,
+    checkAppFn: async () => mockApp,
+  });
+
+  expect(res.hasUpdate).toBe(true);
+  expect(res.isIncremental).toBe(false);
+  expect(res.latestVersion).toBe("1.0.0");
+  expect(res.downloadUrl).toBe("https://example.com/Ear-1.0.0.tar.gz");
+  expect(res.appUpdate).toEqual(mockApp);
+});
+
+test("applyUpdate triggers downloadPackage and restartToPackage for incremental updates", async () => {
+  let downloaded = false;
+  let restarted = false;
+
+  const checkResult = {
+    hasUpdate: true,
+    isIncremental: true,
+    currentVersion: "0.1.0",
+    latestVersion: "0.2.0",
+    currentBuild: 1,
+    latestBuild: 2,
+    changelog: "test",
+  };
+
+  await applyUpdate(checkResult, undefined, {
+    downloadPackageFn: async () => {
+      downloaded = true;
+    },
+    restartToPackageFn: async () => {
+      restarted = true;
+    },
+  });
+
+  expect(downloaded).toBe(true);
+  expect(restarted).toBe(true);
+});
+
+test("applyUpdate triggers downloadUpdate and installAndRestart for full app updates", async () => {
+  let downloaded = false;
+  let installed = false;
+
+  const checkResult = {
+    hasUpdate: true,
+    isIncremental: false,
+    currentVersion: "0.1.0",
+    latestVersion: "1.0.0",
+    currentBuild: 1,
+    latestBuild: 1,
+    changelog: "test",
+    appUpdate: {
+      version: "1.0.0",
+      url: "https://example.com/archive.tar.gz",
+      canInstall: true,
+    },
+  };
+
+  await applyUpdate(checkResult, undefined, {
+    downloadUpdateFn: async () => {
+      downloaded = true;
+    },
+    installAndRestartFn: async () => {
+      installed = true;
+    },
+  });
+
+  expect(downloaded).toBe(true);
+  expect(installed).toBe(true);
 });

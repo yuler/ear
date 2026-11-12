@@ -13,13 +13,11 @@ export type SentenceControlsBarProps = {
   rate?: () => PlaybackRate;
   sentencePause?: () => boolean;
   autoNext?: () => boolean;
-  loopSingle: () => boolean;
   onPrev: () => void;
   onRepeat: () => void;
   onNext: () => void;
   onToggleSentencePause?: () => void;
   onToggleAutoNext?: () => void;
-  onToggleLoop: () => void;
   onCycleRate?: () => void;
   sentenceLength: () => SentenceLengthMode;
   onChangeSentenceLength: (mode: SentenceLengthMode) => void;
@@ -30,7 +28,7 @@ export type SentenceControlsBarProps = {
  * Pinned single-line toolbar for sentence playback navigation:
  * Prev / Repeat / Next, sentence index counter,
  * [Short | Medium | Long] length segmented switch,
- * and Sentence Pause / Single Loop flow switches.
+ * and Sentence Pause flow switch.
  */
 export function SentenceControlsBar(props: SentenceControlsBarProps) {
   const activeIdx = () => props.activeIndex();
@@ -48,7 +46,6 @@ export function SentenceControlsBar(props: SentenceControlsBarProps) {
       props.onToggleAutoNext();
     }
   };
-  const looping = () => props.loopSingle();
   const lang = () => props.language?.() ?? "en";
   const m = () => t(lang());
   const len = () => props.sentenceLength();
@@ -202,30 +199,6 @@ export function SentenceControlsBar(props: SentenceControlsBarProps) {
             }`}
           >
             {pauseActive() ? m().sentencePauseOn : m().sentencePauseOff}
-          </Text>
-        </Button>
-
-        {/* Switch 2: Loop / Single Sentence Repeat Toggle Button (Default OFF) */}
-        <Button
-          onPress={props.onToggleLoop}
-          class={`flex-row items-center gap-1.5 rounded-lg border px-2.5 py-1 transition active:scale-95 ${
-            looping()
-              ? "border-[#2f7cf6]/70 bg-[#2f7cf6]/15 text-[#2f7cf6] font-semibold"
-              : "border-border bg-background text-muted-foreground hover:text-foreground"
-          }`}
-          accessibilityLabel={m().loopSentenceToggle}
-        >
-          <Icon
-            name="repeat"
-            size={11}
-            tone={looping() ? "foreground" : "muted-foreground"}
-          />
-          <Text
-            class={`text-xs ${
-              looping() ? "font-bold text-[#2f7cf6]" : "text-muted-foreground"
-            }`}
-          >
-            {looping() ? m().loopOn : m().loopOff}
           </Text>
         </Button>
 

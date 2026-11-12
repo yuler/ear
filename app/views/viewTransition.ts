@@ -38,13 +38,20 @@ export async function captureElementRect(
 ): Promise<ViewTransitionRect | null> {
   if (!node) return null;
   try {
-    const m = await node.measure();
-    if (!m || !m.bounds || !m.pagePosition) return null;
+    const m = (await node.measure()) as any;
+    if (!m) return null;
+    const bounds = m.bounds;
+    const pagePos = m.pagePosition;
+    const width = bounds?.size?.width ?? bounds?.width ?? 0;
+    const height = bounds?.size?.height ?? bounds?.height ?? 0;
+    const x = pagePos?.x ?? bounds?.origin?.x ?? bounds?.x ?? 0;
+    const y = pagePos?.y ?? bounds?.origin?.y ?? bounds?.y ?? 0;
+    if (width <= 0 || height <= 0) return null;
     return {
-      x: Math.round(m.pagePosition.x),
-      y: Math.round(m.pagePosition.y),
-      width: Math.round(m.bounds.size.width),
-      height: Math.round(m.bounds.size.height),
+      x: Math.round(x),
+      y: Math.round(y),
+      width: Math.round(width),
+      height: Math.round(height),
       borderRadius: defaultRadius,
     };
   } catch {

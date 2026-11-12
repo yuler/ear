@@ -186,21 +186,19 @@ export function resegmentSentences(
 }
 
 export type ProgressEvaluation =
-  | { action: "loop"; seekToSec: number; newClipEndMs?: number | null }
   | { action: "pause"; newClipEndMs?: number | null }
   | { action: "advance"; activeIndex: number; newClipEndMs?: number | null }
   | { action: "none"; newClipEndMs?: number | null };
 
 /**
  * Pure state evaluation of video playback progress against sentence boundaries.
- * Supports loop single, default continuous streaming (sentencePause=false),
+ * Supports default continuous streaming (sentencePause=false),
  * and intensive single-sentence listening with pause (sentencePause=true).
  */
 export function evaluatePlaybackProgress(params: {
   currentTimeSec: number;
   sentences: Sentence[];
   paused: boolean;
-  loopSingle: boolean;
   sentencePause?: boolean;
   autoNext?: boolean;
   clipEndMs: number | null;
@@ -210,23 +208,11 @@ export function evaluatePlaybackProgress(params: {
     currentTimeSec,
     sentences,
     paused,
-    loopSingle,
     clipEndMs,
     activeIndex,
   } = params;
 
   if (sentences.length === 0 || paused) return { action: "none" };
-
-  // 1. Single sentence loop mode
-  if (loopSingle) {
-    if (clipEndMs != null && clipEnded(currentTimeSec, clipEndMs)) {
-      const cur = sentences[clampSentenceIndex(activeIndex, sentences.length)];
-      if (cur) {
-        return { action: "loop", seekToSec: msToSeconds(cur.startMs) };
-      }
-    }
-    return { action: "none" };
-  }
 
   // Sentence Pause mode (default is false -> continuous streaming)
   const isPauseMode =

@@ -8,6 +8,26 @@ export type LibraryLayoutMode = "post" | "grade" | "list";
 export type SentenceLengthMode = "short" | "medium" | "long";
 export type EarLocale = "en" | "zh";
 export type DefaultQuality = "360p" | "480p" | "720p" | "1080p" | "audio";
+export type SubtitleBlockerStyle =
+  | "mosaic"
+  | "blur"
+  | "solid"
+  | "feather"
+  | "frosted";
+
+export interface SubtitleBlockerRect {
+  x: number; // 0..100
+  y: number; // 0..100
+  width: number; // 0..100
+  height: number; // 0..100
+}
+
+export const DEFAULT_BLOCKER_RECT: SubtitleBlockerRect = {
+  x: 10,
+  y: 82,
+  width: 80,
+  height: 12,
+};
 
 export type EarSettings = {
   lastUrl: string;
@@ -32,6 +52,22 @@ export type EarSettings = {
   downloadFolder: string;
   /** Library view arrangement mode: "post" (large posters), "grade" (Windows picture tiles), "list". */
   libraryLayout: LibraryLayoutMode;
+  /** Subtitle blocker enabled state. */
+  subtitleBlockerEnabled: boolean;
+  /** Subtitle blocker visual style: "mosaic" (enlarged pixel blocks), "blur" (frosted blur), or "solid" (solid black). */
+  subtitleBlockerStyle: SubtitleBlockerStyle;
+  /** Subtitle blocker background opacity percentage (0 ~ 100). */
+  subtitleBlockerOpacity: number;
+  /** Subtitle blocker mosaic pixel block size in points (8 ~ 40). */
+  subtitleBlockerMosaic?: number;
+  /** Subtitle blocker Gaussian blur radius in points (0 ~ 120). */
+  subtitleBlockerBlur?: number;
+  /** Subtitle blocker edge feather percentage (legacy). */
+  subtitleBlockerFeather?: number;
+  /** Global default position & size for subtitle blocker (percentages). */
+  subtitleBlockerDefault: SubtitleBlockerRect;
+  /** Per-video customized blocker positions. */
+  subtitleBlockerVideos: Record<string, SubtitleBlockerRect>;
 };
 
 const KEY = "ear.settings";
@@ -49,6 +85,14 @@ export const DEFAULT_SETTINGS: EarSettings = {
   clipboardAuto: true,
   downloadFolder: "",
   libraryLayout: "post",
+  subtitleBlockerEnabled: false,
+  subtitleBlockerStyle: "mosaic",
+  subtitleBlockerOpacity: 85,
+  subtitleBlockerMosaic: 16,
+  subtitleBlockerBlur: 28,
+  subtitleBlockerFeather: 20,
+  subtitleBlockerDefault: { ...DEFAULT_BLOCKER_RECT },
+  subtitleBlockerVideos: {},
 };
 
 let cachedSettings: EarSettings = { ...DEFAULT_SETTINGS };
@@ -68,7 +112,9 @@ export function normalizeSettings(parsed: Partial<EarSettings>): EarSettings {
     preferredRate:
       parsed.preferredRate === 0.8 ||
       parsed.preferredRate === 1 ||
-      parsed.preferredRate === 1.2
+      parsed.preferredRate === 1.2 ||
+      parsed.preferredRate === 1.5 ||
+      parsed.preferredRate === 2
         ? parsed.preferredRate
         : d.preferredRate,
     appearance:
@@ -112,7 +158,145 @@ export function normalizeSettings(parsed: Partial<EarSettings>): EarSettings {
       parsed.defaultQuality === "audio"
         ? parsed.defaultQuality
         : d.defaultQuality,
+    subtitleBlockerEnabled:
+      typeof parsed.subtitleBlockerEnabled === "boolean"
+        ? parsed.subtitleBlockerEnabled
+        : d.subtitleBlockerEnabled,
+    subtitleBlockerStyle:
+      parsed.subtitleBlockerStyle === "solid"
+        ? "solid"
+        : parsed.subtitleBlockerStyle === "blur" ||
+            parsed.subtitleBlockerStyle === "frosted"
+          ? "blur"
+          : "mosaic",
+    subtitleBlockerOpacity:
+      typeof parsed.subtitleBlockerOpacity === "number" &&
+      parsed.subtitleBlockerOpacity >= 0 &&
+      parsed.subtitleBlockerOpacity <= 100
+        ? Math.round(parsed.subtitleBlockerOpacity)
+        : d.subtitleBlockerOpacity,
+    subtitleBlockerMosaic:
+      typeof parsed.subtitleBlockerMosaic === "number" &&
+      parsed.subtitleBlockerMosaic >= 6 &&
+      parsed.subtitleBlockerMosaic <= 60
+        ? Math.round(parsed.subtitleBlockerMosaic)
+        : d.subtitleBlockerMosaic,
+    subtitleBlockerBlur:
+      typeof parsed.subtitleBlockerBlur === "number" &&
+      parsed.subtitleBlockerBlur >= 0 &&
+      parsed.subtitleBlockerBlur <= 120
+        ? Math.round(parsed.subtitleBlockerBlur)
+        : d.subtitleBlockerBlur,
+    subtitleBlockerFeather:
+      typeof parsed.subtitleBlockerFeather === "number" &&
+      parsed.subtitleBlockerFeather >= 0 &&
+      parsed.subtitleBlockerFeather <= 50
+        ? Math.round(parsed.subtitleBlockerFeather)
+        : d.subtitleBlockerFeather,
+    subtitleBlockerDefault: isValidRect(parsed.subtitleBlockerDefault)
+      ? { ...parsed.subtitleBlockerDefault }
+      : { ...d.subtitleBlockerDefault },
+    subtitleBlockerVideos:
+      parsed.subtitleBlockerVideos &&
+      typeof parsed.subtitleBlockerVideos === "object"
+        ? normalizeBlockerVideos(parsed.subtitleBlockerVideos)
+        : {},
   };
+}
+
+function isValidRect(r: unknown): r is SubtitleBlockerRect {
+  if (!r || typeof r !== "object") return false;
+  const o = r as Record<string, unknown>;
+  return (
+    typeof o.x === "number" &&
+    typeof o.y === "number" &&
+    typeof o.width === "number" &&
+    typeof o.height === "number"
+  );
+}
+
+function normalizeBlockerVideos(
+  dict: Record<string, unknown>,
+): Record<string, SubtitleBlockerRect> {
+  const result: Record<string, SubtitleBlockerRect> = {};
+  for (const [k, v] of Object.entries(dict)) {
+    if (typeof k === "string" && isValidRect(v)) {
+      result[k] = { ...v };
+    }
+  }
+  return result;
+}
+
+export function getCachedSettings(): EarSettings {
+  return { ...cachedSettings };
+}
+
+export function getBlockerRect(videoId?: string): SubtitleBlockerRect {
+  if (videoId && cachedSettings.subtitleBlockerVideos[videoId]) {
+    return { ...cachedSettings.subtitleBlockerVideos[videoId] };
+  }
+  return { ...cachedSettings.subtitleBlockerDefault };
+}
+
+export function saveBlockerRect(
+  rect: SubtitleBlockerRect,
+  videoId?: string,
+): void {
+  const clamped: SubtitleBlockerRect = {
+    x: Math.max(0, Math.min(100, Math.round(rect.x * 10) / 10)),
+    y: Math.max(0, Math.min(100, Math.round(rect.y * 10) / 10)),
+    width: Math.max(5, Math.min(100, Math.round(rect.width * 10) / 10)),
+    height: Math.max(2, Math.min(100, Math.round(rect.height * 10) / 10)),
+  };
+  if (videoId) {
+    saveSettings({
+      subtitleBlockerVideos: {
+        ...cachedSettings.subtitleBlockerVideos,
+        [videoId]: clamped,
+      },
+    });
+  } else {
+    saveSettings({
+      subtitleBlockerDefault: clamped,
+    });
+  }
+}
+
+export function resetBlockerRect(videoId?: string): SubtitleBlockerRect {
+  if (videoId && cachedSettings.subtitleBlockerVideos[videoId]) {
+    const updated = { ...cachedSettings.subtitleBlockerVideos };
+    delete updated[videoId];
+    saveSettings({ subtitleBlockerVideos: updated });
+  }
+  return { ...cachedSettings.subtitleBlockerDefault };
+}
+
+export function setBlockerEnabled(enabled: boolean): void {
+  saveSettings({ subtitleBlockerEnabled: enabled });
+}
+
+export function setBlockerStyle(style: SubtitleBlockerStyle): void {
+  saveSettings({ subtitleBlockerStyle: style });
+}
+
+export function setBlockerOpacity(opacity: number): void {
+  saveSettings({ subtitleBlockerOpacity: Math.max(0, Math.min(100, Math.round(opacity))) });
+}
+
+export function setBlockerMosaic(size: number): void {
+  saveSettings({
+    subtitleBlockerMosaic: Math.max(8, Math.min(48, Math.round(size))),
+  });
+}
+
+export function setBlockerBlur(blur: number): void {
+  saveSettings({
+    subtitleBlockerBlur: Math.max(5, Math.min(80, Math.round(blur))),
+  });
+}
+
+export function setBlockerFeather(feather: number): void {
+  setBlockerMosaic(feather);
 }
 
 export async function hydrateSettings(): Promise<EarSettings> {

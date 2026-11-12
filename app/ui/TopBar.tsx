@@ -16,11 +16,6 @@ import { Icon } from "./Icon";
 
 export type MediaTab = "video" | "audio" | "discover" | "settings";
 
-const TABS: readonly { key: "video" | "audio"; label: string }[] = [
-  { key: "video", label: "Videos" },
-  { key: "audio", label: "Audio" },
-];
-
 export function TopBar(props: {
   url: () => string;
   onUrlChange: (v: string) => void;
@@ -40,10 +35,10 @@ export function TopBar(props: {
   onSelectTrack?: (trackId: string) => void;
   onDownloadPreview?: (preview: ClipboardVideoPreview) => void;
   onDismissPreview?: () => void;
-  activeTab: () => MediaTab;
-  onSelectTab: (tab: MediaTab) => void;
-  videoCount: () => number;
-  audioCount: () => number;
+  activeTab?: () => MediaTab;
+  onSelectTab?: (tab: MediaTab) => void;
+  videoCount?: () => number;
+  audioCount?: () => number;
   activeDownloadCount?: () => number;
   discoverCount?: () => number;
   onOpenSettings?: () => void;
@@ -53,8 +48,6 @@ export function TopBar(props: {
   const hasDropdown = () => Boolean(props.activePreview?.());
   const isSpinning = () =>
     props.loading() || Boolean(props.parsing?.());
-  const showTabs = () =>
-    props.activeTab() !== "discover" && props.activeTab() !== "settings";
 
   effect(() => {
     const _open = hasDropdown();
@@ -75,7 +68,7 @@ export function TopBar(props: {
           paddingLeft: 16,
           paddingRight: titleBar().right ? titleBar().right + 4 : 16,
         }}
-        class={`pt-3 ${showTabs() ? "" : "pb-3"}`}
+        class="py-3"
       >
         <View class="mx-auto w-full max-w-[960px] gap-2">
           {/* Row 1: Downbit-style expandable omnibar */}
@@ -177,58 +170,6 @@ export function TopBar(props: {
               </If>
             </View>
           </View>
-
-          {/* Row 2: Video and Audio tabs for Library */}
-          <If when={showTabs()}>
-            <View class="flex-row items-center gap-6">
-              {TABS.map((tab) => {
-                const active = () => props.activeTab() === tab.key;
-                const count = () => {
-                  if (tab.key === "video") return props.videoCount();
-                  return props.audioCount();
-                };
-                return (
-                  <Button
-                    onPress={() => props.onSelectTab(tab.key)}
-                    class={`flex-row items-center gap-1.5 border-b-2 pt-1 pb-2 ${
-                      active() ? "border-foreground" : "border-transparent"
-                    }`}
-                  >
-                    <Text
-                      class={`text-sm ${
-                        active()
-                          ? "font-semibold text-foreground"
-                          : "text-muted-foreground"
-                      }`}
-                    >
-                      {tab.label}
-                    </Text>
-                    <Text class="font-mono text-xs tabular-nums text-dim">
-                      {count()}
-                    </Text>
-                    <If
-                      when={
-                        tab.key === "video" &&
-                        (props.activeDownloadCount?.() ?? 0) > 0
-                      }
-                    >
-                      <View class="flex-row items-center gap-1 rounded-full bg-[#2f7cf6]/20 px-1.5 py-0.5">
-                        <Icon
-                          name="loader"
-                          size={10}
-                          color="#2f7cf6"
-                          class="animate-spin"
-                        />
-                        <Text class="font-mono text-[10px] font-semibold tabular-nums text-[#2f7cf6]">
-                          {props.activeDownloadCount?.()}
-                        </Text>
-                      </View>
-                    </If>
-                  </Button>
-                );
-              })}
-            </View>
-          </If>
         </View>
       </View>
 

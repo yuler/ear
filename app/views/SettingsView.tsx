@@ -2,6 +2,7 @@ import { platform, Scroll, signal, Text, View, type JSX } from "nsh";
 import { Button, Input, Switch } from "nsh/base";
 import { titleBar } from "nsh/desktop";
 import {
+  applyUpdate,
   checkForUpdates,
   CURRENT_APP_VERSION,
   openExternalUrl,
@@ -107,6 +108,8 @@ export function SettingsView(props?: { onBack?: () => void; onClose?: () => void
 
   const updateResult = signal<UpdateCheckResult | null>(null);
   const updateStatus = signal<string>("idle");
+  const updateProgress = signal<number>(0);
+  const isUpdating = signal<boolean>(false);
 
   const runUpdateCheck = async () => {
     updateStatus.set("checking");
@@ -116,6 +119,28 @@ export function SettingsView(props?: { onBack?: () => void; onClose?: () => void
       updateStatus.set(res.hasUpdate ? "available" : res.error ? "error" : "up_to_date");
     } catch {
       updateStatus.set("error");
+    }
+  };
+
+  const runApplyUpdate = async () => {
+    const res = updateResult();
+    if (!res) return;
+    isUpdating.set(true);
+    updateStatus.set("downloading");
+    updateProgress.set(0);
+    try {
+      await applyUpdate(res, ({ received, total }) => {
+        if (total && total > 0) {
+          updateProgress.set(Math.min(1, received / total));
+        }
+      });
+      updateStatus.set("restarting");
+    } catch (err: unknown) {
+      updateStatus.set("error");
+      const msg = err instanceof Error ? err.message : String(err);
+      updateResult.set({ ...res, error: `更新失败: ${msg}` });
+    } finally {
+      isUpdating.set(false);
     }
   };
 
@@ -400,17 +425,31 @@ export function SettingsView(props?: { onBack?: () => void; onClose?: () => void
                         </Text>
                       </View>
                       <Button
-                        onPress={() => {
-                          const url = updateResult()?.downloadUrl ?? RELEASES_PAGE_URL;
-                          void openExternalUrl(url);
-                        }}
-                        class="rounded-md bg-primary px-3 py-1"
+                        disabled={isUpdating()}
+                        onPress={() => void runApplyUpdate()}
+                        class="rounded-md bg-primary px-3 py-1 transition active:scale-95"
                       >
                         <Text class="text-xs font-semibold text-primary-foreground">
-                          {updateResult()?.isIncremental ? "获取更新" : "下载安装包"}
+                          {isUpdating()
+                            ? updateStatus() === "restarting"
+                              ? "重启中..."
+                              : `下载中 ${(updateProgress() * 100).toFixed(0)}%`
+                            : updateResult()?.isIncremental
+                              ? "立即更新并重启"
+                              : updateResult()?.appUpdate?.canInstall
+                                ? "安装并重启"
+                                : "下载安装包"}
                         </Text>
                       </Button>
                     </View>
+                    {isUpdating() ? (
+                      <View class="h-1.5 w-full overflow-hidden rounded-full bg-well">
+                        <View
+                          class="h-full bg-primary transition-all duration-150"
+                          style={{ width: `${Math.round(updateProgress() * 100)}%` }}
+                        />
+                      </View>
+                    ) : null}
                     {updateResult()?.changelog ? (
                       <Text class="text-xs text-muted-foreground">
                         {updateResult()?.changelog}

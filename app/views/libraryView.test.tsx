@@ -143,17 +143,31 @@ test("active download task in paused stage retains progress for breakpoint resum
   expect(pausedTask.downloadedBytes).toBe(64 * 1024 * 1024);
 });
 
-test("library entries filter excludes downloading and paused tasks from completed grid", () => {
+test("library entries filter excludes pending, downloading, paused and active downloads from completed grid", () => {
   const readyEntry = mockEntry({ videoId: "ready1", state: "ready" });
+  const pendingEntry = mockEntry({ videoId: "pend1", state: "pending" });
   const downloadingEntry = mockEntry({
     videoId: "dl1",
     state: "downloading",
   });
   const pausedEntry = mockEntry({ videoId: "pause1", state: "paused" });
+  const activeDuplicateEntry = mockEntry({
+    videoId: "active1",
+    state: "ready",
+  });
 
-  const all = [readyEntry, downloadingEntry, pausedEntry];
+  const activeIds = new Set(["active1"]);
+  const all = [
+    readyEntry,
+    pendingEntry,
+    downloadingEntry,
+    pausedEntry,
+    activeDuplicateEntry,
+  ];
   const completedVideos = all.filter(
     (e) =>
+      !activeIds.has(e.videoId) &&
+      e.state !== "pending" &&
       e.state !== "downloading" &&
       e.state !== "paused" &&
       !isAudioEntry(e),

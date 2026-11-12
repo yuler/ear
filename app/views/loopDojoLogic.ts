@@ -65,10 +65,11 @@ export function diffSummary(tokens: DiffToken[]): {
   return s;
 }
 
-export const LOOP_RATES: PlaybackRate[] = [0.8, 1, 1.2];
+export const LOOP_RATES: PlaybackRate[] = [0.8, 1, 1.2, 1.5, 2];
 
 export function nextRate(current: PlaybackRate): PlaybackRate {
   const i = LOOP_RATES.indexOf(current);
+  if (i === -1) return 1;
   return LOOP_RATES[(i + 1) % LOOP_RATES.length]!;
 }
 

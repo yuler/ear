@@ -48,11 +48,12 @@ export function ActiveDownloadRow(props: {
       void slideMotion.play({
         keyframes: {
           scale: [1, 0.88],
-          translateY: [0, 36],
-          opacity: [1, 0],
+          translateX: [0, -20],
+          translateY: [0, 56],
+          opacity: [1, 0.92, 0],
         },
-        duration: 380,
-        easing: [0.16, 1, 0.3, 1],
+        duration: 520,
+        easing: [0.22, 1, 0.36, 1],
       });
     }
   });
@@ -98,7 +99,7 @@ export function ActiveDownloadRow(props: {
 
   return (
     <View
-      style={slideMotion.style}
+      style={{ transformOrigin: "top left", ...slideMotion.style }}
       class={`relative overflow-hidden rounded-xl border bg-popover p-3 shadow-md transition ${cardBorder()}`}
     >
       {/* Subtle ambient progress wash behind the horizontal card */}

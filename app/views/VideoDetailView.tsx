@@ -18,6 +18,8 @@ import { videoPosterUrl } from "../youtube/parse";
 import type { CaptionCue, Sentence } from "../youtube/types";
 import type { SentenceLengthMode } from "../youtube/captions";
 import { settings, updateSettings } from "../ui/settings";
+import { setBlockerEnabled } from "../store";
+import { SubtitleBlocker } from "../ui/SubtitleBlocker";
 import { isAudioEntry } from "./libraryViewHelpers";
 import {
   clampSentenceIndex,
@@ -29,6 +31,7 @@ import {
 } from "./sentencePlayer";
 // Caption data fetching & sentence segmentation helpers: app/views/videoDetailLoader.ts
 import { fetchLessonCaptions } from "./videoDetailLoader";
+import { nextRate } from "./loopDojoLogic";
 import { SentenceList } from "./SentenceList";
 import { VideoDetailHeader } from "./VideoDetailHeader";
 import { VideoDetailMetaBar } from "./VideoDetailMetaBar";
@@ -81,7 +84,7 @@ export function VideoDetailView(props: VideoDetailViewProps) {
 
   // Playback & Sentence state
   const paused = signal(false);
-  const rate = signal<PlaybackRate>(1);
+  const rate = signal<PlaybackRate>(settings().preferredRate ?? 1);
   const currentTimeSec = signal(0);
   const durationSec = signal(
     entry().durationMs ? Math.round(entry().durationMs! / 1000) : 0,
@@ -96,13 +99,20 @@ export function VideoDetailView(props: VideoDetailViewProps) {
   const loadingSentences = signal(true);
   const activeIndex = signal(0);
   const clipEndMs = signal<number | null>(null);
-  const loopSingle = signal(false);
   const sentencePause = signal(false);
   const muted = signal(false);
 
   // Mask state: default masked for listening practice (打码)
   const maskAll = signal(true);
   const revealedMap = signal<Record<number, boolean>>({});
+
+  // Subtitle Blocker overlay state
+  const blockerEnabled = signal(settings().subtitleBlockerEnabled ?? false);
+  const handleToggleBlocker = () => {
+    const next = !blockerEnabled();
+    blockerEnabled.set(next);
+    setBlockerEnabled(next);
+  };
 
   // Immersive controls overlay auto-hide state (5-second countdown timer, mouse-driven only)
   const controlsVisible = signal(false);
@@ -157,17 +167,6 @@ export function VideoDetailView(props: VideoDetailViewProps) {
     if (!next) {
       clipEndMs.set(null);
     } else {
-      const cur = currentSentence();
-      if (cur) {
-        clipEndMs.set(cur.endMs);
-      }
-    }
-  };
-
-  const handleToggleLoop = () => {
-    const next = !loopSingle();
-    loopSingle.set(next);
-    if (next) {
       const cur = currentSentence();
       if (cur) {
         clipEndMs.set(cur.endMs);
@@ -346,12 +345,11 @@ export function VideoDetailView(props: VideoDetailViewProps) {
     });
   };
 
-  // Cycle playback rates: 0.8 -> 1 -> 1.2 -> 0.8
+  // Cycle playback rates: 0.8 -> 1 -> 1.2 -> 1.5 -> 2.0 -> 0.8
   const handleCycleRate = () => {
-    const r = rate();
-    if (r === 0.8) rate.set(1);
-    else if (r === 1) rate.set(1.2);
-    else rate.set(0.8);
+    const next = nextRate(rate());
+    rate.set(next);
+    updateSettings({ preferredRate: next });
   };
 
   const currentSentence = (): Sentence | null => {
@@ -368,6 +366,7 @@ export function VideoDetailView(props: VideoDetailViewProps) {
       r: handleRepeatCurrent,
       space: handleSpaceKey,
       m: () => maskAll.set(!maskAll()),
+      b: handleToggleBlocker,
     },
     { when: "notEditing" },
   );
@@ -441,15 +440,12 @@ export function VideoDetailView(props: VideoDetailViewProps) {
                 currentTimeSec: e.currentTime,
                 sentences: sentences(),
                 paused: paused(),
-                loopSingle: loopSingle(),
                 sentencePause: sentencePause(),
                 clipEndMs: clipEndMs(),
                 activeIndex: activeIndex(),
               });
 
-              if (res.action === "loop" && videoNode) {
-                videoNode.seek(res.seekToSec);
-              } else if (res.action === "pause") {
+              if (res.action === "pause") {
                 paused.set(true);
                 if (res.newClipEndMs !== undefined) {
                   clipEndMs.set(res.newClipEndMs);
@@ -495,6 +491,16 @@ export function VideoDetailView(props: VideoDetailViewProps) {
             language={language}
           />
 
+          {/* Subtitle Blocker Overlay (layered below player controls so controls are never obstructed) */}
+          <If when={!audioOnly()}>
+            <SubtitleBlocker
+              videoId={() => entry().videoId}
+              enabled={blockerEnabled}
+              language={language}
+              onToggleEnabled={handleToggleBlocker}
+            />
+          </If>
+
           {/* Bottom Player Controls */}
           <VideoPlayerControls
             paused={paused}
@@ -503,8 +509,6 @@ export function VideoDetailView(props: VideoDetailViewProps) {
             durationSec={durationSec}
             rate={rate}
             onCycleRate={handleCycleRate}
-            loopSingle={loopSingle}
-            onToggleLoop={handleToggleLoop}
             muted={muted}
             onToggleMute={() => {
               muted.set(!muted());
@@ -513,6 +517,11 @@ export function VideoDetailView(props: VideoDetailViewProps) {
             maskAll={maskAll}
             onToggleMask={() => {
               maskAll.set(!maskAll());
+              handlePointerActivity();
+            }}
+            blockerEnabled={blockerEnabled}
+            onToggleBlocker={() => {
+              handleToggleBlocker();
               handlePointerActivity();
             }}
             sentences={sentences}
@@ -549,12 +558,10 @@ export function VideoDetailView(props: VideoDetailViewProps) {
           durationSec={durationSec}
           rate={rate}
           sentencePause={sentencePause}
-          loopSingle={loopSingle}
           onPrevSentence={handlePrevSentence}
           onRepeatSentence={handleRepeatCurrent}
           onNextSentence={handleNextSentence}
           onToggleSentencePause={handleToggleSentencePause}
-          onToggleLoop={handleToggleLoop}
           onCycleRate={handleCycleRate}
           sentenceLength={sentenceLength}
           onChangeSentenceLength={handleChangeSentenceLength}

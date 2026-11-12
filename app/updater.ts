@@ -1,6 +1,21 @@
 import { platform, signal } from "nsh";
+import {
+  checkForPackage,
+  downloadPackage,
+  restartToPackage,
+  checkForUpdate,
+  downloadUpdate,
+  installAndRestart,
+  runningPackage,
+  shellInfo,
+  type AppUpdate,
+  type PackageUpdate,
+  type UpdateProgress,
+} from "nsh/updater";
 import nshConfig from "./nsh.json";
 import { isNativeHost } from "./youtube/host";
+
+export type { AppUpdate, PackageUpdate, UpdateProgress };
 
 export interface PlatformAsset {
   fileName: string;
@@ -26,6 +41,7 @@ export type UpdateStatus =
   | "available"
   | "up_to_date"
   | "downloading"
+  | "restarting"
   | "ready"
   | "error";
 
@@ -39,6 +55,8 @@ export interface UpdateCheckResult {
   changelog: string;
   bundleUrl?: string;
   downloadUrl?: string;
+  packageUpdate?: PackageUpdate | null;
+  appUpdate?: AppUpdate | null;
   error?: string;
 }
 
@@ -51,6 +69,7 @@ export const CURRENT_APP_BUILD = nshConfig.build ?? 1;
 
 export const globalUpdateAvailable = signal<boolean>(false);
 export const globalUpdateResult = signal<UpdateCheckResult | null>(null);
+export const globalUpdateProgress = signal<number>(0);
 
 /**
  * Trigger a background update check silently.
@@ -120,7 +139,7 @@ export function resolvePlatformKey(): string {
 }
 
 /**
- * Fetch and parse latest.json release manifest.
+ * Fetch and parse latest.json release manifest (fallback/compatibility helper).
  */
 export async function fetchUpdateManifest(
   manifestUrl: string = DEFAULT_MANIFEST_URL,
@@ -136,20 +155,107 @@ export async function fetchUpdateManifest(
 }
 
 /**
- * Check if an update is available compared to the current version.
+ * Check if an update is available (prefers OTA signed package, then full app update).
  */
 export async function checkForUpdates(options?: {
   currentVersion?: string;
   currentBuild?: number;
   manifestUrl?: string;
   fetchFn?: (url: string) => Promise<UpdateManifest>;
+  checkPackageFn?: () => Promise<PackageUpdate | null>;
+  checkAppFn?: () => Promise<AppUpdate | null>;
 }): Promise<UpdateCheckResult> {
-  const currentVer = options?.currentVersion ?? CURRENT_APP_VERSION;
-  const currentBld = options?.currentBuild ?? CURRENT_APP_BUILD;
-  const manifestUrl = options?.manifestUrl ?? DEFAULT_MANIFEST_URL;
-  const fetcher = options?.fetchFn ?? fetchUpdateManifest;
+  const running = runningPackage();
+  const shell = shellInfo();
 
-  if (currentVer === "0.0.0" && !options?.currentVersion) {
+  const currentVer = options?.currentVersion ?? running?.version ?? shell.version ?? CURRENT_APP_VERSION;
+  const currentBld = options?.currentBuild ?? running?.build ?? shell.build ?? CURRENT_APP_BUILD;
+
+  // 1. If explicit fetchFn provided (e.g. in legacy unit tests), run compatibility path
+  if (options?.fetchFn) {
+    try {
+      const manifest = await options.fetchFn(options.manifestUrl ?? DEFAULT_MANIFEST_URL);
+      const verCompare = compareSemVer(manifest.version, currentVer);
+      const hasNewerVersion = verCompare > 0 || (verCompare === 0 && manifest.build > currentBld);
+
+      if (!hasNewerVersion) {
+        return {
+          hasUpdate: false,
+          isIncremental: false,
+          currentVersion: currentVer,
+          latestVersion: manifest.version,
+          currentBuild: currentBld,
+          latestBuild: manifest.build,
+          changelog: manifest.changelog ?? "",
+        };
+      }
+
+      const runnerCompatible = isRunnerCompatible(currentVer, manifest.minRunnerVersion);
+      const isIncremental = runnerCompatible && Boolean(manifest.bundleUrl);
+
+      const platformKey = resolvePlatformKey();
+      const platformAsset = manifest.platforms?.[platformKey];
+      const downloadUrl = platformAsset?.url ?? RELEASES_PAGE_URL;
+
+      return {
+        hasUpdate: true,
+        isIncremental,
+        currentVersion: currentVer,
+        latestVersion: manifest.version,
+        currentBuild: currentBld,
+        latestBuild: manifest.build,
+        changelog: manifest.changelog ?? "",
+        bundleUrl: manifest.bundleUrl,
+        downloadUrl,
+      };
+    } catch (err: unknown) {
+      const errMsg = err instanceof Error ? err.message : String(err);
+      return {
+        hasUpdate: false,
+        isIncremental: false,
+        currentVersion: currentVer,
+        latestVersion: currentVer,
+        currentBuild: currentBld,
+        latestBuild: currentBld,
+        changelog: "",
+        error: errMsg,
+      };
+    }
+  }
+
+  // 2. Native NSH updater integration
+  try {
+    // 2.1 First check for OTA signed package update (.nshpkg)
+    const packageCheck = options?.checkPackageFn ? await options.checkPackageFn() : await checkForPackage();
+    if (packageCheck) {
+      return {
+        hasUpdate: true,
+        isIncremental: true,
+        currentVersion: currentVer,
+        latestVersion: packageCheck.version,
+        currentBuild: currentBld,
+        latestBuild: packageCheck.build,
+        changelog: packageCheck.notes ?? "",
+        packageUpdate: packageCheck,
+      };
+    }
+
+    // 2.2 If no OTA package, check for full app update
+    const appCheck = options?.checkAppFn ? await options.checkAppFn() : await checkForUpdate();
+    if (appCheck) {
+      return {
+        hasUpdate: true,
+        isIncremental: false,
+        currentVersion: currentVer,
+        latestVersion: appCheck.version,
+        currentBuild: currentBld,
+        latestBuild: currentBld,
+        changelog: appCheck.notes ?? "",
+        downloadUrl: appCheck.url,
+        appUpdate: appCheck,
+      };
+    }
+
     return {
       hasUpdate: false,
       isIncremental: false,
@@ -157,45 +263,7 @@ export async function checkForUpdates(options?: {
       latestVersion: currentVer,
       currentBuild: currentBld,
       latestBuild: currentBld,
-      changelog: "开发构建版本不参与线上更新",
-      downloadUrl: RELEASES_PAGE_URL,
-    };
-  }
-
-  try {
-    const manifest = await fetcher(manifestUrl);
-    const verCompare = compareSemVer(manifest.version, currentVer);
-    const hasNewerVersion = verCompare > 0 || (verCompare === 0 && manifest.build > currentBld);
-
-    if (!hasNewerVersion) {
-      return {
-        hasUpdate: false,
-        isIncremental: false,
-        currentVersion: currentVer,
-        latestVersion: manifest.version,
-        currentBuild: currentBld,
-        latestBuild: manifest.build,
-        changelog: manifest.changelog ?? "",
-      };
-    }
-
-    const runnerCompatible = isRunnerCompatible(currentVer, manifest.minRunnerVersion);
-    const isIncremental = runnerCompatible && Boolean(manifest.bundleUrl);
-
-    const platformKey = resolvePlatformKey();
-    const platformAsset = manifest.platforms?.[platformKey];
-    const downloadUrl = platformAsset?.url ?? RELEASES_PAGE_URL;
-
-    return {
-      hasUpdate: true,
-      isIncremental,
-      currentVersion: currentVer,
-      latestVersion: manifest.version,
-      currentBuild: currentBld,
-      latestBuild: manifest.build,
-      changelog: manifest.changelog ?? "",
-      bundleUrl: manifest.bundleUrl,
-      downloadUrl,
+      changelog: "",
     };
   } catch (err: unknown) {
     const errMsg = err instanceof Error ? err.message : String(err);
@@ -209,6 +277,40 @@ export async function checkForUpdates(options?: {
       changelog: "",
       error: errMsg,
     };
+  }
+}
+
+/**
+ * Apply the update: downloads the package/archive and triggers immediate restart.
+ */
+export async function applyUpdate(
+  checkResult: UpdateCheckResult,
+  onProgress?: (progress: UpdateProgress) => void,
+  hooks?: {
+    downloadPackageFn?: (cb?: (p: UpdateProgress) => void) => Promise<void>;
+    restartToPackageFn?: () => Promise<void>;
+    downloadUpdateFn?: (cb?: (p: UpdateProgress) => void) => Promise<void>;
+    installAndRestartFn?: () => Promise<void>;
+  },
+): Promise<void> {
+  if (checkResult.isIncremental) {
+    const dlPkg = hooks?.downloadPackageFn ?? downloadPackage;
+    const rstPkg = hooks?.restartToPackageFn ?? restartToPackage;
+    await dlPkg(onProgress);
+    await rstPkg();
+    return;
+  }
+
+  if (checkResult.appUpdate?.canInstall) {
+    const dlUp = hooks?.downloadUpdateFn ?? downloadUpdate;
+    const instRst = hooks?.installAndRestartFn ?? installAndRestart;
+    await dlUp(onProgress);
+    await instRst();
+    return;
+  }
+
+  if (checkResult.downloadUrl) {
+    await openExternalUrl(checkResult.downloadUrl);
   }
 }
 
@@ -245,8 +347,10 @@ export async function openExternalUrl(url: string): Promise<boolean> {
 
   try {
     const res = await process.run("gio", ["open", url]);
-    return res.code === 0;
+    if (res.code === 0) return true;
   } catch {
     return false;
   }
+
+  return false;
 }

@@ -158,7 +158,7 @@ jobs:
         run: |
           cp cli/target/release/ear .nsh/out/Ear/ear
           chmod +x .nsh/out/Ear/ear
-          tar -czf "Ear-${{ needs.prepare.outputs.version }}-linux-x64.tar.gz" -C .nsh/out Ear
+          tar -czf "Ear-${{ needs.prepare.outputs.version }}-linux-x86_64.tar.gz" -C .nsh/out Ear
 
       # macOS zip assembly
       - name: Assemble macOS Bundle
@@ -168,7 +168,7 @@ jobs:
           mkdir -p .nsh/out/Ear.app/Contents/MacOS
           cp cli/target/release/ear .nsh/out/Ear.app/Contents/MacOS/ear
           chmod +x .nsh/out/Ear.app/Contents/MacOS/ear
-          ditto -c -k --keepParent .nsh/out/Ear.app "Ear-${{ needs.prepare.outputs.version }}-macos-arm64.zip"
+          ditto -c -k --keepParent .nsh/out/Ear.app "Ear-${{ needs.prepare.outputs.version }}-macos-aarch64.zip"
 
       # Windows zip assembly
       - name: Assemble Windows Bundle
@@ -176,7 +176,7 @@ jobs:
         shell: pwsh
         run: |
           Copy-Item "cli/target/release/ear.exe" -Destination ".nsh/out/Ear/ear.exe"
-          Compress-Archive -Path ".nsh/out/Ear/*" -DestinationPath "Ear-${{ needs.prepare.outputs.version }}-windows-x64.zip"
+          Compress-Archive -Path ".nsh/out/Ear/*" -DestinationPath "Ear-${{ needs.prepare.outputs.version }}-windows-x86_64.zip"
 
       - name: Upload Platform Asset
         uses: actions/upload-artifact@v4
@@ -222,16 +222,34 @@ jobs:
           find dist-raw -type f -exec mv {} dist/ \;
           ls -la dist/
 
-      - name: Build Incremental Bytecode Bundle
+      - name: Build Signed OTA Package & Manifest
         shell: bash
+        env:
+          NSH_RELEASE_KEY: ${{ secrets.NSH_RELEASE_KEY }}
+          NSH_UPDATE_KEY: ${{ secrets.NSH_UPDATE_KEY }}
         run: |
+          mkdir -p keys
+          if [ -n "$NSH_RELEASE_KEY" ]; then
+            echo "$NSH_RELEASE_KEY" > keys/release.secret
+            chmod 600 keys/release.secret
+          fi
+          if [ -n "$NSH_UPDATE_KEY" ]; then
+            echo "$NSH_UPDATE_KEY" > keys/update.secret
+            chmod 600 keys/update.secret
+          fi
+
+          BUILD_NUM="${{ needs.prepare.outputs.build }}"
+          PKG_NAME="dev.yuler.ear-${BUILD_NUM}.nshpkg"
+
+          if [ -f keys/release.secret ] && [ -f keys/release.cert ]; then
+            echo "Publishing signed OTA package $PKG_NAME..."
+            nsh publish --key keys/release.secret --cert keys/release.cert --build "$BUILD_NUM" -o "dist/$PKG_NAME" app/
+          fi
+
+          # Also keep raw bytecode bundle for fallback
           nsh package --target linux app/
           cp .nsh/out/Ear/nsh/bundle.nshc dist/bundle.nshc
-          ls -lh dist/bundle.nshc
 
-      - name: Generate Manifest, Checksums & Notes
-        shell: bash
-        run: |
           COMMIT_SUBJECT=$(git log -1 --format="%s" 2>/dev/null || echo "Release ${{ needs.prepare.outputs.tag }}")
           COMMIT_BODY=$(git log -1 --format="%b" 2>/dev/null || true)
           SHORT_SHA=$(git log -1 --format="%h" 2>/dev/null || echo "")
@@ -241,15 +259,23 @@ jobs:
           printf "### What's Changed\n**%%s**\n\n%%s\n\n---\n- **Commit**: [\`%%s\`](https://github.com/${{ github.repository }}/commit/%%s)\n- **Author**: %%s\n" \
             "${COMMIT_SUBJECT}" "${COMMIT_BODY}" "${SHORT_SHA}" "${COMMIT_SHA}" "${AUTHOR}" > dist/release_notes.md
 
-          bash scripts/generate_manifest.sh \
-            --version "${{ needs.prepare.outputs.version }}" \
-            --build "${{ needs.prepare.outputs.build }}" \
-            --tag "${{ needs.prepare.outputs.tag }}" \
-            --repo "${{ github.repository }}" \
-            --changelog "${{ needs.prepare.outputs.changelog }}" \
-            --assets-dir dist \
-            --output dist/latest.json \
-            --checksums dist/checksums.txt
+          KEY_ARG=""
+          if [ -f keys/update.secret ]; then
+            KEY_ARG="--key keys/update.secret"
+          fi
+
+          PKG_ARG=""
+          if [ -f "dist/$PKG_NAME" ]; then
+            PKG_ARG="--package dist/$PKG_NAME"
+          fi
+
+          echo "Running nsh update-manifest..."
+          nsh update-manifest dist/Ear-*.tar.gz dist/Ear-*.zip $PKG_ARG $KEY_ARG --entry app/ --notes dist/release_notes.md -o dist/
+
+          # Also run checksums
+          cd dist
+          sha256sum * > checksums.txt 2>/dev/null || true
+          cd ..
 
       - name: Display Release Contents
         shell: bash

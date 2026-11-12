@@ -22,10 +22,12 @@ test("normalizeWord strips punctuation", () => {
   expect(normalizeWord("World!")).toBe("world");
 });
 
-test("nextRate cycles 0.8 → 1 → 1.2 → 0.8", () => {
+test("nextRate cycles 0.8 → 1 → 1.2 → 1.5 → 2.0 → 0.8", () => {
   expect(nextRate(0.8)).toBe(1);
   expect(nextRate(1)).toBe(1.2);
-  expect(nextRate(1.2)).toBe(0.8);
+  expect(nextRate(1.2)).toBe(1.5);
+  expect(nextRate(1.5)).toBe(2);
+  expect(nextRate(2)).toBe(0.8);
 });
 
 function sent(index: number, text = "hi"): Sentence {

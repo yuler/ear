@@ -50,6 +50,27 @@ export interface I18nMessages {
   captions: string;
   toggleSubtitlesMask: string;
   seekProgress: string;
+  subtitleBlocker: string;
+  subtitleBlockerOn: string;
+  subtitleBlockerOff: string;
+  toggleSubtitleBlocker: string;
+  peekSubtitles: string;
+  resetBlocker: string;
+  blockerFrosted: string;
+  blockerSoft: string;
+  blockerSolid: string;
+  blockerMosaic: string;
+  blockerMosaicSize: string;
+  blockerIntensity: string;
+  blockerOpacity: string;
+  blockerBlur: string;
+  blockerFeather: string;
+  dragToMove: string;
+  dragButton: string;
+  holdToDrag: string;
+  moving: string;
+  nudgeUp: string;
+  nudgeDown: string;
 
   // SentenceControlsBar
   previousSentenceFull: string;
@@ -129,6 +150,27 @@ export const MESSAGES: Record<EarLocale, I18nMessages> = {
     captions: "Captions",
     toggleSubtitlesMask: "Toggle subtitles mask",
     seekProgress: "Seek video progress",
+    subtitleBlocker: "Blocker",
+    subtitleBlockerOn: "Blocker: On",
+    subtitleBlockerOff: "Blocker: Off",
+    toggleSubtitleBlocker: "Toggle subtitle blocker (B)",
+    peekSubtitles: "Hold to Peek",
+    resetBlocker: "Reset position",
+    blockerFrosted: "Frosted",
+    blockerSoft: "Soft Edge",
+    blockerSolid: "Solid",
+    blockerMosaic: "Mosaic",
+    blockerMosaicSize: "Mosaic",
+    blockerIntensity: "Intensity",
+    blockerOpacity: "Opacity",
+    blockerBlur: "Blur",
+    blockerFeather: "Feather",
+    dragToMove: "Drag to move",
+    dragButton: "Drag",
+    holdToDrag: "Hold to drag",
+    moving: "Moving...",
+    nudgeUp: "Move Up",
+    nudgeDown: "Move Down",
 
     previousSentenceFull: "Previous",
     repeatSentenceFull: "Repeat",
@@ -202,6 +244,27 @@ export const MESSAGES: Record<EarLocale, I18nMessages> = {
     captions: "显示字幕",
     toggleSubtitlesMask: "字幕打码切换",
     seekProgress: "拖动调整进度",
+    subtitleBlocker: "拦截字幕条",
+    subtitleBlockerOn: "拦截字幕: 开",
+    subtitleBlockerOff: "拦截字幕: 关",
+    toggleSubtitleBlocker: "切换拦截字幕条 (B)",
+    peekSubtitles: "按住查看",
+    resetBlocker: "重置位置",
+    blockerFrosted: "毛玻璃",
+    blockerSoft: "柔和羽化",
+    blockerSolid: "纯黑遮挡",
+    blockerMosaic: "放大马赛克",
+    blockerMosaicSize: "马赛克",
+    blockerIntensity: "遮挡强度",
+    blockerOpacity: "不透明度",
+    blockerBlur: "高斯虚化",
+    blockerFeather: "羽化度",
+    dragToMove: "拖动调整位置",
+    dragButton: "拖动",
+    holdToDrag: "Hold to drag",
+    moving: "拖动中…",
+    nudgeUp: "上移",
+    nudgeDown: "下移",
 
     previousSentenceFull: "上一句",
     repeatSentenceFull: "重复听",

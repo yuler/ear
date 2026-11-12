@@ -1,4 +1,4 @@
-import { effect, LayoutAnimation, Text, View } from "nsh";
+import { Text, View } from "nsh";
 import type { DownloadTaskProgress, LibraryEntry } from "../library/types";
 import { ActiveDownloadRow } from "../ui/ActiveDownloadRow";
 import { Icon } from "../ui/Icon";
@@ -32,10 +32,16 @@ export function LibraryView(props: {
 }) {
   const currentEntries = () => {
     const isAudio = props.activeTab() === "audio";
-    return props.savedEntries().filter((e) =>
-      e.state !== "downloading" &&
-      e.state !== "paused" &&
-      (isAudio ? isAudioEntry(e) : !isAudioEntry(e)),
+    const activeIds = new Set(
+      (props.activeDownloads?.() ?? []).map((d) => d.videoId),
+    );
+    return props.savedEntries().filter(
+      (e) =>
+        !activeIds.has(e.videoId) &&
+        e.state !== "pending" &&
+        e.state !== "downloading" &&
+        e.state !== "paused" &&
+        (isAudio ? isAudioEntry(e) : !isAudioEntry(e)),
     );
   };
 
@@ -53,59 +59,10 @@ export function LibraryView(props: {
   const totalVisibleCount = () =>
     currentEntries().length + currentDownloads().length;
 
-  effect(() => {
-    // When savedEntries or downloads change, trigger LayoutAnimation to smoothly animate position updates of grid cards
-    const _entries = props.savedEntries();
-    const _downloads = props.activeDownloads?.();
-    try {
-      LayoutAnimation.configureNext({
-        duration: 380,
-        create: {
-          type: "spring",
-          property: "scaleXY",
-          springDamping: 0.78,
-        },
-        update: {
-          type: "spring",
-          springDamping: 0.78,
-        },
-        delete: {
-          type: "easeOut",
-          property: "opacity",
-        },
-      });
-    } catch {
-      // ignore on test host
-    }
-  });
-
   return (
     <View class="gap-4">
       <If when={totalVisibleCount() > 0}>
         <View class="gap-3">
-          {/* Section header */}
-          <View class="flex-row items-center justify-between border-b border-line pb-1">
-            <View class="flex-row items-center gap-2">
-              <Text class="font-mono text-[11px] uppercase tracking-wider text-dim">
-                {props.activeTab() === "video" ? "Videos" : "Audio"} (
-                {totalVisibleCount()})
-              </Text>
-              <If when={currentDownloads().length > 0}>
-                <View class="flex-row items-center gap-1 rounded-full bg-[#2f7cf6]/15 px-2 py-0.5">
-                  <Icon
-                    name="loader"
-                    size={10}
-                    color="#2f7cf6"
-                    class="animate-spin"
-                  />
-                  <Text class="font-mono text-[10px] font-semibold text-[#2f7cf6]">
-                    {currentDownloads().length} downloading
-                  </Text>
-                </View>
-              </If>
-            </View>
-          </View>
-
           {/* 1. Active Downloads: Always placed at the very front as horizontal bars (横条) */}
           <If when={currentDownloads().length > 0}>
             <View class="gap-2.5">

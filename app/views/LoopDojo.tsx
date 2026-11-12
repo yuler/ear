@@ -1,4 +1,4 @@
-import { Image, Scroll, signal, Text, Video, View } from "nsh";
+import { Image, keymap, Scroll, signal, Text, Video, View } from "nsh";
 import { Button, Input } from "nsh/base";
 import {
   clipEnded,
@@ -8,6 +8,8 @@ import {
 } from "../player";
 import { Icon } from "../ui/Icon";
 import { settings, subtitleClass } from "../ui/settings";
+import { setBlockerEnabled } from "../store";
+import { SubtitleBlocker } from "../ui/SubtitleBlocker";
 import { videoPosterUrl } from "../youtube/parse";
 import type { LoadedLesson, Sentence } from "../youtube/types";
 import type { BlindTag } from "./blindFlowLogic";
@@ -94,6 +96,12 @@ export function LoopDojo(props: Props) {
   const showAnswer = signal(false);
   const showQueue = signal(false);
   const checkedSet = signal<Record<number, boolean>>({});
+  const blockerEnabled = signal(settings().subtitleBlockerEnabled ?? false);
+  const handleToggleBlocker = () => {
+    const next = !blockerEnabled();
+    blockerEnabled.set(next);
+    setBlockerEnabled(next);
+  };
   let video: { seek(seconds: number): void } | null = null;
 
   const sentence = (): Sentence | null => {
@@ -144,6 +152,13 @@ export function LoopDojo(props: Props) {
   const go = (delta: number) => {
     selectQueueIndex(index() + delta, true);
   };
+
+  keymap.bind(
+    {
+      b: handleToggleBlocker,
+    },
+    { when: "notEditing" },
+  );
 
   return (
     <View class="mx-auto w-full max-w-[720px] gap-5 py-2">
@@ -209,6 +224,15 @@ export function LoopDojo(props: Props) {
                   </View>
                 </If>
               </Button>
+
+              {/* Subtitle Blocker Overlay */}
+              <If when={hasVideoStream()}>
+                <SubtitleBlocker
+                  videoId={() => lesson().video.videoId}
+                  enabled={blockerEnabled}
+                  onToggleEnabled={handleToggleBlocker}
+                />
+              </If>
             </View>
 
             {/* Thin A–B loop line */}
@@ -275,7 +299,7 @@ export function LoopDojo(props: Props) {
                               : "text-muted-foreground"
                           }`}
                         >
-                          {r()}×
+                          {r() === 2 ? "2.0" : r()}×
                         </Text>
                       </Button>
                     )}
@@ -289,6 +313,33 @@ export function LoopDojo(props: Props) {
                   >
                     <Text class="text-xs text-muted-foreground">
                       {props.saving?.() ? "Saving…" : "Download"}
+                    </Text>
+                  </Button>
+                </If>
+
+                <If when={hasVideoStream()}>
+                  <Button
+                    onPress={handleToggleBlocker}
+                    class={`flex-row items-center gap-1.5 rounded-md border px-2.5 py-1.5 transition active:scale-95 ${
+                      blockerEnabled()
+                        ? "border-amber-400/60 bg-amber-400/20 text-amber-400"
+                        : "border-line text-muted-foreground hover:bg-accent"
+                    }`}
+                    accessibilityLabel="Toggle subtitle blocker"
+                  >
+                    <Icon
+                      name="subtitle-block"
+                      size={12}
+                      color={blockerEnabled() ? "#f59e0b" : "#94a3b8"}
+                    />
+                    <Text
+                      class={`text-xs ${
+                        blockerEnabled()
+                          ? "font-semibold text-amber-400"
+                          : "text-muted-foreground"
+                      }`}
+                    >
+                      {blockerEnabled() ? "Blocker: On" : "Blocker"}
                     </Text>
                   </Button>
                 </If>

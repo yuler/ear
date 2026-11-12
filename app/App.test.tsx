@@ -91,6 +91,9 @@ test("normalizeSettings fills defaults and validates fields", () => {
   const s = normalizeSettings({ appearance: "light", preferredRate: 1.2 });
   expect(s.appearance).toBe("light");
   expect(s.preferredRate).toBe(1.2);
+  expect(normalizeSettings({ preferredRate: 1.5 }).preferredRate).toBe(1.5);
+  expect(normalizeSettings({ preferredRate: 2 }).preferredRate).toBe(2);
+  expect(normalizeSettings({ preferredRate: 99 as any }).preferredRate).toBe(1);
   expect(s.subtitleSize).toBe("md");
   expect(s.showFooter).toBe(false);
   expect(s.clipboardAuto).toBe(true);

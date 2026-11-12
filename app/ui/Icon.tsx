@@ -12,6 +12,7 @@ import folder from "./icons/folder.svg";
 import headphones from "./icons/headphones.svg";
 import link from "./icons/link.svg";
 import loader from "./icons/loader.svg";
+import move from "./icons/move.svg";
 import music from "./icons/music.svg";
 import pause from "./icons/pause.svg";
 import play from "./icons/play.svg";
@@ -20,6 +21,7 @@ import search from "./icons/search.svg";
 import settingsIcon from "./icons/settings.svg";
 import sparkles from "./icons/sparkles.svg";
 import subtitles from "./icons/subtitles.svg";
+import subtitleBlock from "./icons/subtitle-block.svg";
 import volume from "./icons/volume.svg";
 import volumeX from "./icons/volume-x.svg";
 import x from "./icons/x.svg";
@@ -38,6 +40,7 @@ const ICONS = {
   headphones,
   link,
   loader,
+  move,
   music,
   pause,
   play,
@@ -46,6 +49,7 @@ const ICONS = {
   settings: settingsIcon,
   sparkles,
   subtitles,
+  "subtitle-block": subtitleBlock,
   volume,
   "volume-x": volumeX,
   x,

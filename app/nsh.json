@@ -3,6 +3,15 @@
   "id": "dev.yuler.ear",
   "version": "0.0.0",
   "build": 1,
+  "updater": {
+    "github": "yuler/ear",
+    "publicKey": "afYAB8DPnOq0sIl2NOMFatEFS+DoPs6C01B4aReXyy4=",
+    "packages": {
+      "roots": [
+        "DyJPidhdmiTBxcizxAGmqxP4xJnNI/IIOV4au0Ni/u4="
+      ]
+    }
+  },
   "appearance": "dark",
   "theme": "theme.json",
   "capabilities": {

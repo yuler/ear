@@ -1,5 +1,5 @@
-/** Playback rates used by Loop Dojo (and optional Blind Flow replay). */
-export type PlaybackRate = 0.8 | 1 | 1.2;
+/** Playback rates used by video player, Loop Dojo, and Blind Flow. */
+export type PlaybackRate = 0.8 | 1 | 1.2 | 1.5 | 2;
 
 export type AudioEngineState = {
   url: string | null;

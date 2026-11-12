@@ -11,7 +11,7 @@ import {
   View,
   type InputRef,
 } from "nsh";
-import { isAvailable, Menu, Window } from "nsh/desktop";
+import { currentWindow, isAvailable, Menu } from "nsh/desktop";
 import {
   buildVideoPreview,
   fetchVideoPreviewMeta,
@@ -44,6 +44,7 @@ import { VideoDetailView } from "./views/VideoDetailView";
 import { SettingsView } from "./views/SettingsView";
 import { initSettings, settings, updateSettings } from "./ui/settings";
 import { TopBar, type MediaTab } from "./ui/TopBar";
+import { playDingSound } from "./ui/sound";
 import { isAudioEntry, LibraryView } from "./views/LibraryView";
 import { DiscoverView } from "./views/discover/DiscoverView";
 import { discoverItems, loadDiscover } from "./views/discover/source";
@@ -156,10 +157,15 @@ function App() {
   };
 
   if (isAvailable) {
-    if (platform.os === "macos") {
-      Window.setTitleBar({ style: "hidden", height: 44 });
-    } else {
-      Window.setMenuBar("autoHide");
+    try {
+      const win = currentWindow();
+      if (platform.os === "macos") {
+        win.set({ titleBar: { style: "hidden", height: 44 } });
+      } else {
+        Menu.setMenuBar("autoHide");
+      }
+    } catch {
+      // ignore if called outside Window rendering
     }
   }
 
@@ -397,20 +403,22 @@ function App() {
         });
       }
 
-      // Wait 380ms for the shrink-down-and-move animation of ActiveDownloadRow to play
+      // Play completion chime
+      playDingSound();
+
+      // Wait 380ms for the downward-left displacement travel of ActiveDownloadRow to get underway
       await delay(380);
 
       try {
         LayoutAnimation.configureNext({
-          duration: 380,
+          duration: 400,
           create: {
-            type: "spring",
-            property: "scaleXY",
-            springDamping: 0.78,
+            type: "easeOut",
+            property: "opacity",
           },
           update: {
             type: "spring",
-            springDamping: 0.78,
+            springDamping: 0.85,
           },
           delete: {
             type: "easeOut",
@@ -420,6 +428,14 @@ function App() {
       } catch {
         // ignore on test host
       }
+
+      // Atomic handoff: remove from downloadTasks and insert into savedEntries in the same tick
+      activeDownloadControllers.delete(vid);
+      activeDownloadIds.delete(vid);
+      const nextTasks = { ...downloadTasks() };
+      delete nextTasks[vid];
+      downloadTasks.set(nextTasks);
+      saving.set(activeDownloadIds.size > 0);
 
       const entries = await listEntriesSafe();
       savedEntries.set(entries);
@@ -432,25 +448,16 @@ function App() {
           activeTab.set("video");
         }
       }
-
-      await delay(200);
-      status.set(
-        entry.videoPath
-          ? `Downloaded (${entry.quality ?? effectiveQuality}) → ${entry.videoPath}`
-          : entry.audioPath
-            ? `Downloaded audio → ${entry.audioPath}`
-            : audioNote
-              ? `Downloaded captions → ${entry.captionsPath} (${audioNote})`
-              : `Downloaded locally → ${entry.captionsPath}`,
-      );
     } catch (e) {
       error.set(e instanceof Error ? e.message : String(e));
     } finally {
       activeDownloadControllers.delete(vid);
       activeDownloadIds.delete(vid);
-      const next = { ...downloadTasks() };
-      delete next[vid];
-      downloadTasks.set(next);
+      if (downloadTasks()[vid]) {
+        const next = { ...downloadTasks() };
+        delete next[vid];
+        downloadTasks.set(next);
+      }
       saving.set(activeDownloadIds.size > 0);
     }
   };
@@ -465,18 +472,23 @@ function App() {
     if (current) {
       downloadTasks.set({
         ...downloadTasks(),
-        [vid]: { ...current, stage: "paused" },
+        [vid]: { ...current, stage: "paused", speedBps: 0, etaSeconds: null },
       });
     }
     const entry = await readEntry(vid);
     if (entry) {
       await upsertEntry({ ...entry, state: "paused", note: "Paused" });
-      const entries = await listEntriesSafe();
-      savedEntries.set(entries);
     }
   };
 
   const handleResumeDownload = async (vid: string) => {
+    const current = downloadTasks()[vid];
+    if (current) {
+      downloadTasks.set({
+        ...downloadTasks(),
+        [vid]: { ...current, stage: "starting" },
+      });
+    }
     const existing = await readEntry(vid);
     if (!existing) return;
     const lesson = await loadLessonFromEntry(existing).catch(() => null);
@@ -767,7 +779,13 @@ function App() {
           : activeTab() === "discover"
             ? "Discover"
             : "Settings";
-    Window.setTitle(`Ear — ${tabName}`);
+    if (isAvailable) {
+      try {
+        currentWindow().set({ title: `Ear — ${tabName}` });
+      } catch {
+        // ignore outside window rendering
+      }
+    }
 
     if (platform.os === "macos") {
       Menu.setApplicationMenu([

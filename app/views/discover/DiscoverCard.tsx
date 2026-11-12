@@ -10,9 +10,9 @@ import type { DiscoverItem } from "./types";
 
 export function DiscoverCard(props: {
   item: DiscoverItem;
-  onInspect: (item: DiscoverItem) => void;
   onPractice: (item: DiscoverItem, originRect?: ViewTransitionRect | null) => void;
-  onDownload: (item: DiscoverItem) => void;
+  onInspect?: (item: DiscoverItem) => void;
+  onDownload?: (item: DiscoverItem) => void;
   onTagClick?: (tag: string) => void;
   isDownloaded?: () => boolean;
   isDownloading?: () => boolean;
@@ -45,28 +45,27 @@ export function DiscoverCard(props: {
     return "border-rose-500/30 bg-rose-500/15 text-rose-500";
   };
 
-  const isDownloaded = () => props.isDownloaded?.() ?? false;
-  const isDownloading = () => props.isDownloading?.() ?? false;
-
   return (
-    <View class="group flex-col justify-between overflow-hidden rounded-xl border border-line bg-well/15 p-3.5 transition hover:border-[#2f7cf6]/50 hover:bg-well/35 sm:p-4">
+    <Button
+      onPress={() => void handlePractice()}
+      class="group relative flex-col justify-between overflow-hidden rounded-xl border border-line/70 bg-well/15 p-3.5 text-left transition-all duration-200 hover:border-[#2f7cf6] hover:bg-well/35 hover:shadow-lg sm:p-4 cursor-pointer active:scale-[0.99]"
+      accessibilityLabel={`Play ${item.title}`}
+    >
       <View class="gap-3">
         {/* Poster + duration + level badge */}
-        <Button
+        <View
           ref={(node) => {
             posterRef = node;
           }}
-          onPress={() => void handlePractice()}
           class="relative aspect-video w-full overflow-hidden rounded-lg border border-line/60 bg-black text-left"
-          accessibilityLabel={`Play ${item.title}`}
         >
           <Image
             src={item.thumbnailUrl}
-            class="h-full w-full object-cover transition group-hover:scale-[1.02]"
+            class="h-full w-full object-cover transition duration-300 group-hover:scale-[1.03]"
           />
-          <View class="absolute inset-0 items-center justify-center bg-black/20 transition hover:bg-black/35">
-            <View class="h-9 w-9 items-center justify-center rounded-full bg-black/70 active:scale-95">
-              <Icon name="play" size={13} color="#ffffff" />
+          <View class="absolute inset-0 items-center justify-center bg-black/25 transition duration-200 group-hover:bg-black/15">
+            <View class="h-10 w-10 items-center justify-center rounded-full bg-black/75 shadow-md backdrop-blur-sm transition duration-200 group-hover:scale-110 group-hover:bg-[#2f7cf6] group-hover:shadow-[0_0_20px_rgba(47,124,246,0.6)]">
+              <Icon name="play" size={14} color="#ffffff" />
             </View>
           </View>
 
@@ -94,7 +93,7 @@ export function DiscoverCard(props: {
               {item.durationTier} min 档
             </Text>
           </View>
-        </Button>
+        </View>
 
         {/* Content details */}
         <View class="gap-1.5">
@@ -112,7 +111,7 @@ export function DiscoverCard(props: {
 
           {/* Title & Description */}
           <View selectable class="w-full select-text gap-1">
-            <Text class="select-text line-clamp-2 text-sm font-semibold leading-snug text-foreground">
+            <Text class="select-text line-clamp-2 text-sm font-semibold leading-snug text-foreground transition group-hover:text-[#2f7cf6]">
               {item.title}
             </Text>
             <Text class="select-text line-clamp-2 text-xs leading-relaxed text-muted-foreground">
@@ -125,7 +124,7 @@ export function DiscoverCard(props: {
             {item.tags.map((tag) => (
               <Button
                 onPress={() => props.onTagClick?.(tag)}
-                class="rounded bg-well px-1.5 py-0.5 hover:bg-well/80 active:scale-95"
+                class="rounded bg-well px-1.5 py-0.5 hover:bg-[#2f7cf6]/20 active:scale-95"
               >
                 <Text class="font-mono text-[10px] text-dim">{tag}</Text>
               </Button>
@@ -133,53 +132,6 @@ export function DiscoverCard(props: {
           </View>
         </View>
       </View>
-
-      {/* Footer Action buttons */}
-      <View class="mt-3.5 flex-row items-center justify-between border-t border-line/50 pt-3">
-        <Button
-          onPress={() => void handlePractice()}
-          class="flex-row items-center gap-1.5 rounded-lg bg-[#2f7cf6] px-3 py-1.5 transition active:scale-95"
-          accessibilityLabel="Practice now"
-        >
-          <Icon name="play" size={12} color="#ffffff" />
-          <Text class="text-xs font-semibold text-white">
-            {isDownloaded() ? "本地精听" : "立即精听"}
-          </Text>
-        </Button>
-
-        <View class="flex-row items-center gap-2">
-          <If when={!isDownloaded()}>
-            <Button
-              onPress={() => props.onDownload(item)}
-              class="flex-row items-center gap-1 rounded-lg border border-line bg-raised px-2.5 py-1.5 text-xs font-medium text-foreground transition active:bg-accent"
-              accessibilityLabel="Download video"
-            >
-              <If when={isDownloading()}>
-                <Icon
-                  name="loader"
-                  size={12}
-                  color="#2f7cf6"
-                  class="animate-spin"
-                />
-                <Text class="font-mono text-xs text-[#2f7cf6]">下载中…</Text>
-              </If>
-              <If when={!isDownloading()}>
-                <Icon name="download" size={12} tone="foreground" />
-                <Text class="text-xs text-foreground">下载</Text>
-              </If>
-            </Button>
-          </If>
-
-          <Button
-            onPress={() => props.onInspect(item)}
-            class="flex-row items-center gap-1 rounded-lg border border-line bg-well px-2.5 py-1.5 text-xs text-muted-foreground transition hover:text-foreground active:bg-accent"
-            accessibilityLabel="Inspect link"
-          >
-            <Icon name="link" size={12} tone="muted-foreground" />
-            <Text class="text-xs text-muted-foreground">填入链接</Text>
-          </Button>
-        </View>
-      </View>
-    </View>
+    </Button>
   );
 }

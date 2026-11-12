@@ -13,12 +13,12 @@ export type VideoPlayerControlsProps = {
   durationSec: () => number;
   rate: () => PlaybackRate;
   onCycleRate: () => void;
-  loopSingle: () => boolean;
-  onToggleLoop: () => void;
   muted: () => boolean;
   onToggleMute: () => void;
   maskAll: () => boolean;
   onToggleMask: () => void;
+  blockerEnabled?: () => boolean;
+  onToggleBlocker?: () => void;
   sentences: () => Sentence[];
   onPrevSentence: () => void;
   onRepeatSentence: () => void;
@@ -63,7 +63,7 @@ export function VideoPlayerControls(props: VideoPlayerControlsProps) {
     <View
       onMouseEnter={props.onActivity}
       onMouseMove={props.onActivity}
-      class="absolute inset-0 flex-col justify-between pointer-events-none"
+      class="absolute inset-0 flex-col justify-between pointer-events-none z-20"
     >
       {/* 1. Big Center Play Overlay Button when paused (only shown when controls are active) */}
       <If when={props.paused() && isBottomVisible()}>
@@ -196,32 +196,8 @@ export function VideoPlayerControls(props: VideoPlayerControlsProps) {
             </View>
           </View>
 
-          {/* Right: Loop, Rate, Mute, Mask */}
+          {/* Right: Rate, Mute, Mask */}
           <View class="flex-row items-center gap-1.5 sm:gap-2">
-            {/* Single Sentence Loop Toggle */}
-            <Button
-              onPress={props.onToggleLoop}
-              class={`h-8 flex-row items-center gap-1 rounded-lg border px-2 transition active:scale-95 ${
-                props.loopSingle()
-                  ? "border-[#2f7cf6] bg-[#2f7cf6]/20 text-[#2f7cf6]"
-                  : "border-white/15 bg-white/10 text-white/80 hover:bg-white/20"
-              }`}
-              accessibilityLabel={m().loopSentenceToggle}
-            >
-              <Icon
-                name="repeat"
-                size={12}
-                color={props.loopSingle() ? "#2f7cf6" : "#ffffff"}
-              />
-              <Text
-                class={`font-mono text-xs font-semibold ${
-                  props.loopSingle() ? "text-[#2f7cf6]" : "text-white"
-                }`}
-              >
-                {props.loopSingle() ? m().looping : m().loopSingle}
-              </Text>
-            </Button>
-
             {/* Playback Speed / Rate */}
             <Button
               onPress={props.onCycleRate}
@@ -269,6 +245,32 @@ export function VideoPlayerControls(props: VideoPlayerControlsProps) {
                 {props.maskAll() ? m().masked : m().captions}
               </Text>
             </Button>
+
+            {/* Video Subtitle Blocker Quick Toggle */}
+            <If when={props.onToggleBlocker}>
+              <Button
+                onPress={props.onToggleBlocker}
+                class={`h-8 flex-row items-center gap-1 rounded-lg border px-2 transition active:scale-95 ${
+                  props.blockerEnabled?.()
+                    ? "border-amber-400/60 bg-amber-400/20 text-amber-400"
+                    : "border-white/15 bg-white/10 text-white/80 hover:bg-white/20"
+                }`}
+                accessibilityLabel={m().toggleSubtitleBlocker}
+              >
+                <Icon
+                  name="subtitle-block"
+                  size={12}
+                  color={props.blockerEnabled?.() ? "#f59e0b" : "#ffffff"}
+                />
+                <Text
+                  class={`hidden text-xs font-semibold sm:inline ${
+                    props.blockerEnabled?.() ? "text-amber-400" : "text-white"
+                  }`}
+                >
+                  {m().subtitleBlocker}
+                </Text>
+              </Button>
+            </If>
           </View>
         </View>
       </View>

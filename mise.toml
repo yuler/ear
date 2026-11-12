@@ -1,5 +1,5 @@
 [tools]
-"github:longbridge/nsh" = "latest"
+"github:longbridge/nsh" = "0.5.0"
 wrangler = "latest"
 
 [env]
@@ -21,9 +21,13 @@ run = "cargo test --manifest-path cli/Cargo.toml"
 
 [tasks."app:dev"]
 description = "Rebuild CLI (debug) then start native host"
-alias = ["dev", "run"]
+alias = ["run"]
 depends = ["cli:dev"]
 run = "nsh run app"
+
+[tasks.dev]
+description = "Run all *:dev tasks in parallel (cli + app + www)"
+depends = ["*:dev"]
 
 [tasks."app:check"]
 description = "Run TypeScript and styling checks on Native Shell desktop app"

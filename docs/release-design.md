@@ -22,8 +22,8 @@
 | **大版本演进**   | 跨 Milestone 或破坏性更新时，通过 GitHub Actions `workflow_dispatch`（输入目标 Tag 如 `v0.1.0`）或本地打 Tag，CI 自动顺延。       |
 | **质量门禁**     | 前置强制通过 `nsh check`、`cargo test`、`nsh test` 及编译预检；任意一步失败即刻阻断流程，绝不打 Tag。                             |
 | **并发调度**     | 设置 `cancel-in-progress: false` 串行排队；保证每次合入 main 的 Commit / PR 都有专属独立的版本号与 Release。                     |
-| **产物形态**     | 输出 Linux x64、macOS arm64、Windows x64 完整安装包，并同步输出 Native Shell 增量字节码（`bundle.nshc`，~200KB）。               |
-| **更新与元数据** | 生成结构化 Release Notes（包含 Commit/PR 标题、详细说明、作者与对比 Diff），同步写入 `latest.json` 的 `changelog` 字段供客户端热更展示。 |
+| **产物形态**     | 输出 Linux x86_64、macOS aarch64、Windows x86_64 完整安装包，并同步输出签名 OTA 包（`.nshpkg`，~200KB）。          |
+| **更新与元数据** | 生成官方签名清单 `latest.json` 与 `latest.json.sig`，由 `nsh/updater` 原生校验并展示更新日志。                    |
 
 ---
 
@@ -42,9 +42,9 @@
   .github/workflows/release.yml
          ├─ 1. Quality Gate (check & test)
          ├─ 2. Version & Tag Resolution (Fetch latest tag -> Auto patch + 1 -> Create git tag)
-         ├─ 3. Desktop Matrix Build (Linux x64, macOS arm64, Windows x64)
-         ├─ 4. Bytecode Bundle Build (bundle.nshc OTA)
-         ├─ 5. Manifest & Checksums Generation (latest.json)
+         ├─ 3. Desktop Matrix Build (Linux x86_64, macOS aarch64, Windows x86_64)
+         ├─ 4. Signed OTA Package Build (nsh publish -> .nshpkg)
+         ├─ 5. Signed Manifest Generation (nsh update-manifest -> latest.json + latest.json.sig)
          └─ 6. GitHub Release Publication (softprops/action-gh-release)
 ```
 
@@ -52,6 +52,6 @@
 
 ## 4. 客户端热更新与版本解析
 
-- 桌面客户端启动时静默请求 `https://github.com/yuler/ear/releases/latest/download/latest.json`。
-- 如果当前版本低于远程版本且客户端 Native Runner 兼容，客户端优先拉取 `bundle.nshc` 秒级热更。
-- 遇重大底座或 Rust CLI 变更时，提示用户下载完整平台安装包。
+- 桌面客户端使用 NSH 原生模块 `nsh/updater`，启动时静默检查更新（通过 `nsh.json` 的 `updater` 声明）。
+- **增量 OTA 更新**：优先检查 `checkForPackage()`。若存在受信任根密钥认证的新版签名包（`.nshpkg`），客户端通过 `downloadPackage()` 极速下载至用户数据目录（不触碰系统目录与 macOS 代码签名），并调用 `restartToPackage()` 毫秒级重启进入新版本，自带 10 秒试运行和自动回滚保护机制。
+- **全量平台升级**：当 Native Runner 底座发生变更时，回退到 `checkForUpdate()`，提示用户通过 `downloadUpdate()` / `installAndRestart()` 安装完整平台包。

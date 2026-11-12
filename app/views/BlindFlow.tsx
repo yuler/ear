@@ -8,6 +8,8 @@ import {
 } from "../player";
 import { Icon } from "../ui/Icon";
 import { settings, subtitleClass } from "../ui/settings";
+import { setBlockerEnabled } from "../store";
+import { SubtitleBlocker } from "../ui/SubtitleBlocker";
 import { videoPosterUrl } from "../youtube/parse";
 import type { LoadedLesson, Sentence } from "../youtube/types";
 import {
@@ -108,6 +110,12 @@ export function BlindFlow(props: Props) {
   const rate = signal<PlaybackRate>(settings().preferredRate);
   const clipEndMs = signal<number | null>(null);
   const showTranscript = signal(false);
+  const blockerEnabled = signal(settings().subtitleBlockerEnabled ?? false);
+  const handleToggleBlocker = () => {
+    const next = !blockerEnabled();
+    blockerEnabled.set(next);
+    setBlockerEnabled(next);
+  };
   let video: { seek(seconds: number): void } | null = null;
 
   const sentences = () => lesson().sentences;
@@ -208,6 +216,7 @@ export function BlindFlow(props: Props) {
       },
       left: () => jumpAndPlay(session().index - 1),
       right: () => jumpAndPlay(session().index + 1),
+      b: handleToggleBlocker,
     },
     { when: "notEditing" },
   );
@@ -306,6 +315,15 @@ export function BlindFlow(props: Props) {
                   </View>
                 </If>
               </Button>
+
+              {/* Subtitle Blocker Overlay */}
+              <If when={hasVideoStream()}>
+                <SubtitleBlocker
+                  videoId={() => lesson().video.videoId}
+                  enabled={blockerEnabled}
+                  onToggleEnabled={handleToggleBlocker}
+                />
+              </If>
             </View>
 
             {/* Focal subtitle */}
@@ -320,17 +338,46 @@ export function BlindFlow(props: Props) {
               >
                 {session().revealed ? get().text : maskCaption(get().text)}
               </Text>
-              <Button
-                onPress={toggleReveal}
-                class="rounded-md border border-line bg-well/50 px-2.5 py-1 transition hover:bg-well active:scale-95"
-                accessibilityLabel={
-                  session().revealed ? "Hide subtitle" : "Reveal subtitle"
-                }
-              >
-                <Text class="font-mono text-[11px] text-muted-foreground">
-                  {session().revealed ? "隐藏字幕 (Space)" : "显示字幕 (Space)"}
-                </Text>
-              </Button>
+              <View class="flex-row items-center gap-2">
+                <Button
+                  onPress={toggleReveal}
+                  class="rounded-md border border-line bg-well/50 px-2.5 py-1 transition hover:bg-well active:scale-95"
+                  accessibilityLabel={
+                    session().revealed ? "Hide subtitle" : "Reveal subtitle"
+                  }
+                >
+                  <Text class="font-mono text-[11px] text-muted-foreground">
+                    {session().revealed ? "隐藏字幕 (R)" : "显示字幕 (R)"}
+                  </Text>
+                </Button>
+
+                <If when={hasVideoStream()}>
+                  <Button
+                    onPress={handleToggleBlocker}
+                    class={`flex-row items-center gap-1.5 rounded-md border px-2.5 py-1 transition active:scale-95 ${
+                      blockerEnabled()
+                        ? "border-amber-400/60 bg-amber-400/20 text-amber-400"
+                        : "border-line bg-well/50 text-muted-foreground hover:bg-well"
+                    }`}
+                    accessibilityLabel="Toggle subtitle blocker"
+                  >
+                    <Icon
+                      name="subtitle-block"
+                      size={12}
+                      color={blockerEnabled() ? "#f59e0b" : "#94a3b8"}
+                    />
+                    <Text
+                      class={`font-mono text-[11px] ${
+                        blockerEnabled()
+                          ? "text-amber-400"
+                          : "text-muted-foreground"
+                      }`}
+                    >
+                      {blockerEnabled() ? "拦截字幕 (B): 开" : "拦截字幕 (B)"}
+                    </Text>
+                  </Button>
+                </If>
+              </View>
             </View>
 
             {/* Thin sentence timeline */}
@@ -417,7 +464,7 @@ export function BlindFlow(props: Props) {
                   class="rounded-md border border-line px-2.5 py-2 active:bg-accent"
                 >
                   <Text class="font-mono text-xs tabular-nums text-muted-foreground">
-                    {rate()}×
+                    {rate() === 2 ? "2.0" : rate()}×
                   </Text>
                 </Button>
 
