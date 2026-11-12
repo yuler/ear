@@ -23,7 +23,7 @@ window.MOCK_WINDOW_HTML = `<div class="window-titlebar">
   <div class="timeline-step active" data-step="0" id="step-tab-0">
     <div class="step-label-row">
       <span class="step-num">01</span>
-      <span class="step-name">复制与解析</span>
+      <span class="step-name" data-i18n="step_0">复制链接</span>
     </div>
     <div class="step-track">
       <div class="step-track-fill" id="step-fill-0"></div>
@@ -33,7 +33,7 @@ window.MOCK_WINDOW_HTML = `<div class="window-titlebar">
   <div class="timeline-step" data-step="1" id="step-tab-1">
     <div class="step-label-row">
       <span class="step-num">02</span>
-      <span class="step-name">极速下载</span>
+      <span class="step-name" data-i18n="step_1">读取剪贴板与下载</span>
     </div>
     <div class="step-track">
       <div class="step-track-fill" id="step-fill-1"></div>
@@ -43,7 +43,7 @@ window.MOCK_WINDOW_HTML = `<div class="window-titlebar">
   <div class="timeline-step" data-step="2" id="step-tab-2">
     <div class="step-label-row">
       <span class="step-num">03</span>
-      <span class="step-name">播放练习</span>
+      <span class="step-name" data-i18n="step_2">播放与字幕精听</span>
     </div>
     <div class="step-track">
       <div class="step-track-fill" id="step-fill-2"></div>
@@ -60,7 +60,7 @@ window.MOCK_WINDOW_HTML = `<div class="window-titlebar">
   </div>
   <div class="cursor-ripple-layer" id="cursor-ripple-layer"></div>
 
-  <!-- Camera Rig (3D viewport transforms) -->
+  <!-- Camera Rig (Pixel-crisp 1:1 viewport, no 3D scaling blur) -->
   <div class="camera-rig camera-step-0" id="camera-rig">
     <div class="app-frame">
       <!-- Sidebar -->
@@ -99,9 +99,9 @@ window.MOCK_WINDOW_HTML = `<div class="window-titlebar">
 
       <!-- Main Workspace Area -->
       <div class="app-main">
-        <!-- Stage 0: Abstract YouTube Browser -> Copy Link -> Ear Ingest & Parse -->
+        <!-- Stage 0: 找个视频，复制链接 (YouTube Browser View) -->
         <div class="stage-pane active" id="pane-0">
-          <div class="step-guide-tag" data-i18n="step_0_guide">第 1 步 · 打开 YouTube 网页复制视频链接 → Ear 自动解析并确认下载</div>
+          <div class="step-guide-tag" data-i18n="step_0_guide">第 1 步 · 打开 YouTube 网页，找到想精听的视频，复制链接</div>
           <div class="step0-container">
             <!-- Simulated Safari Browser Window -->
             <div class="safari-card">
@@ -117,7 +117,7 @@ window.MOCK_WINDOW_HTML = `<div class="window-titlebar">
                   <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
                   <span>youtube.com/watch?v=jiHZqamCD8c</span>
                 </div>
-                <button class="safari-copy-btn" id="yt-copy-btn">
+                <button class="safari-copy-btn" id="yt-copy-btn" title="点击复制视频链接">
                   <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
                   <span id="yt-copy-btn-text">复制视频链接</span>
                 </button>
@@ -134,22 +134,41 @@ window.MOCK_WINDOW_HTML = `<div class="window-titlebar">
                   <div class="safari-meta-wrap">
                     <div class="safari-yt-title">Steve Jobs' 2005 Stanford Commencement Address</div>
                     <div class="safari-yt-sub">Stanford University · 44M views · English CC Subtitles</div>
-                    <div class="safari-yt-tag">✦ 适合托福/雅思/日常听力 Comprehensible Input 精听材料</div>
+                    <div class="safari-yt-badges">
+                      <span class="badge-tag accent">✦ 适合 Comprehensible Input 精听材料</span>
+                      <span class="badge-tag">经典演讲 · 纯正母语发音</span>
+                    </div>
                   </div>
+                </div>
+
+                <div class="safari-copy-hint" id="safari-toast">
+                  <span class="hint-icon">📋</span>
+                  <span id="safari-toast-text">在 YouTube 任意视频页面复制链接，打开 Ear 即可自动读取剪贴板！</span>
                 </div>
               </div>
             </div>
+          </div>
+        </div>
 
-            <!-- Ear Application Omnibar & Ingestion Card -->
+        <!-- Stage 1: 打开 Ear 自动读取剪贴板，解析 URL，确认下载 (Ingestion + Downbit Download) -->
+        <div class="stage-pane" id="pane-1">
+          <div class="step-guide-tag" data-i18n="step_1_guide">第 2 步 · 打开 Ear 自动读取剪贴板 → 解析 URL 确认极速下载</div>
+          <div class="step1-container">
+            <!-- Ear Clipboard Ingestion & Recognition Card -->
             <div class="ear-ingest-card" id="ear-ingest-card">
               <div class="ear-omni-header">
+                <div class="ear-clipboard-badge">
+                  <span class="clipboard-pulse-dot"></span>
+                  <span>自动读取剪贴板</span>
+                </div>
                 <div class="ear-omni-input-box">
                   <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#2f7cf6" stroke-width="2.5"><polyline points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
-                  <span id="ear-omni-text" class="ear-omni-text">粘贴 YouTube 链接开始精听练习...</span>
+                  <span id="ear-omni-text" class="ear-omni-text active">https://www.youtube.com/watch?v=jiHZqamCD8c</span>
                 </div>
               </div>
-              <div class="ear-parse-info" id="ear-parse-info">
-                <div>
+
+              <div class="ear-parse-info active" id="ear-parse-info">
+                <div class="ear-parse-left">
                   <div class="ear-parse-title">Steve Jobs' 2005 Stanford Commencement Address</div>
                   <div class="ear-badges">
                     <span class="badge-tag accent">1080p Full HD</span>
@@ -161,20 +180,11 @@ window.MOCK_WINDOW_HTML = `<div class="window-titlebar">
                 <button class="confirm-dl-btn" id="btn-confirm-dl">确认下载 ↗</button>
               </div>
             </div>
-          </div>
-        </div>
 
-        <!-- Stage 1: Downbit-Style Active Download Row -->
-        <div class="stage-pane" id="pane-1">
-          <div class="step-guide-tag" data-i18n="step_1_guide">第 2 步 · 我们的应用极速下载 (Downbit 风格横条与灰度渐变过渡)</div>
-          <div class="dl-library-container">
-            <!-- Downbit-style Active Download Row with Large 16:9 Thumbnail -->
+            <!-- Downbit-Style Active Download Row with Large 16:9 Thumbnail -->
             <div class="active-download-row" id="active-dl-row">
-              <!-- Video Thumbnail with Color-to-Grayscale Reveal -->
               <div class="dl-thumb-container">
-                <!-- Base Grayscale Layer -->
                 <img src="/sample-poster.jpg" alt="Grayscale base" class="dl-thumb-base" />
-                <!-- Top Color Reveal Layer -->
                 <div class="dl-thumb-color-clip" id="dl-thumb-color">
                   <img src="/sample-poster.jpg" alt="Vibrant color" class="dl-thumb-color-img" />
                 </div>
@@ -188,7 +198,7 @@ window.MOCK_WINDOW_HTML = `<div class="window-titlebar">
                   <span class="dl-tag-engine" id="dl-engine-tag">4-Thread Range Engine</span>
                 </div>
 
-                <div class="dl-status-text" id="dl-stage-text">Starting background download…</div>
+                <div class="dl-status-text" id="dl-stage-text">⚡ 4 线程并发分块下载音视频流...</div>
 
                 <!-- Downbit Progress Bar -->
                 <div class="dl-bar-track">
@@ -197,7 +207,7 @@ window.MOCK_WINDOW_HTML = `<div class="window-titlebar">
 
                 <!-- Live Speed, ETA, and Bytes Transferred -->
                 <div class="dl-metrics-row">
-                  <span class="dl-metrics-left" id="dl-telemetry-text">速度: 24.8 MB/s · ETA: 2s · 0 MB / 46.8 MB</span>
+                  <span class="dl-metrics-left" id="dl-telemetry-text">速度: 28.5 MB/s · ETA: 1s · 0 MB / 46.8 MB</span>
                   <span class="dl-metrics-right" id="dl-percent-text">0%</span>
                 </div>
               </div>
@@ -217,8 +227,9 @@ window.MOCK_WINDOW_HTML = `<div class="window-titlebar">
           </div>
         </div>
 
-        <!-- Stage 2: VideoDetailView Player with Box 2 Consistent Controls -->
+        <!-- Stage 2: 播放视频，下面显示字幕 (Video Practice Player with Interactive Subtitles) -->
         <div class="stage-pane" id="pane-2">
+          <div class="step-guide-tag" data-i18n="step_2_guide">第 3 步 · 播放视频进行精听练习，下方同步显示智能断句字幕</div>
           <div class="player-stage">
             <!-- Header Bar -->
             <div class="player-top-header">
@@ -237,20 +248,19 @@ window.MOCK_WINDOW_HTML = `<div class="window-titlebar">
               </button>
             </div>
 
-            <!-- Video Container with Large Aspect Ratio & Real HTML5 10s Video -->
+            <!-- Video Container with Large Aspect Ratio & Real HTML5 Video -->
             <div class="video-container" id="video-wrapper">
               <video id="practice-video" src="/sample.mp4" poster="/sample-poster.jpg" playsinline preload="auto" loop muted></video>
               <div class="video-center-play" id="video-center-btn">
                 <svg width="28" height="28" viewBox="0 0 24 24" fill="currentColor"><polygon points="6 4 20 12 6 20 6 4"/></svg>
               </div>
 
-              <!-- Box 2: Video Player Controls Bar (Strictly Matching VideoPlayerControls.tsx) -->
+              <!-- Video Player Controls Bar (Matching VideoPlayerControls.tsx) -->
               <div class="vctrl-overlay" id="video-controls-overlay">
                 <!-- 1. Seekable Progress Bar with Sentence Ticks -->
                 <div class="vctrl-progress-box">
                   <div class="vctrl-track" id="video-track">
                     <div class="vctrl-fill" id="video-fill"></div>
-                    <!-- Sentence marker ticks across the track -->
                     <div class="vctrl-tick" style="left: 0%;"></div>
                     <div class="vctrl-tick" style="left: 14%;"></div>
                     <div class="vctrl-tick" style="left: 28%;"></div>
@@ -312,10 +322,10 @@ window.MOCK_WINDOW_HTML = `<div class="window-titlebar">
             <!-- Subtitle Meta Bar -->
             <div class="sentence-meta-bar">
               <span class="s-tag-idx">Sentence 08 / 142 · 00:01:20 - 00:01:28</span>
-              <span class="s-hint-tip">💡 默认遮蔽字幕阻断看字幻觉 · 盲听后按 Space 偷看揭晓</span>
+              <span class="s-hint-tip">💡 默认遮蔽字幕阻断看字幻觉 · 盲听后按 Space / 点击偷看揭晓</span>
             </div>
 
-            <!-- Real-Time Subtitle Roller Area -->
+            <!-- Real-Time Subtitle Roller Area (Crisp Rendering, No Blur Filter) -->
             <div class="sentence-roller-area">
               <div class="sentence-row preceding">
                 <span class="s-time">00:01:16</span>

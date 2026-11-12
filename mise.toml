@@ -2,6 +2,9 @@
 "github:longbridge/nsh" = "latest"
 wrangler = "latest"
 
+[env]
+_.file = ".env"
+
 [tasks."cli:build"]
 description = "Release-build Ear CLI and install to ~/.local/bin/ear"
 alias = ["build-cli"]
@@ -38,6 +41,7 @@ run = "wrangler dev"
 
 [tasks."www:deploy"]
 description = "Deploy website & Cloudflare Worker to Cloudflare"
+alias = ["deploy", "deploy-www"]
 dir = "www"
 run = "wrangler deploy"
 

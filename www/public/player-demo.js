@@ -141,23 +141,23 @@
     if (cursorTimer) clearTimeout(cursorTimer);
   }
 
-  // ── Step 0: Safari YouTube -> Ear Ingest ──
+  // ── Step 0: 找个视频，复制链接 (YouTube Browser View) ──
   function runStep0Sequence() {
     const copyBtn = $("yt-copy-btn");
     const copyText = $("yt-copy-btn-text");
-    const omniText = $("ear-omni-text");
-    const parseCard = $("ear-parse-info");
-    const confirmBtn = $("btn-confirm-dl");
+    const toast = $("safari-toast");
+    const toastText = $("safari-toast-text");
 
-    updateTimelineProgress(0, 15);
+    updateTimelineProgress(0, 20);
 
     if (copyBtn) copyBtn.classList.remove("copied");
-    if (copyText) copyText.textContent = isEn() ? "Copy Link" : "复制视频链接";
-    if (omniText) {
-      omniText.classList.remove("active");
-      omniText.textContent = isEn() ? "Paste YouTube link to start practice..." : "粘贴 YouTube 链接开始精听练习...";
+    if (copyText) copyText.textContent = isEn() ? "Copy Video Link" : "复制视频链接";
+    if (toast) toast.classList.remove("active");
+    if (toastText) {
+      toastText.textContent = isEn()
+        ? "Browse any YouTube video, copy link, and Ear will auto-read it!"
+        : "在 YouTube 任意视频页面复制链接，打开 Ear 即可自动读取剪贴板！";
     }
-    if (parseCard) parseCard.classList.remove("active");
 
     if (!state.autoCycle) return;
 
@@ -165,35 +165,26 @@
       moveCursorTo(copyBtn, 0.5, 0.5, () => {
         clickCursor(copyBtn, () => {
           if (copyBtn) copyBtn.classList.add("copied");
-          if (copyText) copyText.textContent = isEn() ? "✓ Copied" : "✓ 链接已复制";
-          updateTimelineProgress(0, 50);
+          if (copyText) copyText.textContent = isEn() ? "✓ Copied to Clipboard" : "✓ 已复制到剪贴板";
+          if (toast) toast.classList.add("active");
+          if (toastText) {
+            toastText.textContent = isEn()
+              ? "✓ Link copied! Switching to Ear to auto-read clipboard..."
+              : "✓ 链接已写入系统剪贴板！正在打开 Ear 自动读取...";
+          }
+          updateTimelineProgress(0, 100);
 
           stepTimer = setTimeout(() => {
-            if (omniText) {
-              omniText.classList.add("active");
-              omniText.textContent = "https://www.youtube.com/watch?v=jiHZqamCD8c";
-            }
-            if (parseCard) parseCard.classList.add("active");
-            updateTimelineProgress(0, 75);
-
-            stepTimer = setTimeout(() => {
-              moveCursorTo(confirmBtn, 0.5, 0.5, () => {
-                clickCursor(confirmBtn, () => {
-                  updateTimelineProgress(0, 100);
-                  stepTimer = setTimeout(() => {
-                    setStep(1);
-                  }, 350);
-                });
-              });
-            }, 600);
-          }, 450);
+            setStep(1);
+          }, 850);
         });
       });
-    }, 450);
+    }, 550);
   }
 
-  // ── Step 1: Downbit-Style Active Download Row ──
+  // ── Step 1: 打开 Ear 自动读取剪贴板，解析 URL，确认下载 ──
   function runStep1Sequence() {
+    const confirmBtn = $("btn-confirm-dl");
     const bar = $("dl-progress-bar");
     const colorThumb = $("dl-thumb-color");
     const stageText = $("dl-stage-text");
@@ -206,56 +197,70 @@
     if (colorThumb) colorThumb.style.width = "0%";
     if (pctText) pctText.textContent = "0%";
     if (completeAction) completeAction.classList.remove("active");
-    if (stageText) stageText.textContent = isEn() ? "Starting background download…" : "Starting background download…";
-    if (telemetry) telemetry.textContent = isEn() ? "Speed: 24.8 MB/s · ETA: 2s · 0 MB / 46.8 MB" : "速度: 24.8 MB/s · ETA: 2s · 0 MB / 46.8 MB";
+    if (stageText) stageText.textContent = isEn() ? "⚡ Preparing 4-thread parallel stream..." : "⚡ 4 线程并发分块下载音视频流...";
+    if (telemetry) telemetry.textContent = isEn() ? "Speed: 28.5 MB/s · ETA: 1s · 0 MB / 46.8 MB" : "速度: 28.5 MB/s · ETA: 1s · 0 MB / 46.8 MB";
+    if (confirmBtn) confirmBtn.classList.remove("clicked");
 
-    updateTimelineProgress(1, 0);
+    updateTimelineProgress(1, 15);
 
-    let pct = 0;
-    dlInterval = setInterval(() => {
-      pct += Math.floor(Math.random() * 8) + 7;
-      if (pct >= 100) {
-        pct = 100;
-        clearInterval(dlInterval);
+    if (!state.autoCycle) return;
 
-        if (bar) bar.style.width = "100%";
-        if (colorThumb) colorThumb.style.width = "100%";
-        if (pctText) pctText.textContent = "100%";
-        if (stageText) stageText.textContent = isEn() ? "✓ Download complete (142 units ready)" : "✓ 下载已完成 (共 142 句就绪)";
-        if (telemetry) telemetry.textContent = isEn() ? "Complete · 46.8 MB / 46.8 MB · 1080p Full HD" : "下载完成 · 46.8 MB / 46.8 MB · 1080p Full HD";
-        if (completeAction) completeAction.classList.add("active");
-        updateTimelineProgress(1, 100);
+    // First: Virtual mouse clicks "确认下载 ↗"
+    stepTimer = setTimeout(() => {
+      moveCursorTo(confirmBtn, 0.5, 0.5, () => {
+        clickCursor(confirmBtn, () => {
+          if (confirmBtn) confirmBtn.classList.add("clicked");
+          updateTimelineProgress(1, 30);
 
-        if (state.autoCycle && playBtn) {
-          stepTimer = setTimeout(() => {
-            moveCursorTo(playBtn, 0.5, 0.5, () => {
-              clickCursor(playBtn, () => {
+          // Then: Downbit download bar accelerates from 0 to 100%
+          let pct = 0;
+          dlInterval = setInterval(() => {
+            pct += Math.floor(Math.random() * 8) + 8;
+            if (pct >= 100) {
+              pct = 100;
+              clearInterval(dlInterval);
+
+              if (bar) bar.style.width = "100%";
+              if (colorThumb) colorThumb.style.width = "100%";
+              if (pctText) pctText.textContent = "100%";
+              if (stageText) stageText.textContent = isEn() ? "✓ Download complete (142 units ready)" : "✓ 下载已完成 (共 142 句就绪)";
+              if (telemetry) telemetry.textContent = isEn() ? "Complete · 46.8 MB / 46.8 MB · 1080p Full HD" : "下载完成 · 46.8 MB / 46.8 MB · 1080p Full HD";
+              if (completeAction) completeAction.classList.add("active");
+              updateTimelineProgress(1, 100);
+
+              if (state.autoCycle && playBtn) {
                 stepTimer = setTimeout(() => {
-                  setStep(2);
-                }, 350);
-              });
-            });
-          }, 350);
-        }
-      } else {
-        if (bar) bar.style.width = pct + "%";
-        if (colorThumb) colorThumb.style.width = pct + "%";
-        if (pctText) pctText.textContent = pct + "%";
-        updateTimelineProgress(1, pct);
+                  moveCursorTo(playBtn, 0.5, 0.5, () => {
+                    clickCursor(playBtn, () => {
+                      stepTimer = setTimeout(() => {
+                        setStep(2);
+                      }, 350);
+                    });
+                  });
+                }, 400);
+              }
+            } else {
+              if (bar) bar.style.width = pct + "%";
+              if (colorThumb) colorThumb.style.width = pct + "%";
+              if (pctText) pctText.textContent = pct + "%";
+              updateTimelineProgress(1, 30 + Math.floor(pct * 0.7));
 
-        const mb = (46.8 * pct / 100).toFixed(1);
-        if (pct < 40) {
-          if (stageText) stageText.textContent = isEn() ? "⚡ 4-Thread range download (1080p stream)..." : "⚡ 4 线程并发拉取 1080p 音视频流...";
-          if (telemetry) telemetry.textContent = `速度: 26.5 MB/s · ETA: 2s · ${mb} MB / 46.8 MB`;
-        } else if (pct < 85) {
-          if (stageText) stageText.textContent = isEn() ? "⚡ Range streams multiplexing & audio sync..." : "⚡ 4 线程极速拉取中 (音频 + CC 官方字幕)...";
-          if (telemetry) telemetry.textContent = `速度: 32.4 MB/s · ETA: 1s · ${mb} MB / 46.8 MB`;
-        } else {
-          if (stageText) stageText.textContent = isEn() ? "⚡ FFmpeg processing & subtitle parsing (142 sentences)..." : "⚡ FFmpeg 极速封装与字幕解析 (共 142 句)...";
-          if (telemetry) telemetry.textContent = `封装处理中 · ${mb} MB / 46.8 MB · ETA: 0s`;
-        }
-      }
-    }, 90);
+              const mb = (46.8 * pct / 100).toFixed(1);
+              if (pct < 40) {
+                if (stageText) stageText.textContent = isEn() ? "⚡ 4-Thread range download (1080p stream)..." : "⚡ 4 线程并发拉取 1080p 音视频流...";
+                if (telemetry) telemetry.textContent = `速度: 28.5 MB/s · ETA: 1s · ${mb} MB / 46.8 MB`;
+              } else if (pct < 85) {
+                if (stageText) stageText.textContent = isEn() ? "⚡ Range streams multiplexing & audio sync..." : "⚡ 4 线程极速并发拉取 (音频 + CC 官方字幕)...";
+                if (telemetry) telemetry.textContent = `速度: 34.2 MB/s · ETA: 1s · ${mb} MB / 46.8 MB`;
+              } else {
+                if (stageText) stageText.textContent = isEn() ? "⚡ FFmpeg processing & subtitle parsing (142 sentences)..." : "⚡ FFmpeg 极速封装与字幕解析 (共 142 句)...";
+                if (telemetry) telemetry.textContent = `封装处理中 · ${mb} MB / 46.8 MB · ETA: 0s`;
+              }
+            }
+          }, 85);
+        });
+      });
+    }, 450);
   }
 
   // ── Step 2: Practice Player with Box 2 Video Controls ──
@@ -515,21 +520,26 @@
       safariCopyBtn.addEventListener("click", () => {
         safariCopyBtn.classList.add("copied");
         const t = $("yt-copy-btn-text");
-        if (t) t.textContent = "✓ 链接已复制";
-        const omni = $("ear-omni-text");
-        if (omni) {
-          omni.classList.add("active");
-          omni.textContent = "https://www.youtube.com/watch?v=jiHZqamCD8c";
+        if (t) t.textContent = isEn() ? "✓ Copied to Clipboard" : "✓ 链接已复制";
+        const toast = $("safari-toast");
+        if (toast) toast.classList.add("active");
+        const toastText = $("safari-toast-text");
+        if (toastText) {
+          toastText.textContent = isEn()
+            ? "✓ Link copied! Switching to Ear to auto-read clipboard..."
+            : "✓ 链接已写入系统剪贴板！正在打开 Ear 自动读取...";
         }
-        const parse = $("ear-parse-info");
-        if (parse) parse.classList.add("active");
-        updateTimelineProgress(0, 75);
+        updateTimelineProgress(0, 100);
+        setTimeout(() => setStep(1, true), 600);
       });
     }
 
     const confirmDlBtn = $("btn-confirm-dl");
     if (confirmDlBtn) {
-      confirmDlBtn.addEventListener("click", () => setStep(1, true));
+      confirmDlBtn.addEventListener("click", () => {
+        confirmDlBtn.classList.add("clicked");
+        runStep1Sequence();
+      });
     }
 
     const startPlayBtn = $("btn-start-play");

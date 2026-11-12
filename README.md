@@ -53,6 +53,7 @@ mise run cli:build        # release-build + install `ear` → ~/.local/bin/ear
 mise run cli:dev          # debug-build + install `ear` (used by app:dev)
 mise run app:dev          # rebuilds CLI (debug) then starts native desktop app (alias: dev)
 mise run www:dev          # local preview for website & Cloudflare Worker (wrangler dev)
+mise run www:deploy       # deploy website & Cloudflare Worker (wrangler deploy)
 mise run test             # `cargo test` (cli) + `nsh test app`
 mise run check            # runs `nsh check app`
 ```
@@ -62,5 +63,6 @@ GitHub writes: Cozilla41.
 ## CI & Release
 
 - **CI** ([.github/workflows/ci.yml](.github/workflows/ci.yml)): Runs on pull requests to `main`, installing tools via [mise](https://mise.jdx.dev) (`jdx/mise-action`) and running `mise run check` + `mise run test`.
+- **Website & Worker Deployment** ([.github/workflows/www-deploy.yml](.github/workflows/www-deploy.yml)): Automatically deploys the landing website and Cloudflare Worker (`ear.yuler.dev`) on pushes to `main` touching `www/**` when `CLOUDFLARE_API_TOKEN` is configured.
 - **Automated Trunk Release** ([.github/workflows/release.yml](.github/workflows/release.yml)): Inspired by [yetone/magpie](https://github.com/yetone/magpie), every merged PR or direct push to `main` (excluding pure doc changes) triggers an automated release. CI passes quality gates, resolves the next patch version, tags the commit, matrix-builds Linux x64, macOS arm64, and Windows x64 packages with the bundled Rust `ear` CLI, generates `latest.json`, and outputs incremental bytecode updates (`bundle.nshc`, ~200KB). See [docs/release-design.md](docs/release-design.md) for full architecture details.
 - **Auto Update**: Ear checks `latest.json` from GitHub Releases. UI/logic updates are applied incrementally without re-downloading the entire runner package; major engine updates prompt full installer downloads.
