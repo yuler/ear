@@ -332,6 +332,7 @@ export async function applyUpdate(
  * Open external URL in browser using OS default handler.
  */
 export async function openExternalUrl(url: string): Promise<boolean> {
+  if (!url.startsWith("https://") && !url.startsWith("http://")) return false;
   if (!isNativeHost() || typeof process.run !== "function") return false;
 
   if (process.platform === "macos") {
@@ -345,7 +346,14 @@ export async function openExternalUrl(url: string): Promise<boolean> {
 
   if (process.platform === "windows") {
     try {
-      const res = await process.run("cmd", ["/c", "start", "", url]);
+      const res = await process.run("ear", ["open", url]);
+      if (res.code === 0) return true;
+    } catch {
+      // fallback to explorer
+    }
+
+    try {
+      const res = await process.run("explorer", [url]);
       return res.code === 0;
     } catch {
       return false;
