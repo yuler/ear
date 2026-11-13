@@ -41,6 +41,8 @@ import { localMediaCandidates, localMediaFileUrl } from "./player";
 import { ActivityBanner, type ActivityKind } from "./ui/ActivityBanner";
 import { Sidebar } from "./ui/Sidebar";
 import { VideoDetailView } from "./views/VideoDetailView";
+import { isDevMode, resolveDataDirOrNull } from "./env";
+import { DevRibbon } from "./ui/DevRibbon";
 import { SettingsView } from "./views/SettingsView";
 import { initSettings, settings, updateSettings } from "./ui/settings";
 import { TopBar, type MediaTab } from "./ui/TopBar";
@@ -582,7 +584,7 @@ function App() {
       videoId: entry.videoId,
       videoPath: entry.videoPath,
       audioPath: entry.audioPath,
-      dataDir: process.dataDir ?? null,
+      dataDir: resolveDataDirOrNull(),
     });
     let src: string | null = null;
     for (const path of candidates) {
@@ -612,7 +614,7 @@ function App() {
         videoId: entry.videoId,
         videoPath: entry.videoPath,
         audioPath: entry.audioPath,
-        dataDir: process.dataDir ?? null,
+        dataDir: resolveDataDirOrNull(),
       });
       for (const p of candidates) {
         try {
@@ -688,7 +690,7 @@ function App() {
       videoId: item.videoId,
       videoPath: null,
       audioPath: null,
-      dataDir: process.dataDir ?? null,
+      dataDir: resolveDataDirOrNull(),
     });
     let foundPath: string | null = null;
     for (const p of cand) {
@@ -802,7 +804,8 @@ function App() {
             : "Settings";
     if (isAvailable) {
       try {
-        currentWindow().set({ title: `Ear — ${tabName}` });
+        const titlePrefix = isDevMode() ? "Ear [DEV]" : "Ear";
+        currentWindow().set({ title: `${titlePrefix} — ${tabName}` });
       } catch {
         // ignore outside window rendering
       }
@@ -1057,6 +1060,10 @@ function App() {
             }}
           />
         )}
+      </If>
+
+      <If when={isDevMode()}>
+        <DevRibbon />
       </If>
     </View>
   );

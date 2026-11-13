@@ -34,6 +34,8 @@
     },
     "process": {
       "env": [
+        "EAR_DATA_DIR",
+        "EAR_ENV",
         "DISPLAY",
         "WAYLAND_DISPLAY",
         "XDG_RUNTIME_DIR",
