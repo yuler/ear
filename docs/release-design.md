@@ -1,6 +1,6 @@
 # Continuous Delivery & Automated Release Design
 
-参考 [yetone/magpie](https://github.com/yetone/magpie) 的持续交付模型，为 Ear 建立面向 AI 驱动高频迭代的「合入即发布」发布管道。
+为 Ear 建立面向 AI 驱动高频迭代的「合入即发布」发布管道。
 
 ---
 

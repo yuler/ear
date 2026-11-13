@@ -7,7 +7,7 @@ use std::process;
 fn main() {
     let args: Vec<String> = env::args().skip(1).collect();
     let Some(sub) = args.first().map(|s| s.as_str()) else {
-        eprintln!("Usage: ear <parse|captions|download|open|discover> [args...]");
+        eprintln!("Usage: ear <parse|captions|download|open|discover|doctor> [args...]");
         eprintln!("Run `ear --version` to inspect protocol schema version.");
         process::exit(1);
     };
@@ -24,6 +24,7 @@ fn main() {
         "captions" => commands::captions::run(&args[1..]),
         "download" => commands::download::run(&args[1..]),
         "discover" => commands::discover::run(&args[1..]),
+        "doctor" | "check" => commands::doctor::run(&args[1..]),
         "open" | "files" | "file" | "reveal" => {
             let target = if args.len() > 1 {
                 args[1..].join(" ")
@@ -36,6 +37,16 @@ fn main() {
     };
 
     if let Err(err) = res {
+        if sub == "doctor" || sub == "check" {
+            if args.iter().any(|a| a == "--json") {
+                emit_json(json!({
+                    "v": 1,
+                    "type": "error",
+                    "message": err
+                }));
+            }
+            process::exit(1);
+        }
         emit_json(json!({
             "v": 1,
             "type": "error",

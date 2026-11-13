@@ -49,6 +49,7 @@ Community contributions are warmly welcome! You can recommend videos in two ways
 
 ```sh
 mise run setup            # installs nsh, release `ear` CLI, Linux WebKitGTK 6
+mise run doctor           # checks system dependencies (WebKitGTK, GStreamer, ffmpeg)
 mise run cli:build        # release-build + install `ear` → ~/.local/bin/ear
 mise run cli:dev          # debug-build + install `ear` (used by app:dev)
 mise run app:dev          # rebuilds CLI (debug) then starts native desktop app (alias: run)
@@ -65,5 +66,5 @@ GitHub writes: Cozilla41.
 
 - **CI** ([.github/workflows/ci.yml](.github/workflows/ci.yml)): Runs on pull requests to `main`, installing tools via [mise](https://mise.jdx.dev) (`jdx/mise-action`) and running `mise run check` + `mise run test`.
 - **Website & Worker Deployment** ([.github/workflows/www-deploy.yml](.github/workflows/www-deploy.yml)): Automatically deploys the landing website and Cloudflare Worker (`ear.yuler.dev`) on pushes to `main` touching `www/**` when `CLOUDFLARE_API_TOKEN` is configured.
-- **Automated Trunk Release** ([.github/workflows/release.yml](.github/workflows/release.yml)): Inspired by [yetone/magpie](https://github.com/yetone/magpie), every merged PR or direct push to `main` (excluding pure doc changes) triggers an automated release. CI passes quality gates, resolves the next patch version, tags the commit, matrix-builds Linux x86_64, macOS aarch64, and Windows x86_64 packages with the bundled Rust `ear` CLI, and outputs signed incremental OTA packages (`dev.yuler.ear-*.nshpkg`, ~200KB) + signed `latest.json` manifest via `nsh update-manifest`. See [docs/release-design.md](docs/release-design.md) for full architecture details.
+- **Automated Trunk Release** ([.github/workflows/release.yml](.github/workflows/release.yml)): Every merged PR or direct push to `main` (excluding pure doc changes) triggers an automated release. CI passes quality gates, resolves the next patch version, tags the commit, matrix-builds Linux x86_64, macOS aarch64, and Windows x86_64 packages with the bundled Rust `ear` CLI, and outputs signed incremental OTA packages (`dev.yuler.ear-*.nshpkg`, ~200KB) + signed `latest.json` manifest via `nsh update-manifest`. See [docs/release-design.md](docs/release-design.md) for full architecture details.
 - **Auto Update**: Ear uses `nsh/updater` to check and install updates. UI and logic changes are applied incrementally via signed packages without touching macOS code signatures or requiring Linux root permissions, restarting instantly with `restartToPackage()`; major engine updates prompt full installer downloads.

@@ -158,6 +158,9 @@ jobs:
         run: |
           cp cli/target/release/ear .nsh/out/Ear/ear
           chmod +x .nsh/out/Ear/ear
+          mv .nsh/out/Ear/Ear .nsh/out/Ear/Ear.bin
+          cp scripts/linux-launcher.sh .nsh/out/Ear/Ear
+          chmod +x .nsh/out/Ear/Ear
           tar -czf "Ear-${{ needs.prepare.outputs.version }}-linux-x86_64.tar.gz" -C .nsh/out Ear
 
       # macOS zip assembly
@@ -262,6 +265,9 @@ jobs:
           KEY_ARG=""
           if [ -f keys/update.secret ]; then
             KEY_ARG="--key keys/update.secret"
+          else
+            echo "::warning::keys/update.secret is missing; removing updater from app/nsh.json for unsigned fallback manifest"
+            jq 'del(.updater)' app/nsh.json > app/nsh.json.tmp && mv app/nsh.json.tmp app/nsh.json
           fi
 
           PKG_ARG=""
