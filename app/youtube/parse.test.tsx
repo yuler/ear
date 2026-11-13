@@ -12,7 +12,9 @@ import {
 } from "./parse";
 import {
   earCaptions,
+  earDownload,
   earParse,
+  setEarBinaryCandidates,
   setEarSpawnHook,
   type ParseProgressEvent,
 } from "./earClient";
@@ -247,4 +249,155 @@ test("preferBestCaptionTrack detects Japanese title and prefers Japanese caption
     "Steve Jobs Stanford Address",
   );
   expect(enSelected?.languageCode).toBe("en");
+});
+
+test("earDownload captures path and sizeBytes from type=done event", async () => {
+  setEarSpawnHook((_bin: string, args: string[]) => {
+    expect(args[0]).toBe("download");
+    return {
+      on(event: string, handler: (data: any) => void) {
+        if (event === "stdout") {
+          setTimeout(() => {
+            handler(
+              JSON.stringify({
+                v: 1,
+                type: "done",
+                percent: 100,
+                path: "/tmp/final-output.mp4",
+                sizeBytes: 9876543,
+              }),
+            );
+          }, 0);
+        } else if (event === "exit") {
+          setTimeout(() => handler({ code: 0 }), 10);
+        }
+      },
+    };
+  });
+
+  try {
+    const res = await earDownload({
+      videoId: "abc12345678",
+      qualityId: "720p",
+      outputPath: "/tmp/expected.mp4",
+    });
+    expect(res.path).toBe("/tmp/final-output.mp4");
+    expect(res.sizeBytes).toBe(9876543);
+  } finally {
+    setEarSpawnHook(null);
+  }
+});
+
+test("earDownload rejects immediately when signal is already aborted", async () => {
+  let spawned = false;
+  setEarSpawnHook(() => {
+    spawned = true;
+    return { on() {} };
+  });
+
+  const ctrl = new AbortController();
+  ctrl.abort();
+
+  try {
+    let caught: Error | null = null;
+    try {
+      await earDownload({
+        videoId: "abc12345678",
+        qualityId: "720p",
+        outputPath: "/tmp/expected.mp4",
+        signal: ctrl.signal,
+      });
+    } catch (e) {
+      caught = e as Error;
+    }
+    expect(spawned).toBe(false);
+    expect(caught?.message).toContain("paused");
+  } finally {
+    setEarSpawnHook(null);
+  }
+});
+
+test("earParse does not retry remaining binary candidates on application error", async () => {
+  let spawnCount = 0;
+  setEarBinaryCandidates(["ear-1", "ear-2", "ear-3"]);
+  setEarSpawnHook(() => {
+    spawnCount += 1;
+    return {
+      on(event: string, handler: (data: any) => void) {
+        if (event === "stdout") {
+          setTimeout(() => {
+            handler(
+              JSON.stringify({
+                v: 1,
+                type: "error",
+                message: "Video unavailable",
+              }),
+            );
+          }, 0);
+        } else if (event === "exit") {
+          setTimeout(() => handler({ code: 1 }), 10);
+        }
+      },
+    };
+  });
+
+  try {
+    let caught: Error | null = null;
+    try {
+      await earParse("https://www.youtube.com/watch?v=mockId12345");
+    } catch (e) {
+      caught = e as Error;
+    }
+    expect(spawnCount).toBe(1);
+    expect(caught?.message).toBe("Video unavailable");
+  } finally {
+    setEarSpawnHook(null);
+    setEarBinaryCandidates(null);
+  }
+});
+
+test("loadLessonFromParsed selects Japanese track when title is Japanese", async () => {
+  setEarSpawnHook((_bin: string, args: string[]) => {
+    expect(args[0]).toBe("captions");
+    expect(args[1]).toBe("https://example.com/ja");
+    return {
+      on(event: string, handler: (data: any) => void) {
+        if (event === "stdout") {
+          setTimeout(() => {
+            handler(
+              JSON.stringify({
+                v: 1,
+                type: "captions",
+                cues: [{ startMs: 0, endMs: 1000, text: "こんにちは" }],
+              }),
+            );
+          }, 0);
+        } else if (event === "exit") {
+          setTimeout(() => handler({ code: 0 }), 10);
+        }
+      },
+    };
+  });
+
+  try {
+    const lesson = await loadLessonFromParsed({
+      videoId: "jaVideo1234",
+      title: "日本語リスニング練習",
+      durationMs: 60000,
+      thumbnailUrl: "https://i.ytimg.com/vi/jaVideo1234/hqdefault.jpg",
+      audioUrl: "https://example.com/audio.m4a",
+      audioMimeType: "audio/mp4",
+      videoUrl: null,
+      videoMimeType: null,
+      qualities: [],
+      playerResponse: null,
+      captionTracks: [
+        { languageCode: "en", name: "English", baseUrl: "https://example.com/en" },
+        { languageCode: "ja", name: "Japanese", baseUrl: "https://example.com/ja" },
+      ],
+    });
+    expect(lesson.track?.languageCode).toBe("ja");
+  } finally {
+    setEarSpawnHook(null);
+  }
 });
