@@ -106,7 +106,7 @@ jobs:
             node --check "$script" || exit 1
           done
 
-      - name: Demo lifecycle regressions
+      - name: WWW regressions
         run: node --test www/tests/*.test.cjs
 
   ci-status:

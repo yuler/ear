@@ -99,17 +99,17 @@ if [ -f "$BUNDLE_PATH" ]; then
   BUNDLE_URL="$BASE_URL/bundle.nshc"
 fi
 
-LINUX_FILE="Ear-$VERSION-linux-x64.tar.gz"
+LINUX_FILE="Ear-$VERSION-linux-x86_64.tar.gz"
 LINUX_PATH="$ASSETS_DIR/$LINUX_FILE"
 LINUX_SHA="$(get_sha256 "$LINUX_PATH")"
 LINUX_SIZE="$(get_size "$LINUX_PATH")"
 
-MACOS_FILE="Ear-$VERSION-macos-arm64.zip"
+MACOS_FILE="Ear-$VERSION-macos-aarch64.zip"
 MACOS_PATH="$ASSETS_DIR/$MACOS_FILE"
 MACOS_SHA="$(get_sha256 "$MACOS_PATH")"
 MACOS_SIZE="$(get_size "$MACOS_PATH")"
 
-WIN_FILE="Ear-$VERSION-windows-x64.zip"
+WIN_FILE="Ear-$VERSION-windows-x86_64.zip"
 WIN_PATH="$ASSETS_DIR/$WIN_FILE"
 WIN_SHA="$(get_sha256 "$WIN_PATH")"
 WIN_SIZE="$(get_size "$WIN_PATH")"

@@ -12,6 +12,8 @@
 const REPO = "yuler/ear";
 const GITHUB_API_URL = `https://api.github.com/repos/${REPO}/releases/latest`;
 const CACHE_TTL_SECONDS = 300;
+// Verified release assets use the current platform naming scheme.
+const FALLBACK_TAG = "v0.0.18";
 
 let memoryCache = {
   data: null,
@@ -41,7 +43,7 @@ async function fetchLatestRelease() {
     }
 
     const release = await res.json();
-    const tag = release.tag_name || "v0.0.1";
+    const tag = release.tag_name || FALLBACK_TAG;
     const version = tag.replace(/^v/, "");
 
     const assets = {
@@ -66,9 +68,9 @@ async function fetchLatestRelease() {
 
     // Fallbacks if assets are not yet parsed or released
     const fallbackBase = `https://github.com/${REPO}/releases/download/${tag}`;
-    if (!assets.mac) assets.mac = `${fallbackBase}/Ear-${version}-macos-arm64.zip`;
-    if (!assets.windows) assets.windows = `${fallbackBase}/Ear-${version}-windows-x64.zip`;
-    if (!assets.linux) assets.linux = `${fallbackBase}/Ear-${version}-linux-x64.tar.gz`;
+    if (!assets.mac) assets.mac = `${fallbackBase}/Ear-${version}-macos-aarch64.zip`;
+    if (!assets.windows) assets.windows = `${fallbackBase}/Ear-${version}-windows-x86_64.zip`;
+    if (!assets.linux) assets.linux = `${fallbackBase}/Ear-${version}-linux-x86_64.tar.gz`;
 
     const payload = {
       tag,
@@ -88,8 +90,8 @@ async function fetchLatestRelease() {
   } catch (err) {
     console.error("Failed to fetch GitHub release:", err);
     // Graceful offline fallback
-    const fallbackTag = "v0.0.1";
-    const fallbackVersion = "0.0.1";
+    const fallbackTag = FALLBACK_TAG;
+    const fallbackVersion = fallbackTag.replace(/^v/, "");
     const fallbackBase = `https://github.com/${REPO}/releases/download/${fallbackTag}`;
     return {
       tag: fallbackTag,
@@ -98,9 +100,9 @@ async function fetchLatestRelease() {
       published_at: new Date().toISOString(),
       html_url: `https://github.com/${REPO}/releases/latest`,
       assets: {
-        mac: `${fallbackBase}/Ear-${fallbackVersion}-macos-arm64.zip`,
-        windows: `${fallbackBase}/Ear-${fallbackVersion}-windows-x64.zip`,
-        linux: `${fallbackBase}/Ear-${fallbackVersion}-linux-x64.tar.gz`,
+        mac: `${fallbackBase}/Ear-${fallbackVersion}-macos-aarch64.zip`,
+        windows: `${fallbackBase}/Ear-${fallbackVersion}-windows-x86_64.zip`,
+        linux: `${fallbackBase}/Ear-${fallbackVersion}-linux-x86_64.tar.gz`,
       },
     };
   }
