@@ -4,6 +4,7 @@ import type { LibraryEntry } from "../library/types";
 import { isAudioEntry } from "../views/libraryViewHelpers";
 import { videoPosterUrl } from "../youtube/parse";
 import { Icon } from "./Icon";
+import { MediaErrorNotice } from "./MediaErrorNotice";
 
 export function MediaPlayer(props: {
   entry: () => LibraryEntry;
@@ -69,6 +70,15 @@ export function MediaPlayer(props: {
           </If>
         </View>
 
+        <If when={Boolean(errorMsg())}>
+          <MediaErrorNotice
+            errorMsg={errorMsg}
+            mediaPath={src}
+            language={() => "zh"}
+            onDismiss={() => errorMsg.set(null)}
+          />
+        </If>
+
         <View class="flex-row items-center justify-between gap-2">
           <Button
             onPress={() => {
@@ -86,10 +96,6 @@ export function MediaPlayer(props: {
               {paused() ? "播放" : "暂停"}
             </Text>
           </Button>
-
-          <If when={errorMsg()}>
-            <Text class="min-w-0 flex-1 text-xs text-danger">{errorMsg()}</Text>
-          </If>
 
           <Button
             onPress={props.onClose}

@@ -2,6 +2,7 @@ import { Text, View } from "nsh";
 import type { LibraryEntry } from "../library/types";
 import type { PlaybackRate } from "../player";
 import { Icon } from "../ui/Icon";
+import { MediaErrorNotice } from "../ui/MediaErrorNotice";
 import { t, type EarLocale } from "../ui/i18n";
 import type { SentenceLengthMode } from "../youtube/captions";
 import { SentenceControlsBar } from "./SentenceControlsBar";
@@ -73,9 +74,11 @@ export function VideoDetailMetaBar(props: VideoDetailMetaBarProps) {
 
         {/* Error notice if player fails */}
         <If when={Boolean(props.errorMsg())}>
-          <View class="rounded-lg border border-destructive/40 bg-destructive/10 p-2.5">
-            <Text class="text-xs text-destructive">{props.errorMsg()}</Text>
-          </View>
+          <MediaErrorNotice
+            errorMsg={props.errorMsg}
+            mediaPath={() => props.entry?.videoPath ?? props.entry?.audioPath}
+            language={props.language}
+          />
         </If>
       </View>
     </View>
