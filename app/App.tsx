@@ -392,6 +392,29 @@ function App() {
         },
       });
 
+      if (entry.state === "paused") {
+        const currentTask = downloadTasks()[vid];
+        if (currentTask) {
+          downloadTasks.set({
+            ...downloadTasks(),
+            [vid]: { ...currentTask, stage: "paused", speedBps: 0, etaSeconds: null },
+          });
+        }
+        const entries = await listEntriesSafe();
+        savedEntries.set(entries);
+        return;
+      }
+
+      if (entry.state === "error") {
+        error.set(audioNote || entry.note || "Download failed");
+        const nextTasks = { ...downloadTasks() };
+        delete nextTasks[vid];
+        downloadTasks.set(nextTasks);
+        const entries = await listEntriesSafe();
+        savedEntries.set(entries);
+        return;
+      }
+
       // 3. Mark stage as done at 100% so the completion shrink & move animation triggers
       const currentTask = downloadTasks()[vid];
       if (currentTask) {
@@ -455,7 +478,7 @@ function App() {
     } finally {
       activeDownloadControllers.delete(vid);
       activeDownloadIds.delete(vid);
-      if (downloadTasks()[vid]) {
+      if (downloadTasks()[vid] && downloadTasks()[vid]?.stage !== "paused") {
         const next = { ...downloadTasks() };
         delete next[vid];
         downloadTasks.set(next);
@@ -464,7 +487,7 @@ function App() {
     }
   };
 
-  const handlePauseDownload = async (vid: string) => {
+  const handlePauseDownload = (vid: string) => {
     const ctrl = activeDownloadControllers.get(vid);
     if (ctrl) {
       ctrl.abort();
@@ -476,10 +499,6 @@ function App() {
         ...downloadTasks(),
         [vid]: { ...current, stage: "paused", speedBps: 0, etaSeconds: null },
       });
-    }
-    const entry = await readEntry(vid);
-    if (entry) {
-      await upsertEntry({ ...entry, state: "paused", note: "Paused" });
     }
   };
 

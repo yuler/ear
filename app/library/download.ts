@@ -243,23 +243,23 @@ export async function downloadLesson(
   let audioNote: string | null = null;
   let finalSizeBytes: number | null = chosenQuality?.sizeBytes ?? null;
 
-  // 1. Check if target file already exists on disk in ~/Downloads
-  if (!isAudioOnly && (await exists(targetVideoPath))) {
+  // 1. Check if non-empty target file with matching quality already exists on disk in ~/Downloads
+  const existingVideoSize =
+    !isAudioOnly && (await exists(targetVideoPath))
+      ? await stat(targetVideoPath).then((s) => s.size).catch(() => 0)
+      : 0;
+  const existingAudioSize =
+    isAudioOnly && (await exists(targetAudioPath))
+      ? await stat(targetAudioPath).then((s) => s.size).catch(() => 0)
+      : 0;
+  const sameQuality = !existing?.quality || existing.quality === qualityLabel;
+
+  if (!isAudioOnly && existingVideoSize > 0 && sameQuality) {
     videoPath = targetVideoPath;
-    try {
-      const st = await stat(targetVideoPath);
-      if (st.size > 0) finalSizeBytes = st.size;
-    } catch {
-      // ignore
-    }
-  } else if (isAudioOnly && (await exists(targetAudioPath))) {
+    finalSizeBytes = existingVideoSize;
+  } else if (isAudioOnly && existingAudioSize > 0 && sameQuality) {
     audioPath = targetAudioPath;
-    try {
-      const st = await stat(targetAudioPath);
-      if (st.size > 0) finalSizeBytes = st.size;
-    } catch {
-      // ignore
-    }
+    finalSizeBytes = existingAudioSize;
   } else {
     // 2. Primary: Download via Rust `ear` parallel range downloader into ~/Downloads
     try {

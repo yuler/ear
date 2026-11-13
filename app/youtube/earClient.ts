@@ -72,6 +72,13 @@ export function earBinaryCandidates(): string[] {
   return list;
 }
 
+class EarApplicationError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "EarApplicationError";
+  }
+}
+
 /**
  * Resolves the effective `library` directory passed via `--library-dir` to `ear download`
  * so CLI metadata writes match the host app's Dev/Prod isolation without relying on `spawn` env.
@@ -152,11 +159,12 @@ export async function earParse(
         child.on("exit", (res: { code: number; error?: string }) => {
           if (resultVideo) {
             resolve(resultVideo);
+          } else if (errMsg) {
+            reject(new EarApplicationError(errMsg));
           } else {
             reject(
               new Error(
-                errMsg ||
-                  res.error ||
+                res.error ||
                   `ear parse exited with code ${res.code ?? -1}`,
               ),
             );
@@ -164,6 +172,7 @@ export async function earParse(
         });
       });
     } catch (e) {
+      if (e instanceof EarApplicationError) throw e;
       lastErr = e instanceof Error ? e.message : String(e);
     }
   }
@@ -208,11 +217,12 @@ export async function earCaptions(url: string): Promise<CaptionCue[]> {
         child.on("exit", (res: { code: number; error?: string }) => {
           if (cues) {
             resolve(cues);
+          } else if (errMsg) {
+            reject(new EarApplicationError(errMsg));
           } else {
             reject(
               new Error(
-                errMsg ||
-                  res.error ||
+                res.error ||
                   `ear captions exited with code ${res.code ?? -1}`,
               ),
             );
@@ -220,6 +230,7 @@ export async function earCaptions(url: string): Promise<CaptionCue[]> {
         });
       });
     } catch (e) {
+      if (e instanceof EarApplicationError) throw e;
       lastErr = e instanceof Error ? e.message : String(e);
     }
   }
@@ -230,6 +241,10 @@ export async function earCaptions(url: string): Promise<CaptionCue[]> {
 export async function earDownload(
   params: EarDownloadParams,
 ): Promise<{ path: string; sizeBytes: number }> {
+  if (params.signal?.aborted) {
+    throw new Error("Download paused by user");
+  }
+
   const bins = earBinaryCandidates();
   const args = [
     "download",
@@ -251,12 +266,16 @@ export async function earDownload(
   let lastErr = "ear binary not available";
 
   for (const bin of bins) {
+    if (params.signal?.aborted) {
+      throw new Error("Download paused by user");
+    }
     try {
       return await new Promise<{ path: string; sizeBytes: number }>(
         (resolve, reject) => {
           let donePath = params.outputPath;
           let doneSize = 0;
           let errMsg: string | null = null;
+          let settled = false;
 
           const child = spawnEar(bin, args);
           if (!child) {
@@ -266,15 +285,19 @@ export async function earDownload(
             return;
           }
 
+          const onAbort = () => {
+            if (settled) return;
+            settled = true;
+            try {
+              (child as any).kill?.();
+            } catch {
+              // ignore
+            }
+            reject(new EarApplicationError("Download paused by user"));
+          };
+
           if (params.signal) {
-            params.signal.addEventListener("abort", () => {
-              try {
-                (child as any).kill?.();
-              } catch {
-                // ignore
-              }
-              reject(new Error("Download paused by user"));
-            });
+            params.signal.addEventListener("abort", onAbort, { once: true });
           }
 
           child.on("stdout", (line: string) => {
@@ -303,7 +326,7 @@ export async function earDownload(
                   etaSeconds: msg.etaSeconds ?? null,
                   sizeBytes: msg.sizeBytes,
                 });
-              } else if (msg.type === "result") {
+              } else if (msg.type === "done" || msg.type === "result") {
                 donePath = msg.path ?? params.outputPath;
                 doneSize = msg.sizeBytes ?? 0;
               } else if (msg.type === "error") {
@@ -315,13 +338,19 @@ export async function earDownload(
           });
 
           child.on("exit", (res: { code: number; error?: string }) => {
+            if (params.signal) {
+              params.signal.removeEventListener("abort", onAbort);
+            }
+            if (settled) return;
+            settled = true;
             if (res.code === 0) {
               resolve({ path: donePath, sizeBytes: doneSize });
+            } else if (errMsg) {
+              reject(new EarApplicationError(errMsg));
             } else {
               reject(
                 new Error(
-                  errMsg ||
-                    res.error ||
+                  res.error ||
                     `ear download exited with code ${res.code ?? -1}`,
                 ),
               );
@@ -330,6 +359,7 @@ export async function earDownload(
         },
       );
     } catch (e) {
+      if (e instanceof EarApplicationError) throw e;
       lastErr = e instanceof Error ? e.message : String(e);
     }
   }

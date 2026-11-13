@@ -71,3 +71,44 @@ test("earDownload passes --library-dir in argv to isolate CLI writes", async () 
     setEarBinaryCandidates(null);
   }
 });
+
+test("earDownload preserves Dev argv isolation while stopping on application errors", async () => {
+  const calls: string[][] = [];
+  setEarBinaryCandidates(["ear-primary", "ear-fallback"]);
+  setEarSpawnHook((_bin, args) => {
+    calls.push([...args]);
+    const handlers: Record<string, (arg: any) => void> = {};
+    setTimeout(() => {
+      handlers.stdout?.(JSON.stringify({ type: "error", message: "Download rejected" }));
+      handlers.exit?.({ code: 1 });
+    }, 0);
+    return {
+      on(event: string, handler: (arg: any) => void) {
+        handlers[event] = handler;
+      },
+    };
+  });
+
+  try {
+    let error: Error | null = null;
+    try {
+      await earDownload({
+        videoId: "abc123",
+        qualityId: "720p",
+        outputPath: "/tmp/ear-prod/dev/library/out.mp4",
+        libraryDir: resolveEarLibraryDir("/tmp/ear-prod", {}),
+      });
+    } catch (e) {
+      error = e as Error;
+    }
+    expect(error?.name).toBe("EarApplicationError");
+    expect(error?.message).toBe("Download rejected");
+    expect(calls.length).toBe(1);
+    const args = calls[0]!;
+    expect(args.indexOf("--library-dir")).toBeGreaterThan(-1);
+    expect(args[args.indexOf("--library-dir") + 1]).toBe("/tmp/ear-prod/dev/library");
+  } finally {
+    setEarSpawnHook(null);
+    setEarBinaryCandidates(null);
+  }
+});

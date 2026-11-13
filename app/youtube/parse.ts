@@ -239,7 +239,7 @@ export async function loadLessonFromParsed(
       ? updatedVideo.captionTracks.find(
           (t) => captionTrackId(t) === options.trackId,
         )
-      : null) ?? preferEnglishTrack(updatedVideo.captionTracks);
+      : null) ?? preferBestCaptionTrack(updatedVideo.captionTracks, updatedVideo.title);
 
   if (!track) {
     return {
