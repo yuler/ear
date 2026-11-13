@@ -41,6 +41,8 @@ import { localMediaCandidates, localMediaFileUrl } from "./player";
 import { ActivityBanner, type ActivityKind } from "./ui/ActivityBanner";
 import { Sidebar } from "./ui/Sidebar";
 import { VideoDetailView } from "./views/VideoDetailView";
+import { isDevMode, resolveDataDirOrNull } from "./env";
+import { DevRibbon } from "./ui/DevRibbon";
 import { SettingsView } from "./views/SettingsView";
 import { initSettings, settings, updateSettings } from "./ui/settings";
 import { TopBar, type MediaTab } from "./ui/TopBar";
@@ -390,6 +392,29 @@ function App() {
         },
       });
 
+      if (entry.state === "paused") {
+        const currentTask = downloadTasks()[vid];
+        if (currentTask) {
+          downloadTasks.set({
+            ...downloadTasks(),
+            [vid]: { ...currentTask, stage: "paused", speedBps: 0, etaSeconds: null },
+          });
+        }
+        const entries = await listEntriesSafe();
+        savedEntries.set(entries);
+        return;
+      }
+
+      if (entry.state === "error") {
+        error.set(audioNote || entry.note || "Download failed");
+        const nextTasks = { ...downloadTasks() };
+        delete nextTasks[vid];
+        downloadTasks.set(nextTasks);
+        const entries = await listEntriesSafe();
+        savedEntries.set(entries);
+        return;
+      }
+
       // 3. Mark stage as done at 100% so the completion shrink & move animation triggers
       const currentTask = downloadTasks()[vid];
       if (currentTask) {
@@ -453,7 +478,7 @@ function App() {
     } finally {
       activeDownloadControllers.delete(vid);
       activeDownloadIds.delete(vid);
-      if (downloadTasks()[vid]) {
+      if (downloadTasks()[vid] && downloadTasks()[vid]?.stage !== "paused") {
         const next = { ...downloadTasks() };
         delete next[vid];
         downloadTasks.set(next);
@@ -462,7 +487,7 @@ function App() {
     }
   };
 
-  const handlePauseDownload = async (vid: string) => {
+  const handlePauseDownload = (vid: string) => {
     const ctrl = activeDownloadControllers.get(vid);
     if (ctrl) {
       ctrl.abort();
@@ -474,10 +499,6 @@ function App() {
         ...downloadTasks(),
         [vid]: { ...current, stage: "paused", speedBps: 0, etaSeconds: null },
       });
-    }
-    const entry = await readEntry(vid);
-    if (entry) {
-      await upsertEntry({ ...entry, state: "paused", note: "Paused" });
     }
   };
 
@@ -582,7 +603,7 @@ function App() {
       videoId: entry.videoId,
       videoPath: entry.videoPath,
       audioPath: entry.audioPath,
-      dataDir: process.dataDir ?? null,
+      dataDir: resolveDataDirOrNull(),
     });
     let src: string | null = null;
     for (const path of candidates) {
@@ -612,7 +633,7 @@ function App() {
         videoId: entry.videoId,
         videoPath: entry.videoPath,
         audioPath: entry.audioPath,
-        dataDir: process.dataDir ?? null,
+        dataDir: resolveDataDirOrNull(),
       });
       for (const p of candidates) {
         try {
@@ -688,7 +709,7 @@ function App() {
       videoId: item.videoId,
       videoPath: null,
       audioPath: null,
-      dataDir: process.dataDir ?? null,
+      dataDir: resolveDataDirOrNull(),
     });
     let foundPath: string | null = null;
     for (const p of cand) {
@@ -802,7 +823,8 @@ function App() {
             : "Settings";
     if (isAvailable) {
       try {
-        currentWindow().set({ title: `Ear — ${tabName}` });
+        const titlePrefix = isDevMode() ? "Ear [DEV]" : "Ear";
+        currentWindow().set({ title: `${titlePrefix} — ${tabName}` });
       } catch {
         // ignore outside window rendering
       }
@@ -1057,6 +1079,10 @@ function App() {
             }}
           />
         )}
+      </If>
+
+      <If when={isDevMode()}>
+        <DevRibbon />
       </If>
     </View>
   );

@@ -19,7 +19,14 @@
     "clipboard": true,
     "network": {
       "hosts": [
-        "*"
+        "*.youtube.com",
+        "youtube.com",
+        "*.googlevideo.com",
+        "*.ytimg.com",
+        "api.github.com",
+        "github.com",
+        "objects.githubusercontent.com",
+        "raw.githubusercontent.com"
       ]
     },
     "fs": {
@@ -34,6 +41,8 @@
     },
     "process": {
       "env": [
+        "EAR_DATA_DIR",
+        "EAR_ENV",
         "DISPLAY",
         "WAYLAND_DISPLAY",
         "XDG_RUNTIME_DIR",
@@ -50,15 +59,14 @@
         "ear.exe",
         "yt-dlp",
         "ffmpeg",
-        "curl",
-        "cp",
         "xdg-open",
         "open",
         "gio",
         "nautilus",
         "dolphin",
         "dbus-send",
-        "gdbus"
+        "gdbus",
+        "explorer"
       ]
     }
   }

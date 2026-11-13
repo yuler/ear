@@ -117,7 +117,8 @@ fn open_linux(path: &Path) -> Result<(), String> {
         let file_url = format!("file://{}", abs_path.to_string_lossy());
 
         // Try gdbus first
-        let gdbus_arg = format!("['{file_url}']");
+        let escaped_url = file_url.replace('\'', "%27");
+        let gdbus_arg = format!("['{escaped_url}']");
         if run_linux_command(
             "gdbus",
             &[

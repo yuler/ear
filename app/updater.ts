@@ -171,6 +171,20 @@ export async function checkForUpdates(options?: {
   const currentVer = options?.currentVersion ?? running?.version ?? shell.version ?? CURRENT_APP_VERSION;
   const currentBld = options?.currentBuild ?? running?.build ?? shell.build ?? CURRENT_APP_BUILD;
 
+  // Skip OTA/release checks in local dev builds ("0.0.0") unless explicitly mocked in tests
+  const isMocked = Boolean(options?.fetchFn || options?.checkPackageFn || options?.checkAppFn);
+  if (currentVer === "0.0.0" && !isMocked) {
+    return {
+      hasUpdate: false,
+      isIncremental: false,
+      currentVersion: currentVer,
+      latestVersion: currentVer,
+      currentBuild: currentBld,
+      latestBuild: currentBld,
+      changelog: "",
+    };
+  }
+
   // 1. If explicit fetchFn provided (e.g. in legacy unit tests), run compatibility path
   if (options?.fetchFn) {
     try {
@@ -318,6 +332,7 @@ export async function applyUpdate(
  * Open external URL in browser using OS default handler.
  */
 export async function openExternalUrl(url: string): Promise<boolean> {
+  if (!url.startsWith("https://") && !url.startsWith("http://")) return false;
   if (!isNativeHost() || typeof process.run !== "function") return false;
 
   if (process.platform === "macos") {
@@ -331,7 +346,14 @@ export async function openExternalUrl(url: string): Promise<boolean> {
 
   if (process.platform === "windows") {
     try {
-      const res = await process.run("cmd", ["/c", "start", "", url]);
+      const res = await process.run("ear", ["open", url]);
+      if (res.code === 0) return true;
+    } catch {
+      // fallback to explorer
+    }
+
+    try {
+      const res = await process.run("explorer", [url]);
       return res.code === 0;
     } catch {
       return false;

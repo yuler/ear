@@ -12,6 +12,8 @@
 const REPO = "yuler/ear";
 const GITHUB_API_URL = `https://api.github.com/repos/${REPO}/releases/latest`;
 const CACHE_TTL_SECONDS = 300;
+// Verified release assets use the current platform naming scheme.
+const FALLBACK_TAG = "v0.0.18";
 
 let memoryCache = {
   data: null,
@@ -41,7 +43,7 @@ async function fetchLatestRelease() {
     }
 
     const release = await res.json();
-    const tag = release.tag_name || "v0.0.1";
+    const tag = release.tag_name || FALLBACK_TAG;
     const version = tag.replace(/^v/, "");
 
     const assets = {
@@ -88,8 +90,8 @@ async function fetchLatestRelease() {
   } catch (err) {
     console.error("Failed to fetch GitHub release:", err);
     // Graceful offline fallback
-    const fallbackTag = "v0.0.1";
-    const fallbackVersion = "0.0.1";
+    const fallbackTag = FALLBACK_TAG;
+    const fallbackVersion = fallbackTag.replace(/^v/, "");
     const fallbackBase = `https://github.com/${REPO}/releases/download/${fallbackTag}`;
     return {
       tag: fallbackTag,

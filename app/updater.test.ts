@@ -4,6 +4,7 @@ import {
   checkForUpdates,
   compareSemVer,
   isRunnerCompatible,
+  openExternalUrl,
   parseSemVer,
   resolvePlatformKey,
   type AppUpdate,
@@ -216,4 +217,45 @@ test("applyUpdate triggers downloadUpdate and installAndRestart for full app upd
 
   expect(downloaded).toBe(true);
   expect(installed).toBe(true);
+});
+
+test("openExternalUrl rejects non-http(s) URLs", async () => {
+  expect(await openExternalUrl("")).toBe(false);
+  expect(await openExternalUrl("file:///etc/passwd")).toBe(false);
+  expect(await openExternalUrl("javascript:alert(1)")).toBe(false);
+});
+
+test("openExternalUrl on Windows uses ear open then explorer fallback without cmd", async () => {
+  const proc = process as unknown as {
+    platform: string;
+    run?: (cmd: string, args: string[]) => Promise<{ code: number }>;
+  };
+  const platformDesc = Object.getOwnPropertyDescriptor(proc, "platform");
+  const originalRun = proc.run;
+  const calls: Array<{ cmd: string; args: string[] }> = [];
+
+  try {
+    Object.defineProperty(proc, "platform", {
+      value: "windows",
+      configurable: true,
+    });
+    proc.run = async (cmd: string, args: string[]) => {
+      calls.push({ cmd, args });
+      if (cmd === "ear") return { code: 1 };
+      return { code: 0 };
+    };
+
+    const ok = await openExternalUrl("https://github.com/yuler/ear/releases");
+    expect(ok).toBe(true);
+    expect(calls).toEqual([
+      { cmd: "ear", args: ["open", "https://github.com/yuler/ear/releases"] },
+      { cmd: "explorer", args: ["https://github.com/yuler/ear/releases"] },
+    ]);
+    expect(calls.some((c) => c.cmd === "cmd")).toBe(false);
+  } finally {
+    if (platformDesc) {
+      Object.defineProperty(proc, "platform", platformDesc);
+    }
+    proc.run = originalRun;
+  }
 });
