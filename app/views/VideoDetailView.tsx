@@ -50,6 +50,7 @@ export type VideoDetailViewProps = {
   /** Absolute filesystem path or streaming URL for nsh <Video src>. */
   src: () => string;
   originRect?: () => ViewTransitionRect | null;
+  disabled?: () => boolean;
   onClose: () => void;
 };
 
@@ -101,6 +102,7 @@ export function VideoDetailView(props: VideoDetailViewProps) {
   const clipEndMs = signal<number | null>(null);
   const sentencePause = signal(false);
   const muted = signal(false);
+  const volume = signal(1);
 
   // Mask state: default masked for listening practice (打码)
   const maskAll = signal(true);
@@ -352,6 +354,33 @@ export function VideoDetailView(props: VideoDetailViewProps) {
     updateSettings({ preferredRate: next });
   };
 
+  const handleDecreaseRate = () => {
+    const cur = rate();
+    const next = Math.max(0.5, Math.round((cur - 0.25) * 100) / 100) as PlaybackRate;
+    rate.set(next);
+    updateSettings({ preferredRate: next });
+  };
+
+  const handleIncreaseRate = () => {
+    const cur = rate();
+    const next = Math.min(2.0, Math.round((cur + 0.25) * 100) / 100) as PlaybackRate;
+    rate.set(next);
+    updateSettings({ preferredRate: next });
+  };
+
+  const handleResetRate = () => {
+    rate.set(1);
+    updateSettings({ preferredRate: 1 });
+  };
+
+  const handleVolumeUp = () => {
+    volume.set(Math.min(1, Math.round((volume() + 0.1) * 10) / 10));
+  };
+
+  const handleVolumeDown = () => {
+    volume.set(Math.max(0, Math.round((volume() - 0.1) * 10) / 10));
+  };
+
   const currentSentence = (): Sentence | null => {
     const list = sentences();
     if (list.length === 0) return null;
@@ -360,13 +389,66 @@ export function VideoDetailView(props: VideoDetailViewProps) {
 
   keymap.bind(
     {
-      escape: handleClose,
-      left: handlePrevSentence,
-      right: handleNextSentence,
-      r: handleRepeatCurrent,
-      space: handleSpaceKey,
-      m: () => maskAll.set(!maskAll()),
-      b: handleToggleBlocker,
+      escape: () => {
+        if (props.disabled?.()) return;
+        handleClose();
+      },
+      left: () => {
+        if (props.disabled?.()) return;
+        handlePrevSentence();
+      },
+      right: () => {
+        if (props.disabled?.()) return;
+        handleNextSentence();
+      },
+      r: () => {
+        if (props.disabled?.()) return;
+        handleRepeatCurrent();
+      },
+      space: () => {
+        if (props.disabled?.()) return;
+        handleSpaceKey();
+      },
+      m: () => {
+        if (props.disabled?.()) return;
+        maskAll.set(!maskAll());
+      },
+      b: () => {
+        if (props.disabled?.()) return;
+        handleToggleBlocker();
+      },
+      "[": () => {
+        if (props.disabled?.()) return;
+        handleDecreaseRate();
+      },
+      "]": () => {
+        if (props.disabled?.()) return;
+        handleIncreaseRate();
+      },
+      "0": () => {
+        if (props.disabled?.()) return;
+        handleResetRate();
+      },
+      up: () => {
+        if (props.disabled?.()) return;
+        handleVolumeUp();
+      },
+      down: () => {
+        if (props.disabled?.()) return;
+        handleVolumeDown();
+      },
+      "alt+1": () => {
+        if (props.disabled?.()) return;
+        handleChangeSentenceLength("short");
+      },
+      "alt+2": () => {
+        if (props.disabled?.()) return;
+        handleChangeSentenceLength("medium");
+      },
+      "alt+3": () => {
+        if (props.disabled?.()) return;
+        handleChangeSentenceLength("long");
+      },
     },
     { when: "notEditing" },
   );
@@ -426,7 +508,7 @@ export function VideoDetailView(props: VideoDetailViewProps) {
             paused={paused()}
             muted={muted()}
             rate={rate()}
-            volume={1}
+            volume={volume()}
             controls={false}
             audioSession="playback"
             progressUpdateInterval={80}

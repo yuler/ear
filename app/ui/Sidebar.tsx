@@ -13,6 +13,7 @@ export type SidebarProps = {
   discoverCount?: () => number;
   activeDownloadCount?: () => number;
   onOpenSettings: () => void;
+  onOpenShortcuts?: () => void;
 };
 
 export function Sidebar(props: SidebarProps) {
@@ -175,8 +176,22 @@ export function Sidebar(props: SidebarProps) {
         </View>
       </View>
 
-      {/* Bottom Footer: Settings Button */}
-      <View class="border-t border-line p-3">
+      {/* Bottom Footer: Shortcuts & Settings */}
+      <View class="border-t border-line p-3 gap-1">
+        <Button
+          onPress={() => props.onOpenShortcuts?.()}
+          class="w-full flex-row items-center justify-between rounded-lg px-2.5 py-1.5 transition text-muted-foreground hover:bg-well hover:text-foreground active:scale-[0.98]"
+          accessibilityLabel="Shortcuts"
+        >
+          <View class="flex-row items-center gap-2.5">
+            <Icon name="help-circle" size={15} tone="muted-foreground" />
+            <Text class="text-sm text-foreground">Shortcuts</Text>
+          </View>
+          <View class="rounded border border-line bg-raised px-1.5 py-0.5">
+            <Text class="font-mono text-[10px] font-semibold text-dim">?</Text>
+          </View>
+        </Button>
+
         <Button
           onPress={() => {
             if (props.onOpenSettings) {
@@ -185,7 +200,7 @@ export function Sidebar(props: SidebarProps) {
               props.onSelectTab("settings");
             }
           }}
-          class={`w-full flex-row items-center gap-2.5 rounded-lg px-2.5 py-2 transition ${
+          class={`w-full flex-row items-center gap-2.5 rounded-lg px-2.5 py-1.5 transition ${
             isTabActive("settings")
               ? "bg-primary/15 text-primary font-semibold"
               : "text-muted-foreground hover:bg-well hover:text-foreground"

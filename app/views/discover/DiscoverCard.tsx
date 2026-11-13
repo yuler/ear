@@ -16,6 +16,7 @@ export function DiscoverCard(props: {
   onTagClick?: (tag: string) => void;
   isDownloaded?: () => boolean;
   isDownloading?: () => boolean;
+  selected?: boolean;
 }) {
   let posterRef: ViewRef | null = null;
   const item = props.item;
@@ -48,7 +49,11 @@ export function DiscoverCard(props: {
   return (
     <Button
       onPress={() => void handlePractice()}
-      class="group relative flex-col justify-between overflow-hidden rounded-xl border border-line/70 bg-well/15 p-3.5 text-left transition-all duration-200 hover:border-[#2f7cf6] hover:bg-well/35 hover:shadow-lg sm:p-4 cursor-pointer active:scale-[0.99]"
+      class={`group relative flex-col justify-between overflow-hidden rounded-xl border p-3.5 text-left transition-all duration-200 hover:border-[#2f7cf6] hover:bg-well/35 hover:shadow-lg sm:p-4 cursor-pointer active:scale-[0.99] ${
+        props.selected
+          ? "border-[#2f7cf6] bg-primary/10 ring-2 ring-[#2f7cf6] shadow-[0_0_14px_rgba(47,124,246,0.3)]"
+          : "border-line/70 bg-well/15"
+      }`}
       accessibilityLabel={`Play ${item.title}`}
     >
       <View class="gap-3">

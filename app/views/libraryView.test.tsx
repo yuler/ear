@@ -1,7 +1,9 @@
+import { signal } from "nsh";
 import { expect, test } from "nsh/test";
 import type { LibraryEntry } from "../library/types";
 import { normalizeSettings } from "../store";
-import { formatEntryDescription, isAudioEntry } from "./libraryViewHelpers";
+import type { MediaTab } from "../ui/TopBar";
+import { formatEntryDescription, isAudioEntry, LibraryView } from "./LibraryView";
 
 function mockEntry(over: Partial<LibraryEntry> = {}): LibraryEntry {
   return {
@@ -175,6 +177,23 @@ test("library entries filter excludes pending, downloading, paused and active do
 
   expect(completedVideos.length).toBe(1);
   expect(completedVideos[0].videoId).toBe("ready1");
+});
+
+test("LibraryView accepts disabled prop and safely renders empty and populated views", () => {
+  const disabled = signal(true);
+  const tab = signal<MediaTab>("video");
+  const entries = signal<LibraryEntry[]>([mockEntry({ videoId: "v1" })]);
+
+  const view = LibraryView({
+    disabled,
+    activeTab: tab,
+    savedEntries: entries,
+    onOpenEntry: () => {},
+    onOpenFolder: () => {},
+    onDeleteEntry: () => {},
+  });
+
+  expect(view).toBeDefined();
 });
 
 
