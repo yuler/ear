@@ -102,9 +102,12 @@ jobs:
 
       - name: Syntax Check
         run: |
-          for script in www/worker.js www/public/main.js www/public/i18n.js www/public/player-demo.js www/public/player-mock.js; do
+          for script in www/worker.js www/public/main.js www/public/i18n.js www/public/player-demo.js www/public/player-mock.js www/public/player-cursor.js www/public/player-controls.js; do
             node --check "$script" || exit 1
           done
+
+      - name: Demo lifecycle regressions
+        run: node --test www/tests/*.test.cjs
 
   ci-status:
     name: Check & Test

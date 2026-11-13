@@ -1,4 +1,5 @@
 import process from "process";
+import { resolveDataDirOrNull, type EnvMap } from "../env";
 import { isNativeHost } from "./host";
 import type { CaptionCue, ParsedVideo } from "./types";
 
@@ -24,6 +25,7 @@ export type EarDownloadParams = {
   outputPath: string;
   videoUrl?: string | null;
   audioUrl?: string | null;
+  libraryDir?: string | null;
   signal?: AbortSignal;
   onProgress?: (ev: DownloadProgressEvent) => void;
 };
@@ -77,13 +79,28 @@ class EarApplicationError extends Error {
   }
 }
 
+/**
+ * Resolves the effective `library` directory passed via `--library-dir` to `ear download`
+ * so CLI metadata writes match the host app's Dev/Prod isolation without relying on `spawn` env.
+ */
+export function resolveEarLibraryDir(
+  baseDataDir?: string,
+  env: EnvMap = process.env ?? {},
+): string | null {
+  const dataDir = resolveDataDirOrNull(baseDataDir, env);
+  return dataDir ? `${dataDir}/library` : null;
+}
+
 export function spawnEar(bin: string, args: string[]): SpawnChildLike | null {
   if (currentSpawnHook) {
     return currentSpawnHook(bin, args);
   }
   try {
     if (isNativeHost() && typeof process.spawn === "function") {
-      return process.spawn(bin, args, { lines: true, timeoutMs: 600_000 }) as unknown as SpawnChildLike;
+      return process.spawn(bin, args, {
+        lines: true,
+        timeoutMs: 600_000,
+      }) as unknown as SpawnChildLike;
     }
   } catch {
     return null;
@@ -240,6 +257,11 @@ export async function earDownload(
   ];
   if (params.videoUrl) args.push("--video-url", params.videoUrl);
   if (params.audioUrl) args.push("--audio-url", params.audioUrl);
+  const libraryDir =
+    params.libraryDir !== undefined
+      ? params.libraryDir
+      : resolveEarLibraryDir();
+  if (libraryDir) args.push("--library-dir", libraryDir);
 
   let lastErr = "ear binary not available";
 

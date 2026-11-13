@@ -1,0 +1,57 @@
+/* www/public/player-video.css - Hero demo Stage 2 practice player + responsive/reduced-motion rules */
+/* Stage 2: 播放视频，下面显示字幕 */
+.player-stage { display:flex; flex-direction:column; gap:8px; height:100% }
+.player-top-header { display:flex; align-items:center; justify-content:space-between; padding-bottom:4px; border-bottom:1px solid var(--border) }
+.player-header-left { display:flex; align-items:center; gap:8px; font-size:12px; font-weight:600 }
+.player-back-btn { background:transparent; border:1px solid var(--border); border-radius:var(--radius-sm); color:var(--text-muted); width:22px; height:22px; display:flex; align-items:center; justify-content:center; cursor:pointer }
+.mask-toggle-btn { display:flex; align-items:center; gap:5px; background:var(--surface-raised); border:1px solid var(--border); border-radius:var(--radius-pill); padding:3px 10px; font-size:11px; color:var(--text-muted); cursor:pointer }
+.video-container { width:100%; height:320px; background:#000; border-radius:var(--radius-md); position:relative; overflow:hidden; box-shadow:inset 0 0 20px rgba(0,0,0,0.85) }
+.video-container video { width:100%; height:100%; object-fit:cover; object-position:center 25%; display:block }
+.video-center-play { position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); width:56px; height:56px; border-radius:50%; background:rgba(0,0,0,0.7); border:1px solid rgba(255,255,255,0.25); display:flex; align-items:center; justify-content:center; color:#fff; cursor:pointer; transition:all var(--duration-fast); opacity:0; pointer-events:none }
+.video-container.paused .video-center-play { opacity:1; pointer-events:auto }
+.vctrl-overlay { position:absolute; bottom:0; left:0; right:0; background:linear-gradient(to top,rgba(0,0,0,0.92) 0%,rgba(0,0,0,0.55) 65%,transparent 100%); padding:18px 14px 10px; display:flex; flex-direction:column; gap:6px; z-index:10 }
+.vctrl-progress-box { position:relative; width:100%; height:12px; display:flex; align-items:center; cursor:pointer }
+.vctrl-track { position:relative; width:100%; height:5px; background:rgba(255,255,255,0.28); border-radius:var(--radius-pill); overflow:hidden }
+.vctrl-fill { height:100%; width:100%; background:#2f7cf6; transform:scaleX(var(--p,0)); transform-origin:left center; transition:transform 0.25s linear }
+.vctrl-tick { position:absolute; top:0; bottom:0; width:1.5px; background:rgba(255,255,255,0.45); pointer-events:none }
+.vctrl-thumb-rail { position:absolute; inset:0; pointer-events:none; transform:translateX(calc(var(--p,0) * 100%)); transition:transform 0.25s linear }
+.vctrl-thumb { position:absolute; top:50%; left:0%; transform:translate(-50%,-50%); width:10px; height:10px; background:#fff; border:1px solid rgba(0,0,0,0.3); border-radius:50%; box-shadow:0 1px 4px rgba(0,0,0,0.4); pointer-events:none }
+.vctrl-toolbar { display:flex; align-items:center; justify-content:space-between; gap:8px }
+.vctrl-group-left,.vctrl-group-right { display:flex; align-items:center; gap:6px }
+.vctrl-btn-icon { width:28px; height:28px; border-radius:6px; border:1px solid rgba(255,255,255,0.2); background:rgba(255,255,255,0.1); color:#fff; display:flex; align-items:center; justify-content:center; cursor:pointer; transition:all var(--duration-fast) }
+.vctrl-btn-icon:hover { background:rgba(255,255,255,0.22) }
+.vctrl-btn-text { height:28px; padding:0 8px; border-radius:6px; border:1px solid rgba(255,255,255,0.15); background:rgba(255,255,255,0.1); color:rgba(255,255,255,0.9); font-size:11px; display:flex; align-items:center; gap:4px; cursor:pointer; transition:all var(--duration-fast); white-space:nowrap }
+.vctrl-btn-text:hover { background:rgba(255,255,255,0.2); color:#fff }
+.vctrl-btn-primary { height:28px; padding:0 10px; border-radius:6px; background:#2f7cf6; border:none; color:#fff; font-size:11px; font-weight:600; display:flex; align-items:center; gap:4px; cursor:pointer; box-shadow:0 1px 3px rgba(0,0,0,0.2); transition:all var(--duration-fast); white-space:nowrap }
+.vctrl-btn-primary:hover { background:#2269d4 }
+.vctrl-time { margin-left:4px; font-size:11px; font-family:var(--font-mono); color:#fff; white-space:nowrap }
+.vctrl-time-sep { color:rgba(255,255,255,0.55) }
+.sentence-meta-bar { display:flex; align-items:center; justify-content:space-between; padding:6px 4px; border-bottom:1px solid var(--border) }
+.s-tag-idx { font-size:10px; font-family:var(--font-mono); color:var(--text-dim) }
+.s-hint-tip { font-size:10px; color:var(--text-muted) }
+.sentence-roller-area { display:flex; flex-direction:column; gap:5px; margin-top:2px }
+.sentence-row { display:flex; align-items:baseline; gap:12px; font-size:12.5px; color:var(--text-dim); padding:4px 10px; border-radius:var(--radius-sm); transition:all var(--duration-fast) }
+.sentence-row.preceding,.sentence-row.upcoming { opacity:0.55 }
+.sentence-row.active { background:var(--surface-raised); border:1px solid var(--border); padding:8px 12px; box-shadow:0 2px 6px rgba(0,0,0,0.06); color:var(--text) }
+.s-caption-box { cursor:pointer; position:relative; min-height:22px }
+.s-mask-line { font-family:var(--font-mono); letter-spacing:0.15em; color:var(--text-dim); font-size:13px; font-weight:700; transition:opacity 0.2s ease }
+.s-real-line { font-size:13px; font-weight:600; color:var(--text); line-height:1.4; display:none }
+.s-caption-box.revealed .s-mask-line { display:none }
+.s-caption-box.revealed .s-real-line { display:block; animation:textGlow 0.25s ease }
+@keyframes textGlow { from { opacity:0; transform:translateY(2px) }
+to { opacity:1; transform:translateY(0) }
+}
+@media (max-width:768px) { .app-sidebar { display:none }
+.camera-viewport,.app-frame { min-height:520px }
+.stage-pane { padding:14px 10px }
+.video-container { height:240px }
+.dl-thumb-container { width:140px; height:80px }
+.dl-thumb-color-img { width:140px; height:80px }
+.vctrl-btn-text span { display:none }
+.vctrl-time,#ctrl-loop-btn,#ctrl-speed-btn,.player-header-left .badge-tag { display:none }
+.player-header-left { min-width:0 }
+.player-video-title { min-width:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis }
+.mask-toggle-btn { flex-shrink:0; white-space:nowrap }
+}
+@media (prefers-reduced-motion: reduce) { .app-window *,.app-window *::before,.app-window *::after { animation-duration:0.01ms !important; animation-iteration-count:1 !important; transition-duration:0.01ms !important; transition-delay:0s !important }
+}

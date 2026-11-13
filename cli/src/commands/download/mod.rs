@@ -73,6 +73,7 @@ pub fn run(args: &[String]) -> Result<(), String> {
     let mut quality = "720p".to_string();
     let mut concurrency: usize = 4;
     let mut no_captions = false;
+    let mut library_dir_override: Option<PathBuf> = None;
 
     let mut i = 0;
     while i < args.len() {
@@ -84,6 +85,13 @@ pub fn run(args: &[String]) -> Result<(), String> {
             "--output" | "-o" => {
                 i += 1;
                 output_str = args.get(i).cloned().unwrap_or_default();
+            }
+            "--library-dir" => {
+                i += 1;
+                let dir = args.get(i).cloned().unwrap_or_default();
+                if !dir.is_empty() {
+                    library_dir_override = Some(PathBuf::from(dir));
+                }
             }
             "--quality" | "-q" => {
                 i += 1;
@@ -146,7 +154,7 @@ pub fn run(args: &[String]) -> Result<(), String> {
         fs::create_dir_all(parent).map_err(|e| format!("mkdir {}: {e}", parent.display()))?;
     }
 
-    let library_dir = get_library_dir();
+    let library_dir = library_dir_override.or_else(get_library_dir);
     let mut player_json: Option<serde_json::Value> = None;
     let mut video_title = video_id.clone();
     let mut thumbnail_url: Option<String> = None;
