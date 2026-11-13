@@ -51,7 +51,22 @@ export function setEarBinaryCandidates(candidates: string[] | null): void {
   candidatesOverride = candidates;
 }
 
-export function earBinaryCandidates(): string[] {
+export function earBinaryCandidates(
+  platform: string | undefined = (() => {
+    try {
+      return typeof process !== "undefined" ? process?.platform : undefined;
+    } catch {
+      return undefined;
+    }
+  })(),
+  home: string | undefined = (() => {
+    try {
+      return typeof process !== "undefined" ? process?.env?.HOME : undefined;
+    } catch {
+      return undefined;
+    }
+  })(),
+): string[] {
   if (candidatesOverride) return candidatesOverride;
   const list = [
     "./ear",
@@ -62,12 +77,14 @@ export function earBinaryCandidates(): string[] {
     "../cli/target/release/ear",
     "ear",
   ];
-  try {
-    if (typeof process !== "undefined" && process?.env?.HOME) {
-      list.push(`${process.env.HOME}/.local/bin/ear`);
+  if (platform === "macos") {
+    list.push("/Applications/Ear.app/Contents/Helpers/ear");
+    if (home) {
+      list.push(`${home}/Applications/Ear.app/Contents/Helpers/ear`);
     }
-  } catch {
-    // ignore
+  }
+  if (home) {
+    list.push(`${home}/.local/bin/ear`);
   }
   return list;
 }

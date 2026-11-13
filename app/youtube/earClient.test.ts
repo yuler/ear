@@ -1,5 +1,6 @@
 import { expect, test } from "nsh/test";
 import {
+  earBinaryCandidates,
   earDownload,
   resolveEarLibraryDir,
   setEarBinaryCandidates,
@@ -111,4 +112,20 @@ test("earDownload preserves Dev argv isolation while stopping on application err
     setEarSpawnHook(null);
     setEarBinaryCandidates(null);
   }
+});
+
+test("earBinaryCandidates includes macOS app bundle Helpers/ear paths on macos only", () => {
+  const macCandidates = earBinaryCandidates("macos", "/Users/alice");
+  expect(macCandidates).toContain("ear");
+  expect(macCandidates).toContain("/Applications/Ear.app/Contents/Helpers/ear");
+  expect(macCandidates).toContain("/Users/alice/Applications/Ear.app/Contents/Helpers/ear");
+  expect(macCandidates).toContain("/Users/alice/.local/bin/ear");
+  expect(macCandidates.indexOf("ear")).toBeLessThan(
+    macCandidates.indexOf("/Applications/Ear.app/Contents/Helpers/ear"),
+  );
+
+  const linuxCandidates = earBinaryCandidates("linux", "/home/alice");
+  expect(linuxCandidates).toContain("ear");
+  expect(linuxCandidates).toContain("/home/alice/.local/bin/ear");
+  expect(linuxCandidates).not.toContain("/Applications/Ear.app/Contents/Helpers/ear");
 });

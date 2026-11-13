@@ -151,7 +151,8 @@ jobs:
         run: |
           VERSION="${{ needs.prepare.outputs.version }}"
           jq --arg v "$VERSION" '.version = $v' app/nsh.json > app/nsh.json.tmp && mv app/nsh.json.tmp app/nsh.json
-          sed -E "0,/version = \".*\"/s/version = \".*\"/version = \"$VERSION\"/" cli/Cargo.toml > cli/Cargo.toml.tmp && mv cli/Cargo.toml.tmp cli/Cargo.toml
+          awk -v v="$VERSION" '!done && /^version = "/ { $0 = "version = \"" v "\""; done=1 } { print }' cli/Cargo.toml > cli/Cargo.toml.tmp && mv cli/Cargo.toml.tmp cli/Cargo.toml
+          grep -q "^version = \"$VERSION\"$" cli/Cargo.toml
 
       - name: Build Rust ear CLI
         shell: bash
@@ -178,9 +179,11 @@ jobs:
         if: matrix.target == 'macos'
         shell: bash
         run: |
-          mkdir -p .nsh/out/Ear.app/Contents/MacOS
-          cp cli/target/release/ear .nsh/out/Ear.app/Contents/MacOS/ear
-          chmod +x .nsh/out/Ear.app/Contents/MacOS/ear
+          mkdir -p .nsh/out/Ear.app/Contents/Helpers
+          cp cli/target/release/ear .nsh/out/Ear.app/Contents/Helpers/ear
+          chmod +x .nsh/out/Ear.app/Contents/Helpers/ear
+          codesign --force --deep --sign - .nsh/out/Ear.app
+          codesign --verify --deep --strict .nsh/out/Ear.app
           ditto -c -k --keepParent .nsh/out/Ear.app "Ear-${{ needs.prepare.outputs.version }}-macos-aarch64.zip"
 
       # Windows zip assembly
@@ -226,7 +229,8 @@ jobs:
         run: |
           VERSION="${{ needs.prepare.outputs.version }}"
           jq --arg v "$VERSION" '.version = $v' app/nsh.json > app/nsh.json.tmp && mv app/nsh.json.tmp app/nsh.json
-          sed -E "0,/version = \".*\"/s/version = \".*\"/version = \"$VERSION\"/" cli/Cargo.toml > cli/Cargo.toml.tmp && mv cli/Cargo.toml.tmp cli/Cargo.toml
+          awk -v v="$VERSION" '!done && /^version = "/ { $0 = "version = \"" v "\""; done=1 } { print }' cli/Cargo.toml > cli/Cargo.toml.tmp && mv cli/Cargo.toml.tmp cli/Cargo.toml
+          grep -q "^version = \"$VERSION\"$" cli/Cargo.toml
 
       - name: Download all build artifacts
         uses: actions/download-artifact@v4
