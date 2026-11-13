@@ -229,8 +229,7 @@
 
   function pauseAutoCycle() {
     state.autoCycle = false;
-    wasLive = false;
-    clearAllTimers();
+    onLiveChange();
     fx.hideCursor(true);
     renderPill();
   }
@@ -244,14 +243,17 @@
   // Start/stop the loop as the demo scrolls in/out of view or the tab is hidden.
   function onLiveChange() {
     const live = isLive();
+    // Media can be started manually while the tour is paused. Suspend it even
+    // when the cached tour state has not changed.
+    if (!live) {
+      clearAllTimers();
+      vid.pauseVideo();
+    }
     if (live === wasLive) return;
     wasLive = live;
     if (live) {
       fx.hideCursor(false);
       setStep(state.step);
-    } else {
-      clearAllTimers();
-      vid.pauseVideo();
     }
   }
 
@@ -302,7 +304,7 @@
 
     if ("IntersectionObserver" in window) {
       new IntersectionObserver((entries) => {
-        inView = entries[0].isIntersecting;
+        inView = entries[0].intersectionRatio >= 0.35;
         onLiveChange();
       }, { threshold: 0.35 }).observe(root);
     } else {
