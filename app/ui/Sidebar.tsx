@@ -1,7 +1,7 @@
 import { platform, Text, View } from "nsh";
 import { Button } from "nsh/base";
-import { titleBar } from "nsh/desktop";
 import { Icon } from "./Icon";
+import { macTitleBarInsets } from "./titleBarInsets";
 import { globalUpdateAvailable } from "../updater";
 import type { MediaTab } from "./TopBar";
 
@@ -29,8 +29,8 @@ export function Sidebar(props: SidebarProps) {
         <View
           desktop={{ windowDrag: platform.os === "macos" }}
           style={{
-            paddingTop: 14,
-            paddingLeft: (titleBar().left || 16) + 4,
+            paddingTop: macTitleBarInsets().top > 0 ? macTitleBarInsets().top + 4 : 14,
+            paddingLeft: 16,
             paddingRight: 16,
           }}
           class="flex-col pb-1"

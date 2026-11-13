@@ -102,7 +102,8 @@ test("normalizeSettings fills defaults and validates fields", () => {
   expect(s.defaultQuality).toBe("360p");
 });
 
-test("app configuration enables singleInstance", () => {
+test("app configuration enables singleInstance and sets app icon", () => {
   expect(nshConfig.singleInstance).toBe(true);
   expect(nshConfig.id).toBe("dev.yuler.ear");
+  expect(nshConfig.icon).toBe("icon.png");
 });

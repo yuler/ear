@@ -3,6 +3,7 @@
   "id": "dev.yuler.ear",
   "version": "0.0.0",
   "build": 1,
+  "icon": "icon.png",
   "singleInstance": true,
   "updater": {
     "github": "yuler/ear",
