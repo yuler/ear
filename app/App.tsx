@@ -11,7 +11,7 @@ import {
   View,
   type InputRef,
 } from "nsh";
-import { currentWindow, isAvailable, Menu } from "nsh/desktop";
+import { Application, currentWindow, isAvailable, Menu } from "nsh/desktop";
 import {
   buildVideoPreview,
   fetchVideoPreviewMeta,
@@ -767,6 +767,27 @@ function App() {
     },
     "mod+1": () => activeTab.set("video"),
     "mod+2": () => activeTab.set("audio"),
+  });
+
+  effect(() => {
+    if (!isAvailable) return;
+    const unlisten = Application.on("secondInstance", (launch) => {
+      try {
+        currentWindow().focus();
+      } catch {
+        // ignore outside window rendering
+      }
+      if (launch.args && launch.args.length > 0) {
+        for (const arg of launch.args) {
+          const vid = extractVideoId(arg);
+          if (vid) {
+            url.set(arg);
+            break;
+          }
+        }
+      }
+    });
+    return unlisten;
   });
 
   effect(() => {
