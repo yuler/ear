@@ -66,9 +66,9 @@ async function fetchLatestRelease() {
 
     // Fallbacks if assets are not yet parsed or released
     const fallbackBase = `https://github.com/${REPO}/releases/download/${tag}`;
-    if (!assets.mac) assets.mac = `${fallbackBase}/Ear-${version}-macos-arm64.zip`;
-    if (!assets.windows) assets.windows = `${fallbackBase}/Ear-${version}-windows-x64.zip`;
-    if (!assets.linux) assets.linux = `${fallbackBase}/Ear-${version}-linux-x64.tar.gz`;
+    if (!assets.mac) assets.mac = `${fallbackBase}/Ear-${version}-macos-aarch64.zip`;
+    if (!assets.windows) assets.windows = `${fallbackBase}/Ear-${version}-windows-x86_64.zip`;
+    if (!assets.linux) assets.linux = `${fallbackBase}/Ear-${version}-linux-x86_64.tar.gz`;
 
     const payload = {
       tag,
@@ -98,9 +98,9 @@ async function fetchLatestRelease() {
       published_at: new Date().toISOString(),
       html_url: `https://github.com/${REPO}/releases/latest`,
       assets: {
-        mac: `${fallbackBase}/Ear-${fallbackVersion}-macos-arm64.zip`,
-        windows: `${fallbackBase}/Ear-${fallbackVersion}-windows-x64.zip`,
-        linux: `${fallbackBase}/Ear-${fallbackVersion}-linux-x64.tar.gz`,
+        mac: `${fallbackBase}/Ear-${fallbackVersion}-macos-aarch64.zip`,
+        windows: `${fallbackBase}/Ear-${fallbackVersion}-windows-x86_64.zip`,
+        linux: `${fallbackBase}/Ear-${fallbackVersion}-linux-x86_64.tar.gz`,
       },
     };
   }
