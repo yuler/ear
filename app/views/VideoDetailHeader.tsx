@@ -3,6 +3,7 @@ import { Button } from "nsh/base";
 import type { LibraryEntry } from "../library/types";
 import { Icon } from "../ui/Icon";
 import { t, type EarLocale } from "../ui/i18n";
+import { macTitleBarInsets } from "../ui/titleBarInsets";
 import type { SentenceLengthMode } from "../youtube/captions";
 
 export type VideoDetailHeaderProps = {
@@ -35,6 +36,7 @@ export function VideoDetailHeader(props: VideoDetailHeaderProps) {
   const quality = () => entry().quality ?? (props.audioOnly?.() ? "Audio" : "Video");
 
   const isVisible = () => (props.visible ? props.visible() : false);
+  const leftInset = () => macTitleBarInsets().left;
 
   const handleMouseEnter = () => {
     props.onActivity?.();
@@ -53,6 +55,7 @@ export function VideoDetailHeader(props: VideoDetailHeaderProps) {
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
       onMouseMove={handleMouseMove}
+      style={leftInset() > 0 ? { paddingLeft: leftInset() + 12 } : undefined}
       class={`absolute top-0 inset-x-0 z-30 flex-row items-center justify-between px-3 pt-3 pb-6 sm:px-5 sm:pt-4 bg-gradient-to-b from-black/90 via-black/45 to-transparent transition-all duration-300 ease-out ${
         isVisible()
           ? "opacity-100 translate-y-0 pointer-events-auto"
