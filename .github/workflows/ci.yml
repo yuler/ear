@@ -31,6 +31,7 @@ jobs:
           filters: |
             cli:
               - 'cli/**'
+              - 'api/discover/**'
               - 'Cargo.*'
               - 'scripts/**'
               - '.github/workflows/ci.yml'
@@ -97,7 +98,10 @@ jobs:
           node-version: 22
 
       - name: Syntax Check
-        run: node --check www/worker.js www/public/main.js www/public/i18n.js www/public/player-demo.js www/public/player-mock.js
+        run: |
+          for script in www/worker.js www/public/main.js www/public/i18n.js www/public/player-demo.js www/public/player-mock.js; do
+            node --check "$script" || exit 1
+          done
 
   ci-status:
     name: Check & Test
@@ -107,9 +111,16 @@ jobs:
     steps:
       - name: Evaluate status
         run: |
+          DETECT_RES="${{ needs.detect-changes.result }}"
           CLI_RES="${{ needs.cli.result }}"
           APP_RES="${{ needs.app.result }}"
           WWW_RES="${{ needs.www.result }}"
+
+          echo "Change detection result: $DETECT_RES"
+          if [ "$DETECT_RES" != "success" ]; then
+            echo "Error: Change detection did not succeed." >&2
+            exit 1
+          fi
 
           echo "CLI result: $CLI_RES"
           echo "App result: $APP_RES"
