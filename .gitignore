@@ -1,4 +1,5 @@
 .nsh/
+.worktree/
 target/
 node_modules/
 .wrangler/

@@ -7,6 +7,7 @@ Guidelines for coding agents for this repo
 ### Git & PR Workflow
 
 - **PR-first development**: All development must go through Pull Requests (PRs). Work on dedicated feature/bugfix branches; do not push directly to `main`.
+- **Worktree workflow**: When writing code or experimenting with features, always create a new branch in a `git worktree` under `.worktree/` (gitignored) at the repo root. Once the work is done and the PR is opened, remove the worktree immediately.
 - **Commit & PR title format**: `emoji [scope] The main change` — example: `✨ [core] Adopt shared account slug tenancy for personal and team`. PR title follows the exact same format.
 - **No agent trailers**: Do not add agent trailers to commits (`Made-with:`, `Co-Authored-By: Claude`, Cursor, etc.). Message body only when it adds real context.
 - **Explicit git operations**: Do not run `git commit` / `git push` unless explicitly requested.
