@@ -34,6 +34,11 @@ jobs:
       - name: Setup Rust toolchain
         uses: dtolnay/rust-toolchain@stable
 
+      - name: Rust Cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: cli -> target
+
       - name: Install mise + nsh
         uses: jdx/mise-action@v5
 
@@ -133,6 +138,11 @@ jobs:
       - name: Setup Rust toolchain
         uses: dtolnay/rust-toolchain@stable
 
+      - name: Rust Cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: cli -> target
+
       - name: Install mise + nsh
         uses: jdx/mise-action@v5
 
@@ -202,6 +212,11 @@ jobs:
 
       - name: Setup Rust toolchain
         uses: dtolnay/rust-toolchain@stable
+
+      - name: Rust Cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: cli -> target
 
       - name: Install mise + nsh
         uses: jdx/mise-action@v5
