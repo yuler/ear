@@ -2,6 +2,7 @@ import { mkdir } from "fs/promises";
 import { dirname, join } from "path";
 import { homedir } from "os";
 import process from "process";
+import { resolveDataDir } from "../env";
 import { isNativeHost } from "../youtube/host";
 
 /** Default media folder, same idea as Downbit's `folder`. */
@@ -15,13 +16,9 @@ export function mediaRoot(downloadFolder?: string | null): string {
   return folder || defaultDownloadFolder();
 }
 
-/** App-private library metadata root: `<dataDir>/library`. */
+/** App-private library metadata root: `<resolvedDataDir>/library`. */
 export function libraryRoot(): string {
-  const dataDir = process.dataDir;
-  if (!dataDir) {
-    throw new Error("No app dataDir — library needs a native host");
-  }
-  return join(dataDir, "library");
+  return join(resolveDataDir(), "library");
 }
 
 /** Per-video captions directory: `library/<videoId>/`. */

@@ -32,6 +32,12 @@ pub fn get_library_dir() -> Option<PathBuf> {
         }
     }
 
+    if let Ok(dir) = std::env::var("EAR_DATA_DIR") {
+        if !dir.is_empty() {
+            return Some(PathBuf::from(dir).join("library"));
+        }
+    }
+
     if let Ok(home) = std::env::var("HOME") {
         #[cfg(target_os = "macos")]
         {

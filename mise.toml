@@ -11,9 +11,9 @@ alias = ["build-cli"]
 run = "cargo build --release --manifest-path cli/Cargo.toml && install -Dm755 cli/target/release/ear ~/.local/bin/ear"
 
 [tasks."cli:dev"]
-description = "Debug-build Ear CLI for development and install to ~/.local/bin/ear"
+description = "Debug-build Ear CLI for development (keeps ~/.local/bin/ear untouched)"
 alias = ["build-cli-dev"]
-run = "cargo build --manifest-path cli/Cargo.toml && install -Dm755 cli/target/debug/ear ~/.local/bin/ear"
+run = "cargo build --manifest-path cli/Cargo.toml"
 
 [tasks."cli:test"]
 description = "Run Ear CLI Rust test suite"
@@ -61,3 +61,7 @@ run = "ear doctor"
 [tasks.setup]
 description = "Install tools, Ear CLI (release), and Linux host deps (WebKitGTK 6)"
 run = "bash scripts/setup.sh"
+
+[tasks."prod:install"]
+description = "Download and install Production Ear desktop app & CLI from GitHub Releases"
+run = "bash scripts/install-prod.sh"
