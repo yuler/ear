@@ -97,8 +97,8 @@ elif [[ "$OS" == "Darwin" && "$ARCH" == "arm64" ]]; then
   rm -rf "$APP_DST"
   cp -a "$APP_SRC" "$APP_DST"
 
-  if [[ -x "${APP_DST}/Contents/MacOS/ear" ]]; then
-    ln -sf "${APP_DST}/Contents/MacOS/ear" "${HOME}/.local/bin/ear"
+  if [[ -x "${APP_DST}/Contents/Helpers/ear" ]]; then
+    ln -sf "${APP_DST}/Contents/Helpers/ear" "${HOME}/.local/bin/ear"
   fi
 
   echo "Installed Ear ${TAG} to ${APP_DST}"
