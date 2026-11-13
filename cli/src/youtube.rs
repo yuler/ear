@@ -108,6 +108,8 @@ pub(crate) fn http_get_text(url: &str, user_agent: &str) -> Result<String, Strin
         .args([
             "-sS",
             "-L",
+            "--proto",
+            "=https",
             "--fail",
             "--max-time",
             "20",
@@ -176,8 +178,9 @@ pub(crate) fn fetch_visionos_player(video_id: &str, visitor_data: Option<&str>) 
         "X-YouTube-Client-Version: 1.02",
     ]);
     if let Some(visitor) = visitor_data {
-        if !visitor.is_empty() {
-            cmd.arg("-H").arg(format!("X-Goog-Visitor-Id: {visitor}"));
+        let clean: String = visitor.chars().filter(|&c| c != '\r' && c != '\n').collect();
+        if !clean.is_empty() {
+            cmd.arg("-H").arg(format!("X-Goog-Visitor-Id: {clean}"));
         }
     }
     cmd.arg("-d").arg(body.to_string());

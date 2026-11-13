@@ -321,7 +321,13 @@ pub fn fetch_and_save_captions(
     let tracks = read_caption_tracks(player);
     let chosen_track = select_best_caption_track(&tracks, title)?;
     let base_url = &chosen_track.base_url;
-    let track_url = format!("{base_url}&fmt=json3");
+    let track_url = if base_url.contains("fmt=json3") {
+        base_url.clone()
+    } else if base_url.contains('?') {
+        format!("{base_url}&fmt=json3")
+    } else {
+        format!("{base_url}?fmt=json3")
+    };
 
     let raw_json = http_get_text(&track_url, WATCH_UA).ok()?;
     let cues = parse_json3_cues(&raw_json).ok()?;
@@ -347,7 +353,7 @@ pub fn fetch_and_save_captions(
 
         let trimmed = cue.text.trim();
         let ends_punct = trimmed.ends_with('.') || trimmed.ends_with('?') || trimmed.ends_with('!');
-        let too_long = (sent_end - sent_start) >= 6000;
+        let too_long = sent_end.saturating_sub(sent_start) >= 6000;
         let is_last = i == cues.len() - 1;
 
         if ends_punct || too_long || is_last {

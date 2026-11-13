@@ -132,6 +132,9 @@ pub fn run(args: &[String]) -> Result<(), String> {
     }
 
     let caption_url = if target_input.contains("timedtext") || target_input.contains("api/timedtext") {
+        if !target_input.starts_with("https://") {
+            return Err("Caption URL must use https://".to_string());
+        }
         target_input
     } else if let Some(video_id) = extract_video_id(&target_input) {
         let watch_url = format!("https://www.youtube.com/watch?v={video_id}");
