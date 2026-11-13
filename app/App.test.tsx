@@ -1,6 +1,7 @@
 import { expect, open, test } from "nsh/test";
 import { buildVideoPreview } from "./clipboard";
 import { normalizeSettings } from "./store";
+import nshConfig from "./nsh.json";
 
 test("shows minimal Ear shell and left sidebar with Discover / Videos / Audio", async () => {
   const app = await open("./App.tsx");
@@ -99,4 +100,9 @@ test("normalizeSettings fills defaults and validates fields", () => {
   expect(s.clipboardAuto).toBe(true);
   expect(s.downloadFolder).toBe("");
   expect(s.defaultQuality).toBe("360p");
+});
+
+test("app configuration enables singleInstance", () => {
+  expect(nshConfig.singleInstance).toBe(true);
+  expect(nshConfig.id).toBe("dev.yuler.ear");
 });
