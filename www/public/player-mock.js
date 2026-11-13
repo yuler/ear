@@ -7,7 +7,7 @@ window.MOCK_WINDOW_HTML = `<div class="window-titlebar">
   </div>
 
   <!-- Prominent Demo Play/Pause Controller -->
-  <button class="demo-play-pill" id="demo-play-btn" title="点击切换自动演示/暂停演示">
+  <button class="demo-play-pill" id="demo-play-btn" title="点击切换自动演示/暂停演示" aria-pressed="true">
     <span class="status-indicator" id="demo-indicator"></span>
     <span id="demo-play-icon" style="font-size:10px;">⏸</span>
     <span id="auto-cycle-label">自动演示中</span>
@@ -53,15 +53,15 @@ window.MOCK_WINDOW_HTML = `<div class="window-titlebar">
 
 <div class="camera-viewport" id="camera-viewport">
   <!-- Virtual Mouse Pointer for High-Fidelity Simulation -->
-  <div class="virtual-cursor" id="virtual-cursor">
+  <div class="virtual-cursor hidden" id="virtual-cursor" aria-hidden="true">
     <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
       <path d="M3 3l7 18 3-7 7-3L3 3z" fill="#000000" stroke="#ffffff" stroke-width="1.8" stroke-linejoin="round"/>
     </svg>
   </div>
-  <div class="cursor-ripple-layer" id="cursor-ripple-layer"></div>
+  <div class="cursor-ripple-layer" id="cursor-ripple-layer" aria-hidden="true"></div>
 
   <!-- Camera Rig (Pixel-crisp 1:1 viewport, no 3D scaling blur) -->
-  <div class="camera-rig camera-step-0" id="camera-rig">
+  <div class="camera-rig" id="camera-rig">
     <div class="app-frame">
       <!-- Sidebar -->
       <aside class="app-sidebar">
@@ -250,7 +250,7 @@ window.MOCK_WINDOW_HTML = `<div class="window-titlebar">
 
             <!-- Video Container with Large Aspect Ratio & Real HTML5 Video -->
             <div class="video-container" id="video-wrapper">
-              <video id="practice-video" src="/sample.mp4" poster="/sample-poster.jpg" playsinline preload="auto" loop muted></video>
+              <video id="practice-video" src="/sample.mp4" poster="/sample-poster.jpg" playsinline preload="none" loop muted></video>
               <div class="video-center-play" id="video-center-btn">
                 <svg width="28" height="28" viewBox="0 0 24 24" fill="currentColor"><polygon points="6 4 20 12 6 20 6 4"/></svg>
               </div>
@@ -258,7 +258,7 @@ window.MOCK_WINDOW_HTML = `<div class="window-titlebar">
               <!-- Video Player Controls Bar (Matching VideoPlayerControls.tsx) -->
               <div class="vctrl-overlay" id="video-controls-overlay">
                 <!-- 1. Seekable Progress Bar with Sentence Ticks -->
-                <div class="vctrl-progress-box">
+                <div class="vctrl-progress-box" id="video-progress-box">
                   <div class="vctrl-track" id="video-track">
                     <div class="vctrl-fill" id="video-fill"></div>
                     <div class="vctrl-tick" style="left: 0%;"></div>
@@ -269,7 +269,7 @@ window.MOCK_WINDOW_HTML = `<div class="window-titlebar">
                     <div class="vctrl-tick" style="left: 78%;"></div>
                     <div class="vctrl-tick" style="left: 92%;"></div>
                   </div>
-                  <div class="vctrl-thumb" id="video-thumb"></div>
+                  <div class="vctrl-thumb-rail"><div class="vctrl-thumb" id="video-thumb"></div></div>
                 </div>
 
                 <!-- 2. Controls Toolbar Row -->

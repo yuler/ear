@@ -204,9 +204,10 @@ function fallbackCopy(text, cb) {
 // ── Initializer ──
 document.addEventListener("DOMContentLoaded", () => {
   initTheme();
+  // Mount the demo first so initLang() also translates its data-i18n labels.
+  if (window.initAppMockup) window.initAppMockup();
   initLang();
   initOsDetection();
-  if (window.initAppMockup) window.initAppMockup();
   initAiCopy();
   syncLatestRelease();
 });
