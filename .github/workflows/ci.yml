@@ -13,8 +13,41 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  check:
-    name: Check & Test
+  detect-changes:
+    name: Detect Changes
+    runs-on: ubuntu-latest
+    outputs:
+      cli: ${{ steps.filter.outputs.cli }}
+      app: ${{ steps.filter.outputs.app }}
+      www: ${{ steps.filter.outputs.www }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Path Filter
+        id: filter
+        uses: dorny/paths-filter@v3
+        with:
+          filters: |
+            cli:
+              - 'cli/**'
+              - 'Cargo.*'
+              - 'scripts/**'
+              - '.github/workflows/ci.yml'
+            app:
+              - 'app/**'
+              - 'api/**'
+              - 'mise.toml'
+              - 'scripts/**'
+              - '.github/workflows/ci.yml'
+            www:
+              - 'www/**'
+              - '.github/workflows/ci.yml'
+
+  cli:
+    name: CLI (Rust)
+    needs: detect-changes
+    if: needs.detect-changes.outputs.cli == 'true'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -23,11 +56,70 @@ jobs:
       - name: Setup Rust toolchain
         uses: dtolnay/rust-toolchain@stable
 
+      - name: Rust Cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: cli -> target
+
+      - name: Run Ear CLI Tests
+        run: cargo test --manifest-path cli/Cargo.toml
+
+  app:
+    name: App (Native Shell)
+    needs: detect-changes
+    if: needs.detect-changes.outputs.app == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
       - name: Install mise + nsh
         uses: jdx/mise-action@v5
 
       - name: Typecheck
-        run: mise run check
+        run: nsh check app
 
-      - name: Test
-        run: mise run test
+      - name: Run App Tests
+        run: nsh test app
+
+  www:
+    name: WWW (Landing & Worker)
+    needs: detect-changes
+    if: needs.detect-changes.outputs.www == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Syntax Check
+        run: node --check www/worker.js www/public/main.js www/public/i18n.js www/public/player-demo.js www/public/player-mock.js
+
+  ci-status:
+    name: Check & Test
+    needs: [detect-changes, cli, app, www]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Evaluate status
+        run: |
+          CLI_RES="${{ needs.cli.result }}"
+          APP_RES="${{ needs.app.result }}"
+          WWW_RES="${{ needs.www.result }}"
+
+          echo "CLI result: $CLI_RES"
+          echo "App result: $APP_RES"
+          echo "WWW result: $WWW_RES"
+
+          for res in "$CLI_RES" "$APP_RES" "$WWW_RES"; do
+            if [ "$res" = "failure" ] || [ "$res" = "cancelled" ]; then
+              echo "Error: One or more parallel CI jobs failed." >&2
+              exit 1
+            fi
+          done
+
+          echo "All required checks passed or were cleanly skipped."
