@@ -32,7 +32,9 @@ function UpdateModalDialog(props: { result: () => UpdateCheckResult }) {
   keymap.bind(
     {
       escape: dismissGlobalUpdateModal,
-      // Suppress underlying navigation/action shortcuts while modal is frontmost
+      // Suppress underlying shortcuts, including App shift+/ / F1, while frontmost
+      "shift+/": () => {},
+      f1: () => {},
       space: () => {},
       enter: () => {},
       delete: () => {},
@@ -41,6 +43,16 @@ function UpdateModalDialog(props: { result: () => UpdateCheckResult }) {
       down: () => {},
       left: () => {},
       right: () => {},
+      o: () => {},
+      r: () => {},
+      m: () => {},
+      b: () => {},
+      "[": () => {},
+      "]": () => {},
+      "0": () => {},
+      "alt+1": () => {},
+      "alt+2": () => {},
+      "alt+3": () => {},
     },
     { when: "notEditing" },
   );

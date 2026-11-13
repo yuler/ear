@@ -98,8 +98,10 @@ function App() {
   const playingSrc = signal<string | null>(null);
   const transitionOriginRect = signal<ViewTransitionRect | null>(null);
   const showShortcutsModal = signal(false);
-  const toggleShortcutsModal = () =>
+  const toggleShortcutsModal = () => {
+    if (globalUpdateModalOpen()) return;
     showShortcutsModal.set(!showShortcutsModal());
+  };
   let urlInputRef: InputRef | null = null;
   const fetchingMetaIds = new Set<string>();
   const activeDownloadIds = new Set<string>();

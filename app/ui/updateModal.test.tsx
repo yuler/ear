@@ -27,3 +27,22 @@ test("UpdateModal displays merged release notes globally and dismisses on button
   await app.waitFor("Modal Closed");
   expect(app.texts().some((t) => t.includes("Modal Closed"))).toBe(true);
 });
+
+test("UpdateModal blocks shift+/ and F1 so ShortcutsModal cannot stack underneath", async () => {
+  const app = await open("./updateModalFixture.tsx");
+  await app.press("Trigger Update");
+  await app.waitFor("发现新版本 v0.0.25");
+
+  await app.keyboard.press("shift+/");
+  await app.keyboard.press("f1");
+  expect(app.texts().some((t) => t.includes("快捷键指南"))).toBe(false);
+  expect(app.texts().some((t) => t.includes("发现新版本 v0.0.25"))).toBe(true);
+
+  await app.press("Open Shortcuts");
+  expect(app.texts().some((t) => t.includes("快捷键指南"))).toBe(false);
+
+  await app.keyboard.press("escape");
+  await app.waitFor("Modal Closed");
+  expect(app.texts().some((t) => t.includes("发现新版本 v0.0.25"))).toBe(false);
+  expect(app.texts().some((t) => t.includes("快捷键指南"))).toBe(false);
+});
