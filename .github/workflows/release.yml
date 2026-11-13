@@ -24,33 +24,8 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  quality-gate:
-    name: Quality Gate (Check & Test)
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Rust Cache
-        uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: cli -> target
-
-      - name: Install mise + nsh
-        uses: jdx/mise-action@v5
-
-      - name: Typecheck
-        run: mise run check
-
-      - name: Test
-        run: mise run test
-
   prepare:
-    name: Resolve Version & Create Tag
-    needs: quality-gate
+    name: Resolve Version & Metadata
     runs-on: ubuntu-latest
     outputs:
       tag: ${{ steps.vars.outputs.tag }}
@@ -99,19 +74,35 @@ jobs:
           echo "release_title=$TAG — $COMMIT_SUBJECT" >> "$GITHUB_OUTPUT"
           echo "changelog=$TAG — $COMMIT_SUBJECT" >> "$GITHUB_OUTPUT"
 
-      - name: Create & Push Git Tag
-        shell: bash
-        run: |
-          TAG="${{ steps.vars.outputs.tag }}"
-          if git rev-parse -q --verify "refs/tags/$TAG" >/dev/null; then
-            echo "Tag $TAG already exists."
-          else
-            echo "Tagging commit with $TAG..."
-            git config user.name "github-actions[bot]"
-            git config user.email "github-actions[bot]@users.noreply.github.com"
-            git tag -a "$TAG" -m "${{ steps.vars.outputs.release_title }}"
-            git push origin "$TAG"
-          fi
+  quality-gate:
+    name: Quality Gate (Check & Test)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Rust Cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: cli -> target
+
+      - name: Install mise + nsh
+        uses: jdx/mise-action@v5
+        with:
+          install_args: github:longbridge/nsh
+          cache_key_prefix: mise-nsh-v1
+
+      - name: Typecheck
+        run: nsh check app
+
+      - name: Test App
+        run: nsh test app
+
+      - name: Test CLI
+        run: cargo test --manifest-path cli/Cargo.toml
 
   build-desktop:
     name: Build Desktop (${{ matrix.platform }})
@@ -145,6 +136,9 @@ jobs:
 
       - name: Install mise + nsh
         uses: jdx/mise-action@v5
+        with:
+          install_args: github:longbridge/nsh
+          cache_key_prefix: mise-nsh-v1
 
       - name: Inject Release Version
         shell: bash
@@ -205,7 +199,7 @@ jobs:
 
   publish-release:
     name: Publish Release & Manifest
-    needs: [prepare, build-desktop]
+    needs: [quality-gate, prepare, build-desktop]
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -213,24 +207,17 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Setup Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Rust Cache
-        uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: cli -> target
-
       - name: Install mise + nsh
         uses: jdx/mise-action@v5
+        with:
+          install_args: github:longbridge/nsh
+          cache_key_prefix: mise-nsh-v1
 
       - name: Inject Release Version
         shell: bash
         run: |
           VERSION="${{ needs.prepare.outputs.version }}"
           jq --arg v "$VERSION" '.version = $v' app/nsh.json > app/nsh.json.tmp && mv app/nsh.json.tmp app/nsh.json
-          awk -v v="$VERSION" '!done && /^version = "/ { $0 = "version = \"" v "\""; done=1 } { print }' cli/Cargo.toml > cli/Cargo.toml.tmp && mv cli/Cargo.toml.tmp cli/Cargo.toml
-          grep -q "^version = \"$VERSION\"$" cli/Cargo.toml
 
       - name: Download all build artifacts
         uses: actions/download-artifact@v4
@@ -311,6 +298,21 @@ jobs:
           cat dist/checksums.txt
           echo "=== Release Notes ==="
           cat dist/release_notes.md
+
+      - name: Create & Push Git Tag
+        shell: bash
+        run: |
+          git fetch --tags --force
+          TAG="${{ needs.prepare.outputs.tag }}"
+          if git rev-parse -q --verify "refs/tags/$TAG" >/dev/null; then
+            echo "Tag $TAG already exists."
+          else
+            echo "Tagging commit with $TAG..."
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git tag -a "$TAG" -m "${{ needs.prepare.outputs.release_title }}"
+            git push origin "$TAG"
+          fi
 
       - name: Publish to GitHub Releases
         uses: softprops/action-gh-release@v2
