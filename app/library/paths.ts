@@ -158,7 +158,7 @@ export async function revealInFileManager(filePath: string): Promise<boolean> {
   // 4. Linux: FreeDesktop D-Bus ShowItems (Nautilus/Files, Dolphin, etc.)
   if (process.platform === "linux") {
     const fileUri = filePath.startsWith("/")
-      ? `file://${encodeURI(filePath)}`
+      ? `file://${encodeURI(filePath).replace(/'/g, "%27")}`
       : filePath;
     try {
       const res = await process.run("gdbus", [

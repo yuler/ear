@@ -299,7 +299,7 @@ export function ActiveDownloadRow(props: {
                   <If when={!isPaused() && !isError()}>
                     <Button
                       onPress={() => props.onPause?.(props.task().videoId)}
-                      class="rounded border border-line bg-well p-1 transition hover:bg-hover active:scale-95"
+                      class="rounded border border-line bg-well p-1 transition hover:bg-accent active:scale-95"
                     >
                       <Icon name="pause" size={11} tone="foreground" />
                     </Button>
