@@ -8,9 +8,19 @@ if command -v cargo >/dev/null 2>&1; then
   mise run cli:build
 fi
 
+# Doctor treats playback codecs as optional, so its exit status only covers
+# required startup dependencies. Probe the same media elements independently.
+linux_codecs_available() {
+  if [[ "$(uname -s)" != Linux ]]; then return 0; fi
+  local element
+  for element in qtdemux avdec_h264 avdec_aac; do
+    if ! gst-inspect-1.0 "$element" >/dev/null 2>&1; then return 1; fi
+  done
+}
+
 # Check runtime dependencies via ear doctor if available
 if command -v ear >/dev/null 2>&1; then
-  if ! ear doctor >/dev/null 2>&1; then
+  if ! ear doctor >/dev/null 2>&1 || ! linux_codecs_available; then
     echo "Installing missing Linux runtime dependencies (WebKitGTK 6 & GStreamer plugins)…"
     if command -v pacman >/dev/null 2>&1; then
       echo "Installing packages via pacman…"
@@ -49,8 +59,13 @@ if command -v ear >/dev/null 2>&1; then
       fi
     else
       echo "Could not auto-detect package manager." >&2
-      ear doctor || exit 1
+      ear doctor || true
+      exit 1
     fi
   fi
   ear doctor
+  if ! linux_codecs_available; then
+    echo "Playback codecs are still missing; inspect ear doctor output and install the required GStreamer plugins." >&2
+    exit 1
+  fi
 fi
