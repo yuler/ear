@@ -60,6 +60,18 @@ mise run test             # `cargo test` (cli) + `nsh test app`
 mise run check            # runs `nsh check app`
 ```
 
+### Linux Dependencies
+
+Ear on Linux relies on `webkitgtk-6.0` for web view rendering and `gstreamer` plugins for MP4/H.264/AAC media playback.
+
+Run `ear doctor` (or `mise run doctor`) to verify your environment anytime.
+
+To install manually for your distribution:
+- **Arch / Omarchy**: `sudo pacman -S webkitgtk-6.0 gst-plugins-good gst-libav gst-plugins-ugly gst-plugins-bad`
+- **Ubuntu / Debian**: `sudo apt install libwebkitgtk-6.0-4 gstreamer1.0-plugins-good gstreamer1.0-libav gstreamer1.0-plugins-bad`
+- **Fedora**: `sudo dnf install webkitgtk6.0 gstreamer1-plugins-good gstreamer1-plugin-libav`
+- **openSUSE**: `sudo zypper install libwebkitgtk-6_0-4 gstreamer-plugins-good gstreamer-plugins-libav`
+
 GitHub writes: Cozilla41.
 
 ## CI & Release

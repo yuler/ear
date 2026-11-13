@@ -102,6 +102,15 @@ export interface I18nMessages {
   parsingCaptions: string;
   noCaptionsMeta: string;
   playerError: string;
+
+  // Media / GStreamer Error Notice
+  gstreamerMissingTitle: string;
+  gstreamerMissingDesc: string;
+  copyInstallCommand: string;
+  copied: string;
+  playInExternalPlayer: string;
+  revealFile: string;
+  dismissNotice: string;
 }
 
 export const MESSAGES: Record<EarLocale, I18nMessages> = {
@@ -198,6 +207,15 @@ export const MESSAGES: Record<EarLocale, I18nMessages> = {
     parsingCaptions: "Parsing captions…",
     noCaptionsMeta: "No captions",
     playerError: "Player failed to load",
+
+    gstreamerMissingTitle: "Missing GStreamer Codec Plugins",
+    gstreamerMissingDesc:
+      "Playing MP4/H.264/AAC media requires GStreamer demuxer and codec packages (e.g. gst-plugins-good & gst-libav).",
+    copyInstallCommand: "Copy Install Command",
+    copied: "Copied!",
+    playInExternalPlayer: "Play in System Player",
+    revealFile: "Reveal File",
+    dismissNotice: "Dismiss",
   },
   zh: {
     back: "返回列表",
@@ -292,6 +310,15 @@ export const MESSAGES: Record<EarLocale, I18nMessages> = {
     parsingCaptions: "正在解析字幕…",
     noCaptionsMeta: "暂无字幕",
     playerError: "播放器加载失败",
+
+    gstreamerMissingTitle: "缺少 GStreamer 多媒体解码插件",
+    gstreamerMissingDesc:
+      "播放 MP4/H.264/AAC 媒体需要安装 GStreamer 解封装与解码插件（如 gst-plugins-good 与 gst-libav）。",
+    copyInstallCommand: "复制安装命令",
+    copied: "已复制!",
+    playInExternalPlayer: "使用系统播放器打开",
+    revealFile: "打开文件位置",
+    dismissNotice: "忽略",
   },
 };
 
