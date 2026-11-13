@@ -13,6 +13,7 @@ import {
   type UpdateProgress,
 } from "nsh/updater";
 import nshConfig from "./nsh.json";
+import { fetchMergedReleaseNotes, type GitHubReleaseItem } from "./updaterNotes";
 import { isNativeHost } from "./youtube/host";
 
 export type { AppUpdate, PackageUpdate, UpdateProgress };
@@ -53,6 +54,7 @@ export interface UpdateCheckResult {
   currentBuild: number;
   latestBuild: number;
   changelog: string;
+  changelogItems?: string[];
   bundleUrl?: string;
   downloadUrl?: string;
   packageUpdate?: PackageUpdate | null;
@@ -69,18 +71,109 @@ export const CURRENT_APP_BUILD = nshConfig.build ?? 1;
 
 export const globalUpdateAvailable = signal<boolean>(false);
 export const globalUpdateResult = signal<UpdateCheckResult | null>(null);
+export const globalUpdateModalOpen = signal<boolean>(false);
+export const globalUpdateStatus = signal<UpdateStatus>("idle");
 export const globalUpdateProgress = signal<number>(0);
+export const globalUpdateChecking = signal<boolean>(false);
+export const globalUpdateApplying = signal<boolean>(false);
+export const globalUpdateError = signal<string | null>(null);
 
 /**
- * Trigger a background update check silently.
+ * Run a global update check (manual or background), enrich merged release notes across
+ * intermediate versions, and open the global update modal when a new version is available.
+ */
+export async function runGlobalUpdateCheck(options?: {
+  silent?: boolean;
+  checkFn?: () => Promise<UpdateCheckResult>;
+  fetchReleasesFn?: () => Promise<GitHubReleaseItem[]>;
+}): Promise<UpdateCheckResult | null> {
+  if (globalUpdateChecking()) return globalUpdateResult();
+  globalUpdateChecking.set(true);
+  globalUpdateStatus.set("checking");
+  globalUpdateError.set(null);
+
+  try {
+    const res = options?.checkFn ? await options.checkFn() : await checkForUpdates();
+    if (res.hasUpdate) {
+      const items = await fetchMergedReleaseNotes(
+        res.currentVersion,
+        res.latestVersion,
+        res.changelog,
+        options?.fetchReleasesFn ? { fetchReleasesFn: options.fetchReleasesFn } : undefined,
+      );
+      const enriched: UpdateCheckResult = {
+        ...res,
+        changelogItems: items,
+        changelog: items.length > 0 ? items.join("\n") : res.changelog,
+      };
+      globalUpdateResult.set(enriched);
+      globalUpdateAvailable.set(true);
+      globalUpdateStatus.set("available");
+      globalUpdateModalOpen.set(true);
+      return enriched;
+    }
+
+    globalUpdateResult.set(res);
+    globalUpdateAvailable.set(false);
+    if (res.error) {
+      globalUpdateStatus.set("error");
+      globalUpdateError.set(res.error);
+    } else {
+      globalUpdateStatus.set("up_to_date");
+    }
+    return res;
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    if (!options?.silent) {
+      globalUpdateStatus.set("error");
+      globalUpdateError.set(msg);
+    } else {
+      globalUpdateStatus.set("idle");
+    }
+    return null;
+  } finally {
+    globalUpdateChecking.set(false);
+  }
+}
+
+/**
+ * Apply the currently discovered global update with progress tracking.
+ */
+export async function runGlobalApplyUpdate(): Promise<void> {
+  const res = globalUpdateResult();
+  if (!res || !res.hasUpdate || globalUpdateApplying()) return;
+  globalUpdateApplying.set(true);
+  globalUpdateStatus.set("downloading");
+  globalUpdateProgress.set(0);
+  globalUpdateError.set(null);
+
+  try {
+    await applyUpdate(res, ({ received, total }) => {
+      if (total && total > 0) {
+        globalUpdateProgress.set(Math.min(1, received / total));
+      }
+    });
+    globalUpdateStatus.set("restarting");
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    globalUpdateStatus.set("error");
+    globalUpdateError.set(`更新失败: ${msg}`);
+  } finally {
+    globalUpdateApplying.set(false);
+  }
+}
+
+export function dismissGlobalUpdateModal(): void {
+  if (globalUpdateApplying() || globalUpdateStatus() === "restarting") return;
+  globalUpdateModalOpen.set(false);
+}
+
+/**
+ * Trigger a background update check silently (opens global modal if update is found).
  */
 export async function checkUpdateInBackground(): Promise<void> {
   try {
-    const res = await checkForUpdates();
-    globalUpdateResult.set(res);
-    if (res.hasUpdate) {
-      globalUpdateAvailable.set(true);
-    }
+    await runGlobalUpdateCheck({ silent: true });
   } catch {
     // silent in background
   }

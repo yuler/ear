@@ -3,10 +3,17 @@ import {
   applyUpdate,
   checkForUpdates,
   compareSemVer,
+  dismissGlobalUpdateModal,
+  globalUpdateAvailable,
+  globalUpdateError,
+  globalUpdateModalOpen,
+  globalUpdateResult,
+  globalUpdateStatus,
   isRunnerCompatible,
   openExternalUrl,
   parseSemVer,
   resolvePlatformKey,
+  runGlobalUpdateCheck,
   type AppUpdate,
   type PackageUpdate,
   type UpdateManifest,
@@ -258,4 +265,65 @@ test("openExternalUrl on Windows uses ear open then explorer fallback without cm
     }
     proc.run = originalRun;
   }
+});
+
+test("runGlobalUpdateCheck opens global modal with merged changelog for both manual and silent checks", async () => {
+  globalUpdateModalOpen.set(false);
+  globalUpdateAvailable.set(false);
+  globalUpdateResult.set(null);
+  globalUpdateStatus.set("idle");
+  globalUpdateError.set(null);
+
+  await runGlobalUpdateCheck({
+    silent: true,
+    checkFn: async () => ({
+      hasUpdate: true,
+      isIncremental: true,
+      currentVersion: "0.0.22",
+      latestVersion: "0.0.25",
+      currentBuild: 39,
+      latestBuild: 42,
+      changelog: "",
+    }),
+    fetchReleasesFn: async () => [
+      { tag_name: "v0.0.25", name: "v0.0.25 — Fix A" },
+      { tag_name: "v0.0.24", name: "v0.0.24 — Fix B" },
+      { tag_name: "v0.0.23", name: "v0.0.23 — Feat C" },
+    ],
+  });
+
+  expect(globalUpdateAvailable()).toBe(true);
+  expect(globalUpdateModalOpen()).toBe(true);
+  expect(globalUpdateStatus()).toBe("available");
+  expect(globalUpdateResult()?.changelogItems).toEqual([
+    "Fix A",
+    "Fix B",
+    "Feat C",
+  ]);
+
+  dismissGlobalUpdateModal();
+  expect(globalUpdateModalOpen()).toBe(false);
+  expect(globalUpdateAvailable()).toBe(true);
+});
+
+test("runGlobalUpdateCheck does not open modal when already up to date", async () => {
+  globalUpdateModalOpen.set(false);
+  globalUpdateAvailable.set(false);
+
+  await runGlobalUpdateCheck({
+    silent: false,
+    checkFn: async () => ({
+      hasUpdate: false,
+      isIncremental: false,
+      currentVersion: "0.0.25",
+      latestVersion: "0.0.25",
+      currentBuild: 42,
+      latestBuild: 42,
+      changelog: "",
+    }),
+  });
+
+  expect(globalUpdateModalOpen()).toBe(false);
+  expect(globalUpdateAvailable()).toBe(false);
+  expect(globalUpdateStatus()).toBe("up_to_date");
 });

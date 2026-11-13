@@ -41,6 +41,7 @@ import { localMediaCandidates, localMediaFileUrl } from "./player";
 import { ActivityBanner, type ActivityKind } from "./ui/ActivityBanner";
 import { Sidebar } from "./ui/Sidebar";
 import { ShortcutsModal } from "./ui/ShortcutsModal";
+import { UpdateModal } from "./ui/UpdateModal";
 import { VideoDetailView } from "./views/VideoDetailView";
 import { isDevMode, resolveDataDirOrNull } from "./env";
 import { DevRibbon } from "./ui/DevRibbon";
@@ -62,7 +63,11 @@ import {
   preferEnglishTrack,
 } from "./youtube/parse";
 import type { LoadedLesson } from "./youtube/types";
-import { checkUpdateInBackground } from "./updater";
+import {
+  checkUpdateInBackground,
+  dismissGlobalUpdateModal,
+  globalUpdateModalOpen,
+} from "./updater";
 
 function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -744,11 +749,12 @@ function App() {
   };
 
   const isBackgroundDisabled = () =>
-    Boolean(playingEntry()) || showShortcutsModal();
+    Boolean(playingEntry()) || showShortcutsModal() || globalUpdateModalOpen();
 
   keymap.bind(
     {
       enter: () => {
+        if (globalUpdateModalOpen()) return;
         if (showShortcutsModal()) return;
         if (playingEntry()) return;
         if (activeTab() === "settings") return;
@@ -788,6 +794,10 @@ function App() {
       }
     },
     escape: () => {
+      if (globalUpdateModalOpen()) {
+        dismissGlobalUpdateModal();
+        return;
+      }
       if (showShortcutsModal()) {
         showShortcutsModal.set(false);
         return;
@@ -1118,7 +1128,7 @@ function App() {
             entry={() => playingEntry()!}
             src={() => playingSrc()!}
             originRect={() => transitionOriginRect()}
-            disabled={showShortcutsModal}
+            disabled={() => showShortcutsModal() || globalUpdateModalOpen()}
             onClose={() => {
               playingEntry.set(null);
               playingSrc.set(null);
@@ -1136,6 +1146,8 @@ function App() {
         open={showShortcutsModal}
         onClose={() => showShortcutsModal.set(false)}
       />
+
+      <UpdateModal />
     </View>
   );
 }
