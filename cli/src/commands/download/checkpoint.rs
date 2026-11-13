@@ -107,11 +107,18 @@ impl PartCheckpoint {
         let _ = fs::remove_file(&tmp_path);
     }
 
+    pub fn mark_completed(&mut self, chunk_idx: usize) {
+        if !self.completed_chunks.contains(&chunk_idx) {
+            self.completed_chunks.push(chunk_idx);
+        }
+    }
+
     pub fn downloaded_bytes(&self) -> u64 {
+        let mut seen = HashSet::new();
         let mut total = 0u64;
         let chunk_size = self.chunk_size;
         for &idx in &self.completed_chunks {
-            if idx >= self.total_chunks {
+            if idx >= self.total_chunks || !seen.insert(idx) {
                 continue;
             }
             if idx == self.total_chunks - 1 {
@@ -139,7 +146,16 @@ impl PartCheckpoint {
     }
 
     pub fn is_complete(&self) -> bool {
-        self.total_chunks > 0 && self.completed_chunks.len() >= self.total_chunks
+        if self.total_chunks == 0 {
+            return false;
+        }
+        let valid_unique: HashSet<usize> = self
+            .completed_chunks
+            .iter()
+            .copied()
+            .filter(|&idx| idx < self.total_chunks)
+            .collect();
+        valid_unique.len() == self.total_chunks
     }
 }
 
@@ -175,6 +191,30 @@ mod tests {
         assert_eq!(ckpt.downloaded_bytes(), 6 * 1024 * 1024);
 
         ckpt.completed_chunks.push(1);
+        assert_eq!(ckpt.downloaded_bytes(), total_size);
+        assert!(ckpt.is_complete());
+    }
+
+    #[test]
+    fn test_checkpoint_deduplicated_completion() {
+        let total_size = 10 * 1024 * 1024;
+        let mut ckpt = PartCheckpoint::new("test_vid", "video", total_size, DEFAULT_CHUNK_SIZE);
+        assert!(!ckpt.is_complete());
+
+        ckpt.mark_completed(0);
+        ckpt.mark_completed(0);
+        assert_eq!(ckpt.completed_chunks, vec![0]);
+
+        // Even if duplicate or out-of-range entries are present directly,
+        // downloaded_bytes and is_complete must deduplicate valid indices.
+        ckpt.completed_chunks.push(0);
+        ckpt.completed_chunks.push(99);
+        assert_eq!(ckpt.downloaded_bytes(), 4 * 1024 * 1024);
+        assert!(!ckpt.is_complete());
+
+        ckpt.mark_completed(1);
+        assert!(!ckpt.is_complete());
+        ckpt.mark_completed(2);
         assert_eq!(ckpt.downloaded_bytes(), total_size);
         assert!(ckpt.is_complete());
     }

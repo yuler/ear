@@ -106,6 +106,7 @@ pub fn download_stream_parallel(params: StreamDownloadParams) -> Result<(), Stri
     let next_chunk_idx = Arc::new(AtomicU64::new(0));
     let missing_chunks = Arc::new(missing);
     let worker_count = params.concurrency.clamp(1, 16).min(missing_chunks.len());
+    let refresh_lock = Arc::new(Mutex::new(()));
 
     thread::scope(|s| {
         let mut handles = Vec::new();
@@ -118,6 +119,7 @@ pub fn download_stream_parallel(params: StreamDownloadParams) -> Result<(), Stri
             let failed = Arc::clone(params.failed);
             let url_state = Arc::clone(&params.url_state);
             let refresher = params.url_refresher.clone();
+            let refresh_lock = Arc::clone(&refresh_lock);
             let dest_buf = part_path.to_path_buf();
 
             handles.push(s.spawn(move || -> Result<(), String> {
@@ -214,7 +216,7 @@ pub fn download_stream_parallel(params: StreamDownloadParams) -> Result<(), Stri
                             chunk_succeeded = true;
                             // Record chunk completion into checkpoint
                             if let Ok(mut ckpt) = ckpt_mutex.lock() {
-                                ckpt.completed_chunks.push(chunk_idx);
+                                ckpt.mark_completed(chunk_idx);
                                 let _ = ckpt.save(&dest_buf);
                             }
                             break;
@@ -225,11 +227,17 @@ pub fn download_stream_parallel(params: StreamDownloadParams) -> Result<(), Stri
                                 global_downloaded.fetch_sub(written_for_chunk, Ordering::Relaxed);
                             }
 
-                            // Check if URL might be expired (403), try refreshing URL
+                            // Check if URL might be expired (403), try refreshing URL (single-flight)
                             if let Some(ref refresh_fn) = refresher {
-                                if let Some(new_url) = refresh_fn() {
-                                    if let Ok(mut w) = url_state.write() {
-                                        *w = new_url;
+                                if let Ok(_guard) = refresh_lock.lock() {
+                                    let latest_url =
+                                        url_state.read().map(|r| r.clone()).unwrap_or_default();
+                                    if latest_url == current_url {
+                                        if let Some(new_url) = refresh_fn() {
+                                            if let Ok(mut w) = url_state.write() {
+                                                *w = new_url;
+                                            }
+                                        }
                                     }
                                 }
                             }

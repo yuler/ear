@@ -4,7 +4,7 @@ pub mod transfer;
 
 use crate::commands::download::checkpoint::PartCheckpoint;
 use crate::commands::download::library_sync::{
-    fetch_and_save_captions, get_default_downloads_dir, get_library_dir,
+    fetch_and_save_captions, get_default_downloads_dir, get_library_dir, sync_entry_error,
     sync_entry_paused, sync_entry_progress, sync_entry_ready, LibraryEntrySync,
 };
 use crate::commands::download::transfer::{
@@ -12,8 +12,8 @@ use crate::commands::download::transfer::{
 };
 use crate::emit::emit_json;
 use crate::youtube::{
-    build_quality_options, extract_video_id, extract_visitor_data, fetch_visionos_player,
-    http_get_text, pick_best_audio, WATCH_UA,
+    build_quality_options, extract_player_response, extract_video_id, extract_visitor_data,
+    fetch_visionos_player, http_get_text, is_valid_id, pick_best_audio, WATCH_UA,
 };
 use serde_json::json;
 use std::fs;
@@ -128,6 +128,10 @@ pub fn run(args: &[String]) -> Result<(), String> {
         return Err("Missing video ID or URL. Usage: ear download <URL|ID> [-o <path>] [-q <q>] [-c <concurrency>]".to_string());
     }
 
+    if !video_id.is_empty() && !is_valid_id(&video_id) {
+        return Err(format!("Invalid video ID: {video_id}"));
+    }
+
     let is_audio_only = quality == "audio";
     let ext = if is_audio_only { "m4a" } else { "mp4" };
 
@@ -154,10 +158,11 @@ pub fn run(args: &[String]) -> Result<(), String> {
     // Resolve stream URLs via YouTube VisionOS player API
     if !video_id.is_empty() {
         let watch_url = format!("https://www.youtube.com/watch?v={video_id}");
-        let visitor = http_get_text(&watch_url, WATCH_UA)
-            .ok()
-            .and_then(|h| extract_visitor_data(&h));
-        if let Some(player) = fetch_visionos_player(&video_id, visitor.as_deref()) {
+        let watch_html = http_get_text(&watch_url, WATCH_UA).ok();
+        let visitor = watch_html.as_deref().and_then(extract_visitor_data);
+        let resolved_player = fetch_visionos_player(&video_id, visitor.as_deref())
+            .or_else(|| watch_html.as_deref().and_then(extract_player_response));
+        if let Some(player) = resolved_player {
             if let Some(details) = player.get("videoDetails") {
                 if let Some(t) = details.get("title").and_then(|t| t.as_str()) {
                     video_title = t.to_string();
@@ -454,6 +459,15 @@ pub fn run(args: &[String]) -> Result<(), String> {
 
                 if !st.success() {
                     let _ = fs::remove_file(&mux_part);
+                    if let Some(ref lib) = library_dir {
+                        if !video_id.is_empty() {
+                            sync_entry_error(
+                                lib,
+                                &video_id,
+                                "ffmpeg failed to mux video and audio",
+                            );
+                        }
+                    }
                     return Err("ffmpeg failed to mux video and audio".to_string());
                 }
                 fs::rename(&mux_part, &output_path)
@@ -515,12 +529,22 @@ pub fn run(args: &[String]) -> Result<(), String> {
     // Fallback to yt-dlp if needed
     if !video_id.is_empty() {
         let size = fallback_yt_dlp(&video_id, &quality, &output_path)?;
+        let mut saved_captions_path: Option<String> = None;
+        if !no_captions {
+            if let Some(ref lib) = library_dir {
+                if let Some(ref p) = player_json {
+                    if let Some(cpath) = fetch_and_save_captions(&video_id, &video_title, lib, p) {
+                        saved_captions_path = Some(cpath.to_string_lossy().to_string());
+                    }
+                }
+            }
+        }
         if let Some(ref lib) = library_dir {
             sync_entry_ready(
                 lib,
                 &video_id,
                 &output_path,
-                None,
+                saved_captions_path.as_deref(),
                 size,
                 is_audio_only,
             );
@@ -536,4 +560,29 @@ pub fn run(args: &[String]) -> Result<(), String> {
     }
 
     Err("Download failed".to_string())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_rejects_invalid_video_id_path_traversal() {
+        let args = vec!["../../etc/passwd".to_string()];
+        let err = run(&args).expect_err("path traversal video_id must be rejected");
+        assert!(
+            err.contains("Invalid video ID"),
+            "unexpected error message: {err}"
+        );
+    }
+
+    #[test]
+    fn test_rejects_invalid_video_id_flag() {
+        let args = vec!["--video-id".to_string(), "../bad".to_string()];
+        let err = run(&args).expect_err("invalid --video-id must be rejected");
+        assert!(
+            err.contains("Invalid video ID"),
+            "unexpected error message: {err}"
+        );
+    }
 }
