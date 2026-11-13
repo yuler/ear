@@ -1,57 +1,32 @@
 import { expect, test } from "nsh/test";
 import {
   earDownload,
-  resolveEarChildEnv,
+  resolveEarLibraryDir,
   setEarBinaryCandidates,
   setEarSpawnHook,
-  spawnEar,
 } from "./earClient";
 
-test("resolveEarChildEnv isolates Dev under <dataDir>/dev and preserves overrides", () => {
-  expect(resolveEarChildEnv("/tmp/ear-prod", {})).toEqual({
-    EAR_DATA_DIR: "/tmp/ear-prod/dev",
-  });
+test("resolveEarLibraryDir isolates Dev under <dataDir>/dev/library and preserves overrides", () => {
+  expect(resolveEarLibraryDir("/tmp/ear-prod", {})).toBe(
+    "/tmp/ear-prod/dev/library",
+  );
 
   expect(
-    resolveEarChildEnv("/tmp/ear-prod", {
+    resolveEarLibraryDir("/tmp/ear-prod", {
       EAR_DATA_DIR: "/tmp/ear-override",
     }),
-  ).toEqual({
-    EAR_DATA_DIR: "/tmp/ear-override",
-  });
+  ).toBe("/tmp/ear-override/library");
 
   expect(
-    resolveEarChildEnv("/tmp/ear-prod", {
+    resolveEarLibraryDir("/tmp/ear-prod", {
       EAR_ENV: "prod",
     }),
-  ).toEqual({
-    EAR_DATA_DIR: "/tmp/ear-prod",
-  });
+  ).toBe("/tmp/ear-prod/library");
 
-  expect(resolveEarChildEnv(undefined, {})).toBeUndefined();
+  expect(resolveEarLibraryDir(undefined, {})).toBe(null);
 });
 
-test("spawnEar forwards resolved Dev EAR_DATA_DIR to child process", () => {
-  let capturedOptions: { env?: Record<string, string> } | undefined;
-  setEarSpawnHook((_bin, _args, options) => {
-    capturedOptions = options;
-    return { on: () => {} };
-  });
-
-  try {
-    spawnEar("ear", ["download"], "/tmp/ear-prod", {});
-    expect(capturedOptions?.env?.EAR_DATA_DIR).toBe("/tmp/ear-prod/dev");
-
-    spawnEar("ear", ["download"], "/tmp/ear-prod", {
-      EAR_DATA_DIR: "/tmp/ear-explicit",
-    });
-    expect(capturedOptions?.env?.EAR_DATA_DIR).toBe("/tmp/ear-explicit");
-  } finally {
-    setEarSpawnHook(null);
-  }
-});
-
-test("earDownload invokes spawnEar with download args and returns result", async () => {
+test("earDownload passes --library-dir in argv to isolate CLI writes", async () => {
   let capturedBin = "";
   let capturedArgs: string[] = [];
 
@@ -82,10 +57,14 @@ test("earDownload invokes spawnEar with download args and returns result", async
       videoId: "abc123",
       qualityId: "720p",
       outputPath: "/tmp/out.mp4",
+      libraryDir: "/tmp/ear-prod/dev/library",
     });
     expect(capturedBin).toBe("./ear");
     expect(capturedArgs).toContain("download");
     expect(capturedArgs).toContain("abc123");
+    const libFlagIdx = capturedArgs.indexOf("--library-dir");
+    expect(libFlagIdx).toBeGreaterThan(-1);
+    expect(capturedArgs[libFlagIdx + 1]).toBe("/tmp/ear-prod/dev/library");
     expect(res).toEqual({ path: "/tmp/out.mp4", sizeBytes: 1234 });
   } finally {
     setEarSpawnHook(null);

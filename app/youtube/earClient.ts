@@ -25,6 +25,7 @@ export type EarDownloadParams = {
   outputPath: string;
   videoUrl?: string | null;
   audioUrl?: string | null;
+  libraryDir?: string | null;
   signal?: AbortSignal;
   onProgress?: (ev: DownloadProgressEvent) => void;
 };
@@ -36,7 +37,6 @@ export type SpawnChildLike = {
 export type SpawnHook = (
   bin: string,
   args: string[],
-  options?: { env?: Record<string, string> },
 ) => SpawnChildLike;
 
 let currentSpawnHook: SpawnHook | null = null;
@@ -73,36 +73,26 @@ export function earBinaryCandidates(): string[] {
 }
 
 /**
- * Resolves child environment overrides so `ear` CLI writes to the same
- * data directory as the host app (isolating Dev under `<dataDir>/dev`
- * while preserving explicit `EAR_DATA_DIR` overrides).
+ * Resolves the effective `library` directory passed via `--library-dir` to `ear download`
+ * so CLI metadata writes match the host app's Dev/Prod isolation without relying on `spawn` env.
  */
-export function resolveEarChildEnv(
+export function resolveEarLibraryDir(
   baseDataDir?: string,
   env: EnvMap = process.env ?? {},
-): Record<string, string> | undefined {
+): string | null {
   const dataDir = resolveDataDirOrNull(baseDataDir, env);
-  if (!dataDir) return undefined;
-  return { EAR_DATA_DIR: dataDir };
+  return dataDir ? `${dataDir}/library` : null;
 }
 
-export function spawnEar(
-  bin: string,
-  args: string[],
-  baseDataDir?: string,
-  env?: EnvMap,
-): SpawnChildLike | null {
-  const childEnv = resolveEarChildEnv(baseDataDir, env);
-  const spawnOpts = childEnv ? { env: childEnv } : undefined;
+export function spawnEar(bin: string, args: string[]): SpawnChildLike | null {
   if (currentSpawnHook) {
-    return currentSpawnHook(bin, args, spawnOpts);
+    return currentSpawnHook(bin, args);
   }
   try {
     if (isNativeHost() && typeof process.spawn === "function") {
       return process.spawn(bin, args, {
         lines: true,
         timeoutMs: 600_000,
-        ...(spawnOpts ?? {}),
       }) as unknown as SpawnChildLike;
     }
   } catch {
@@ -252,6 +242,11 @@ export async function earDownload(
   ];
   if (params.videoUrl) args.push("--video-url", params.videoUrl);
   if (params.audioUrl) args.push("--audio-url", params.audioUrl);
+  const libraryDir =
+    params.libraryDir !== undefined
+      ? params.libraryDir
+      : resolveEarLibraryDir();
+  if (libraryDir) args.push("--library-dir", libraryDir);
 
   let lastErr = "ear binary not available";
 
