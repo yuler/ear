@@ -4,6 +4,8 @@ import {
   effect,
   Image,
   PanResponder,
+  ShaderEffect,
+  shadersAvailable,
   signal,
   Text,
   View,
@@ -25,6 +27,7 @@ import {
   computeDeltaRect,
   cursorForDrag,
   drawMosaicCanvas,
+  MOSAIC_SHADER,
   type DragMode,
 } from "./subtitleBlockerLogic";
 
@@ -232,12 +235,12 @@ export function SubtitleBlocker(props: {
         <View
           class={`pointer-events-auto absolute items-center justify-center select-none transition-colors ${
             isHovered() || dragMode() !== null
-              ? `border-l border-r border-amber-400/80 shadow-2xl shadow-black ${
+              ? `border-l border-r border-amber-400/80 ${
                   isNearTop()
                     ? "border-t border-b-0 rounded-t-lg rounded-bl-lg rounded-br-none"
                     : "border-b border-t-0 rounded-b-lg rounded-tl-lg rounded-tr-none"
                 }`
-              : "border border-white/10 shadow-xl shadow-black/80 rounded-lg"
+              : "border border-transparent rounded-lg"
           }`}
           style={{
             left: `${rect().x}%`,
@@ -248,27 +251,62 @@ export function SubtitleBlocker(props: {
           onMouseEnter={handleMouseEnter}
           onMouseLeave={handleMouseLeave}
         >
-          {/* Visual Background Layer: Authentic Translucent Video Pixel Mosaic */}
-          <View class="pointer-events-none absolute inset-0 rounded-lg overflow-hidden bg-neutral-950/60 backdrop-blur-md">
-            <Canvas
-              class="h-full w-full"
-              draw={(cx, size) => {
-                drawMosaicCanvas(cx, size, intensity());
-              }}
-            />
-          </View>
+          {/* Visual Background Layer: Real-time dynamic video pixelated mosaic */}
+          <If when={shadersAvailable()}>
+            <View class="pointer-events-none absolute inset-0 rounded-lg overflow-hidden backdrop-blur-xl bg-black/20">
+              <ShaderEffect
+                class="h-full w-full"
+                progress={intensity() / 100}
+                source={MOSAIC_SHADER}
+              >
+                <View class="h-full w-full" />
+              </ShaderEffect>
+            </View>
+          </If>
+          <If when={!shadersAvailable()}>
+            <View class="pointer-events-none absolute inset-0 rounded-lg overflow-hidden backdrop-blur-xl bg-black/20">
+              <Canvas
+                class="h-full w-full"
+                draw={(cx, size) => {
+                  drawMosaicCanvas(cx, size, intensity());
+                }}
+              />
+            </View>
+          </If>
+
+          {/* Draggable Surface Layer: 按住整个区域均可平滑拖放 (Whole-area Drag & Drop) */}
+          <View
+            class="pointer-events-auto absolute inset-0 rounded-lg select-none"
+            style={{
+              cursor: dragMode() === "move" ? "grabbing" : "grab",
+            }}
+            accessibilityLabel="Hold anywhere to drag blocker"
+            {...moveHandler.panHandlers}
+          />
 
           {/* Controls & Handles: 仅在悬浮 (hover) 或拖拽时才显示 */}
           <If when={isHovered() || dragMode() !== null}>
-            {/* Center Drag Handle Badge: 只有在中心点区域按下才能拖拽移动 */}
-            <View class="pointer-events-none absolute inset-0 items-center justify-center">
+            {/* Center Reference / Placeholder Hint Badge: 纯视觉提示 (pointer-events-none, 像 placeholder 一样) */}
+            <View class="pointer-events-none absolute inset-0 items-center justify-center select-none">
               <View
-                class="pointer-events-auto flex-row items-center gap-1.5 rounded-full border border-amber-400/80 bg-gradient-to-b from-neutral-800/90 via-neutral-900/95 to-neutral-950/98 px-3.5 py-1.5 shadow-xl backdrop-blur-md cursor-grab active:cursor-grabbing hover:border-amber-300 hover:scale-105 transition-all select-none z-30"
-                accessibilityLabel="Drag to move blocker"
-                {...moveHandler.panHandlers}
+                class={`pointer-events-none flex-row items-center gap-1.5 rounded-full px-3 py-1 select-none backdrop-blur-sm transition-all ${
+                  dragMode() === "move"
+                    ? "border border-amber-400/90 bg-neutral-900/95 text-amber-300 shadow-lg scale-105"
+                    : "border border-white/20 bg-black/40 text-white/75"
+                }`}
               >
-                <Icon name="move" size={13} color="#f59e0b" />
-                <Text class="font-mono text-[11px] font-semibold text-amber-300">
+                <Icon
+                  name="move"
+                  size={12}
+                  color={dragMode() === "move" ? "#f59e0b" : "#cbd5e1"}
+                />
+                <Text
+                  class={`font-mono text-[11px] select-none tracking-wide ${
+                    dragMode() === "move"
+                      ? "font-semibold text-amber-300"
+                      : "text-white/75"
+                  }`}
+                >
                   {dragMode() === "move"
                     ? `${Math.round(rect().x)}%, ${Math.round(rect().y)}%`
                     : m().holdToDrag}
@@ -292,7 +330,7 @@ export function SubtitleBlocker(props: {
 
             {/* Top-Right seamless tab handle toolbar (半透明渐变背景 + 严丝合缝对齐) */}
             <View
-              class={`pointer-events-auto absolute flex-row items-center gap-2 px-3 py-1.5 shadow-2xl backdrop-blur-md z-40 select-none ${
+              class={`pointer-events-auto absolute flex-row items-center gap-2 px-3 py-1.5 backdrop-blur-md z-40 select-none ${
                 isNearTop()
                   ? "rounded-b-xl rounded-t-none border-l border-r border-b border-amber-400/80 border-t-0 bg-gradient-to-b from-neutral-900/90 via-neutral-900/94 to-neutral-950/98"
                   : "rounded-t-xl rounded-b-none border-l border-r border-t border-amber-400/80 border-b-0 bg-gradient-to-b from-neutral-800/90 via-neutral-900/94 to-neutral-950/98"

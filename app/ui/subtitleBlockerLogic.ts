@@ -259,6 +259,53 @@ function hexToRgba(hex: string, alpha: number): string {
 }
 
 /**
+ * Real-time GPU pixelated mosaic shader (WGSL) with Option 2 Gaussian Area Filter.
+ * Dynamically samples the underlying live video backdrop (`sample_backdrop`)
+ * with a 9-tap Gaussian area box filter across each cell to thoroughly dissolve
+ * sharp subtitle letter strokes into the background before pixelation.
+ * Preserves authentic live-color dynamic video tracking while eliminating text legibility.
+ */
+export const MOSAIC_SHADER = `
+fn shade(uv: vec2f) -> vec4f {
+    let size = nsh.size;
+    let progress = clamp(nsh.progress, 0.1, 1.0);
+    // Mosaic tile size scales with intensity progress: 8px to 36px
+    let ps = max(8.0 + progress * 28.0, 4.0);
+
+    // 1. Quantize coordinates to mosaic blocks (Pixelate Effect)
+    let cell_index = floor(uv * size / ps);
+    let sample_pos = (cell_index * ps + vec2f(ps * 0.5)) / size;
+
+    // 2. 9-tap Gaussian area filter across cell: dissolves sharp letter edges
+    let d = (ps * 0.25) / size;
+    let s0 = sample_backdrop(clamp(sample_pos, vec2f(0.001), vec2f(0.999)));
+    let s1 = sample_backdrop(clamp(sample_pos + vec2f(-d.x, -d.y), vec2f(0.001), vec2f(0.999)));
+    let s2 = sample_backdrop(clamp(sample_pos + vec2f( d.x, -d.y), vec2f(0.001), vec2f(0.999)));
+    let s3 = sample_backdrop(clamp(sample_pos + vec2f(-d.x,  d.y), vec2f(0.001), vec2f(0.999)));
+    let s4 = sample_backdrop(clamp(sample_pos + vec2f( d.x,  d.y), vec2f(0.001), vec2f(0.999)));
+    let s5 = sample_backdrop(clamp(sample_pos + vec2f( 0.0, -d.y * 1.4), vec2f(0.001), vec2f(0.999)));
+    let s6 = sample_backdrop(clamp(sample_pos + vec2f( 0.0,  d.y * 1.4), vec2f(0.001), vec2f(0.999)));
+    let s7 = sample_backdrop(clamp(sample_pos + vec2f(-d.x * 1.4, 0.0), vec2f(0.001), vec2f(0.999)));
+    let s8 = sample_backdrop(clamp(sample_pos + vec2f( d.x * 1.4, 0.0), vec2f(0.001), vec2f(0.999)));
+    let bg = (s0 * 2.0 + (s1 + s2 + s3 + s4) * 1.0 + (s5 + s6 + s7 + s8) * 1.0) / 10.0;
+
+    // When backdrop has live video content:
+    if (bg.a > 0.02) {
+        // High opacity with subtle diffusion: 0.88 ~ 0.98 opacity
+        let alpha = 0.88 + progress * 0.10;
+        return vec4f(bg.rgb, bg.a * alpha);
+    } else {
+        // Fallback when backdrop texture is unavailable (smooth translucent monochrome)
+        let ix = u32(max(cell_index.x, 0.0));
+        let iy = u32(max(cell_index.y, 0.0));
+        let is_alt = f32((ix + iy) % 2u);
+        let fallback_shade = mix(vec3f(0.12), vec3f(0.24), is_alt);
+        return vec4f(fallback_shade, 0.85);
+    }
+}
+`;
+
+/**
  * Draw authentic video censor pixel mosaic onto a 2D canvas context.
  * Interleaves dark and light/white tiles in a checkerboard pattern ((c + r) % 2).
  * Uses a deterministic hash per tile coordinate so tiles remain completely solid and stable.
@@ -277,13 +324,14 @@ export function drawMosaicCanvas(
     cx.clearRect(0, 0, w, h);
   }
 
-  // Intensity (10..100) controls tile size: 10px up to 22px
+  // Intensity (10..100) controls tile size: 8px up to 32px
   const p = Math.max(10, Math.min(100, Math.round(intensity)));
   const t = (p - 10) / 90;
-  const tileSize = Math.round(10 + t * 12); // 10px ~ 22px
+  const tileSize = Math.round(8 + t * 24); // 8px ~ 32px
 
-  // Subtle transparency: 0.68 ~ 0.86 opacity so video faintly shows through
-  const alpha = Math.round((0.68 + t * 0.18) * 100) / 100;
+  // Transparent video mosaic: 0.35 ~ 0.70 opacity so underlying video's motion, lighting, and colors
+  // dynamically shine through the mosaic grid
+  const alpha = Math.round((0.35 + t * 0.35) * 100) / 100;
 
   const cols = Math.ceil(w / tileSize);
   const rows = Math.ceil(h / tileSize);

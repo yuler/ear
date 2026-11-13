@@ -1,4 +1,4 @@
-import { PanResponder } from "nsh";
+import { PanResponder, ShaderEffect, shadersAvailable } from "nsh";
 import { expect, test } from "nsh/test";
 import {
   DEFAULT_BLOCKER_RECT,
@@ -26,6 +26,7 @@ import {
   MOSAIC_DARK_SHADES,
   MOSAIC_LIGHT_SHADES,
   MOSAIC_PALETTE,
+  MOSAIC_SHADER,
   nudgeRect,
 } from "./subtitleBlockerLogic";
 
@@ -336,4 +337,47 @@ test("drawMosaicCanvas populates context with monochrome staggered mosaic tiles"
   // i18n English string for holdToDrag
   expect(t("en").holdToDrag).toBe("Hold to drag");
   expect(t("zh").holdToDrag).toBe("Hold to drag");
+});
+
+test("ShaderEffect and shadersAvailable in nsh", () => {
+  expect(typeof ShaderEffect).toBe("function");
+  expect(typeof shadersAvailable).toBe("function");
+  const isAvailable = shadersAvailable();
+  expect(typeof isAvailable).toBe("boolean");
+
+  expect(typeof MOSAIC_SHADER).toBe("string");
+  expect(MOSAIC_SHADER).toContain("sample_backdrop");
+  expect(MOSAIC_SHADER).toContain("nsh.progress");
+
+  const elem = ShaderEffect({
+    source: MOSAIC_SHADER,
+    progress: 0.85,
+  });
+  expect(elem).toBeDefined();
+});
+
+test("Whole-area drag interaction and placeholder affordance", () => {
+  // Test PanResponder creation for whole-area drag
+  const startRect = { x: 10, y: 80, width: 80, height: 12 };
+  const containerW = 1000;
+  const containerH = 500;
+
+  // Dragging 50px right and 30px down across the whole surface
+  const moved = computeDeltaRect("move", startRect, 50, 30, containerW, containerH);
+  expect(moved.x).toBe(15); // 10% + (50 / 1000 * 100)% = 15%
+  expect(moved.y).toBe(86); // 80% + (30 / 500 * 100)% = 86%
+  expect(moved.width).toBe(80);
+  expect(moved.height).toBe(12);
+
+  // Dragging to container boundary clamps without overflowing
+  const clampedEdge = computeDeltaRect("move", startRect, 500, 500, containerW, containerH);
+  expect(clampedEdge.x).toBe(20); // 100 - 80 = 20%
+  expect(clampedEdge.y).toBe(88); // 100 - 12 = 88%
+
+  // Cursor for dragging maps correctly
+  expect(cursorForDrag("move")).toBe("grabbing");
+  expect(cursorForDrag(null)).toBe("default");
+
+  // Placeholder hint label
+  expect(t("en").holdToDrag).toBe("Hold to drag");
 });
