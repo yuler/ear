@@ -25,37 +25,37 @@ if command -v ear >/dev/null 2>&1; then
     if command -v pacman >/dev/null 2>&1; then
       echo "Installing packages via pacman…"
       if command -v sudo >/dev/null 2>&1; then
-        sudo pacman -S --needed --noconfirm webkitgtk-6.0 gst-plugins-good gst-libav gst-plugins-ugly gst-plugins-bad
+        sudo pacman -S --needed --noconfirm webkitgtk-6.0 gstreamer gst-plugins-good gst-libav gst-plugins-ugly gst-plugins-bad
       else
-        pkexec pacman -S --needed --noconfirm webkitgtk-6.0 gst-plugins-good gst-libav gst-plugins-ugly gst-plugins-bad
+        pkexec pacman -S --needed --noconfirm webkitgtk-6.0 gstreamer gst-plugins-good gst-libav gst-plugins-ugly gst-plugins-bad
       fi
     elif command -v apt-get >/dev/null 2>&1; then
       echo "Installing packages via apt-get…"
       if command -v sudo >/dev/null 2>&1; then
-        sudo apt-get update && sudo apt-get install -y libwebkitgtk-6.0-4 gstreamer1.0-plugins-good gstreamer1.0-libav gstreamer1.0-plugins-bad gstreamer1.0-plugins-ugly
+        sudo apt-get update && sudo apt-get install -y libwebkitgtk-6.0-4 gstreamer1.0-tools gstreamer1.0-plugins-good gstreamer1.0-libav gstreamer1.0-plugins-bad gstreamer1.0-plugins-ugly
       else
-        pkexec apt-get update && pkexec apt-get install -y libwebkitgtk-6.0-4 gstreamer1.0-plugins-good gstreamer1.0-libav gstreamer1.0-plugins-bad gstreamer1.0-plugins-ugly
+        pkexec apt-get update && pkexec apt-get install -y libwebkitgtk-6.0-4 gstreamer1.0-tools gstreamer1.0-plugins-good gstreamer1.0-libav gstreamer1.0-plugins-bad gstreamer1.0-plugins-ugly
       fi
     elif command -v dnf >/dev/null 2>&1; then
       echo "Installing packages via dnf…"
       if command -v sudo >/dev/null 2>&1; then
-        sudo dnf install -y webkitgtk6.0 gstreamer1-plugins-good gstreamer1-plugin-libav gstreamer1-plugins-bad-free gstreamer1-plugins-ugly-free
+        sudo dnf install -y webkitgtk6.0 gstreamer1 gstreamer1-plugins-good gstreamer1-plugin-libav gstreamer1-plugins-bad-free gstreamer1-plugins-ugly-free
       else
-        pkexec dnf install -y webkitgtk6.0 gstreamer1-plugins-good gstreamer1-plugin-libav gstreamer1-plugins-bad-free gstreamer1-plugins-ugly-free
+        pkexec dnf install -y webkitgtk6.0 gstreamer1 gstreamer1-plugins-good gstreamer1-plugin-libav gstreamer1-plugins-bad-free gstreamer1-plugins-ugly-free
       fi
     elif command -v zypper >/dev/null 2>&1; then
       echo "Installing packages via zypper…"
       if command -v sudo >/dev/null 2>&1; then
-        sudo zypper install -y libwebkitgtk-6_0-4 gstreamer-plugins-good gstreamer-plugins-libav gstreamer-plugins-bad gstreamer-plugins-ugly
+        sudo zypper install -y libwebkitgtk-6_0-4 gstreamer-utils gstreamer-plugins-good gstreamer-plugins-libav gstreamer-plugins-bad gstreamer-plugins-ugly
       else
-        pkexec zypper install -y libwebkitgtk-6_0-4 gstreamer-plugins-good gstreamer-plugins-libav gstreamer-plugins-bad gstreamer-plugins-ugly
+        pkexec zypper install -y libwebkitgtk-6_0-4 gstreamer-utils gstreamer-plugins-good gstreamer-plugins-libav gstreamer-plugins-bad gstreamer-plugins-ugly
       fi
     elif command -v apk >/dev/null 2>&1; then
       echo "Installing packages via apk…"
       if command -v sudo >/dev/null 2>&1; then
-        sudo apk add webkit2gtk-6.0 gst-plugins-good gst-libav gst-plugins-bad gst-plugins-ugly
+        sudo apk add webkit2gtk-6.0 gstreamer-tools gst-plugins-good gst-libav gst-plugins-bad gst-plugins-ugly
       else
-        pkexec apk add webkit2gtk-6.0 gst-plugins-good gst-libav gst-plugins-bad gst-plugins-ugly
+        pkexec apk add webkit2gtk-6.0 gstreamer-tools gst-plugins-good gst-libav gst-plugins-bad gst-plugins-ugly
       fi
     else
       echo "Could not auto-detect package manager." >&2
