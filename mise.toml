@@ -53,6 +53,11 @@ run = "wrangler deploy"
 description = "Run all tests across subprojects (CLI + App)"
 depends = ["cli:test", "app:test"]
 
+[tasks.doctor]
+description = "Check system dependencies (WebKitGTK, GStreamer, ffmpeg)"
+depends = ["cli:dev"]
+run = "ear doctor"
+
 [tasks.setup]
 description = "Install tools, Ear CLI (release), and Linux host deps (WebKitGTK 6)"
 run = "bash scripts/setup.sh"
