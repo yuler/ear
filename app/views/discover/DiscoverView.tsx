@@ -1,4 +1,4 @@
-import { keymap, signal, Text, View } from "nsh";
+import { effect, keymap, signal, Text, View } from "nsh";
 import { Button } from "nsh/base";
 import type { DownloadTaskProgress, LibraryEntry } from "../../library/types";
 import { Icon } from "../../ui/Icon";
@@ -15,6 +15,7 @@ import {
 import type { DiscoverFilterState, DiscoverItem } from "./types";
 
 export function DiscoverView(props: {
+  disabled?: () => boolean;
   onInspectItem: (item: DiscoverItem) => void;
   onPracticeItem: (
     item: DiscoverItem,
@@ -64,35 +65,72 @@ export function DiscoverView(props: {
 
   const focusedIndex = signal<number>(-1);
 
+  // Reset or clamp cursor when visible items list changes (e.g. filter or list update)
+  effect(() => {
+    const len = filteredItems().length;
+    const cur = focusedIndex();
+    if (len === 0) {
+      if (cur !== -1) focusedIndex.set(-1);
+    } else if (cur >= len) {
+      focusedIndex.set(len - 1);
+    }
+  });
+
   keymap.bind(
     {
       down: () => {
+        if (props.disabled?.()) return;
         const list = filteredItems();
-        if (list.length === 0) return;
-        const cur = focusedIndex();
+        if (list.length === 0) {
+          if (focusedIndex() !== -1) focusedIndex.set(-1);
+          return;
+        }
+        let cur = focusedIndex();
+        if (cur >= list.length) cur = list.length - 1;
         focusedIndex.set(cur < 0 ? 0 : (cur + 1) % list.length);
       },
       up: () => {
+        if (props.disabled?.()) return;
         const list = filteredItems();
-        if (list.length === 0) return;
-        const cur = focusedIndex();
+        if (list.length === 0) {
+          if (focusedIndex() !== -1) focusedIndex.set(-1);
+          return;
+        }
+        let cur = focusedIndex();
+        if (cur >= list.length) cur = list.length - 1;
         focusedIndex.set(cur <= 0 ? list.length - 1 : cur - 1);
       },
       right: () => {
+        if (props.disabled?.()) return;
         const list = filteredItems();
-        if (list.length === 0) return;
-        const cur = focusedIndex();
+        if (list.length === 0) {
+          if (focusedIndex() !== -1) focusedIndex.set(-1);
+          return;
+        }
+        let cur = focusedIndex();
+        if (cur >= list.length) cur = list.length - 1;
         focusedIndex.set(cur < 0 ? 0 : (cur + 1) % list.length);
       },
       left: () => {
+        if (props.disabled?.()) return;
         const list = filteredItems();
-        if (list.length === 0) return;
-        const cur = focusedIndex();
+        if (list.length === 0) {
+          if (focusedIndex() !== -1) focusedIndex.set(-1);
+          return;
+        }
+        let cur = focusedIndex();
+        if (cur >= list.length) cur = list.length - 1;
         focusedIndex.set(cur <= 0 ? list.length - 1 : cur - 1);
       },
       enter: () => {
+        if (props.disabled?.()) return;
         const list = filteredItems();
-        const cur = focusedIndex();
+        if (list.length === 0) return;
+        let cur = focusedIndex();
+        if (cur >= list.length) {
+          cur = list.length - 1;
+          focusedIndex.set(cur);
+        }
         if (cur >= 0 && cur < list.length) {
           props.onPracticeItem(list[cur]);
         }

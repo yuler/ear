@@ -1,3 +1,4 @@
+import { keymap } from "nsh";
 import { expect, open, test } from "nsh/test";
 import {
   formatKeystroke,
@@ -30,6 +31,137 @@ test("formatKeystroke formats mod, shift and platform combinations safely", () =
   expect(typeof formatKeystroke("mod+1")).toBe("string");
   expect(typeof formatKeystroke("shift+/")).toBe("string");
   expect(typeof formatKeystroke("escape")).toBe("string");
+});
+
+test("ShortcutsModal traps Space, Enter, Delete, Backspace without affecting background state", async () => {
+  const app = await open("../App.tsx");
+
+  // Open shortcuts modal with '?'
+  await app.keyboard.press("shift+/");
+  await app.waitFor("快捷键指南");
+  expect(app.texts().some((t) => t.includes("快捷键指南"))).toBe(true);
+
+  // Pressing Space, Enter, Delete, Backspace while modal is open should not crash or trigger background actions
+  await app.keyboard.press("space");
+  await app.keyboard.press("enter");
+  await app.keyboard.press("delete");
+  await app.keyboard.press("backspace");
+  await app.keyboard.press("o");
+
+  // Modal remains open and stable
+  expect(app.texts().some((t) => t.includes("快捷键指南"))).toBe(true);
+
+  // Press Escape to close modal
+  await app.keyboard.press("escape");
+  expect(app.texts().every((t) => t !== "快捷键指南")).toBe(true);
+});
+
+test("Overlay hierarchy: guide-over-player Escape closes only modal, and player prevents background deletion", async () => {
+  const app = await open("./overlayFixture.tsx");
+  expect(app.texts().some((t) => t.includes("Player is Inactive"))).toBe(true);
+  expect(app.texts().some((t) => t.includes("Modal is Inactive"))).toBe(true);
+  expect(app.texts().some((t) => t.includes("Video v1"))).toBe(true);
+
+  // 1. Focus an entry with Down arrow in Library
+  await app.keyboard.press("down");
+
+  // 2. Open player
+  await app.press("Open Player");
+  await app.waitFor("Player is Active");
+  expect(app.texts().some((t) => t.includes("Player is Active"))).toBe(true);
+
+  // 3. While player is open, Backspace or Delete MUST NOT trigger deleteEntry
+  await app.keyboard.press("delete");
+  await app.keyboard.press("backspace");
+  expect(app.texts().some((t) => t.includes("Video v1"))).toBe(true);
+
+  // 4. Open Shortcuts guide over the active player via keyboard shortcut '?'
+  await app.keyboard.press("shift+/");
+  await app.waitFor("快捷键指南");
+  expect(app.texts().some((t) => t.includes("快捷键指南"))).toBe(true);
+  expect(app.texts().some((t) => t.includes("Player is Active"))).toBe(true);
+
+  // 5. While modal is open over player, Delete and Enter must not affect underlying state
+  await app.keyboard.press("delete");
+  await app.keyboard.press("enter");
+  expect(app.texts().some((t) => t.includes("Video v1"))).toBe(true);
+  expect(app.texts().some((t) => t.includes("Item Was Opened"))).toBe(false);
+
+  // 6. Press Escape: MUST close only the modal, keeping player open!
+  await app.keyboard.press("escape");
+  await app.waitFor("Player is Active");
+  expect(app.texts().every((t) => t !== "快捷键指南")).toBe(true);
+  expect(app.texts().some((t) => t.includes("Player is Active"))).toBe(true);
+
+  // 7. Press Escape again: closes player, returning to library
+  await app.keyboard.press("escape");
+  await app.waitFor("Player is Inactive");
+  expect(app.texts().some((t) => t.includes("Player is Inactive"))).toBe(true);
+
+  // 8. Now back in library with no overlay: pressing Delete deletes the focused entry
+  await app.keyboard.press("delete");
+  await app.waitFor("Video v2");
+  expect(app.texts().some((t) => t.includes("Video v1"))).toBe(false);
+});
+
+test("Overlay hierarchy: guide-over-list suppresses Enter and Delete, and Escape closes modal", async () => {
+  const app = await open("./overlayFixture.tsx");
+
+  // Focus an entry
+  await app.keyboard.press("down");
+
+  // Open modal over list
+  await app.press("Open Modal");
+  await app.waitFor("Modal is Active");
+
+  // Enter and Delete must be suppressed
+  await app.keyboard.press("enter");
+  await app.keyboard.press("delete");
+  await app.keyboard.press("backspace");
+  expect(app.texts().some((t) => t.includes("Item Was Opened"))).toBe(false);
+  expect(app.texts().some((t) => t.includes("Video v1"))).toBe(true);
+
+  // Escape closes modal
+  await app.keyboard.press("escape");
+  await app.waitFor("Modal is Inactive");
+
+  // Enter now opens entry
+  await app.keyboard.press("enter");
+  await app.waitFor("Item Was Opened");
+  expect(app.texts().some((t) => t.includes("Item Was Opened"))).toBe(true);
+});
+
+test("Cursor clamping: shrinking list clamps cursor to valid bounds and empty list resets safely", async () => {
+  const app = await open("./overlayFixture.tsx");
+
+  // Focus index 2 (third item)
+  await app.keyboard.press("down");
+  await app.keyboard.press("down");
+  await app.keyboard.press("down");
+
+  // Shrink entries from 3 to 1
+  await app.press("Shrink Entries");
+
+  // Enter should open the clamped index 0 item
+  await app.keyboard.press("enter");
+  await app.waitFor("Item Was Opened");
+  expect(app.texts().some((t) => t.includes("Item Was Opened"))).toBe(true);
+
+  // Up key must not decrement into out-of-bounds index
+  await app.keyboard.press("up");
+  await app.keyboard.press("enter");
+  expect(app.texts().some((t) => t.includes("Item Was Opened"))).toBe(true);
+
+  // Clear all entries to empty list
+  await app.press("Clear Entries");
+  await app.waitFor("暂无下载视频。在上方粘贴 YouTube 链接即可开始下载。");
+
+  // Key operations on empty list must be safe no-ops
+  await app.keyboard.press("down");
+  await app.keyboard.press("up");
+  await app.keyboard.press("enter");
+  await app.keyboard.press("delete");
+  expect(app.texts().some((t) => t.includes("暂无下载视频。在上方粘贴 YouTube 链接即可开始下载。"))).toBe(true);
 });
 
 test("ShortcutsModal exports valid component", () => {

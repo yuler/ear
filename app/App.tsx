@@ -724,6 +724,9 @@ function App() {
     }
   };
 
+  const isBackgroundDisabled = () =>
+    Boolean(playingEntry()) || showShortcutsModal();
+
   keymap.bind(
     {
       enter: () => {
@@ -743,18 +746,21 @@ function App() {
 
   keymap.bind({
     "mod+l": () => {
+      if (isBackgroundDisabled()) return;
       if (activeTab() === "settings") {
         activeTab.set("video");
       }
       setTimeout(() => urlInputRef?.focus(), 50);
     },
     "mod+k": () => {
+      if (isBackgroundDisabled()) return;
       if (activeTab() === "settings") {
         activeTab.set("video");
       }
       setTimeout(() => urlInputRef?.focus(), 50);
     },
     "mod+,": () => {
+      if (isBackgroundDisabled()) return;
       if (activeTab() === "settings") {
         activeTab.set(previousTab());
       } else {
@@ -778,9 +784,18 @@ function App() {
       const cur = activePreview();
       if (cur) dismissedVideoId.set(cur.videoId);
     },
-    "mod+1": () => activeTab.set("discover"),
-    "mod+2": () => activeTab.set("video"),
-    "mod+3": () => activeTab.set("audio"),
+    "mod+1": () => {
+      if (isBackgroundDisabled()) return;
+      activeTab.set("discover");
+    },
+    "mod+2": () => {
+      if (isBackgroundDisabled()) return;
+      activeTab.set("video");
+    },
+    "mod+3": () => {
+      if (isBackgroundDisabled()) return;
+      activeTab.set("audio");
+    },
   });
 
   effect(() => {
@@ -1049,6 +1064,7 @@ function App() {
 
               <If when={activeTab() === "discover"}>
                 <DiscoverView
+                  disabled={isBackgroundDisabled}
                   onInspectItem={handleInspectDiscoverItem}
                   onPracticeItem={(item, rect) => void handlePracticeDiscoverItem(item, rect)}
                   onDownloadItem={handleDownloadDiscoverItem}
@@ -1059,6 +1075,7 @@ function App() {
 
               <If when={activeTab() !== "discover"}>
                 <LibraryView
+                  disabled={isBackgroundDisabled}
                   activeTab={activeTab}
                   savedEntries={savedEntries}
                   activeDownloads={activeDownloadsList}
@@ -1082,6 +1099,7 @@ function App() {
             entry={() => playingEntry()!}
             src={() => playingSrc()!}
             originRect={() => transitionOriginRect()}
+            disabled={showShortcutsModal}
             onClose={() => {
               playingEntry.set(null);
               playingSrc.set(null);

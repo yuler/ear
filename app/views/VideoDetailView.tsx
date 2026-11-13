@@ -50,6 +50,7 @@ export type VideoDetailViewProps = {
   /** Absolute filesystem path or streaming URL for nsh <Video src>. */
   src: () => string;
   originRect?: () => ViewTransitionRect | null;
+  disabled?: () => boolean;
   onClose: () => void;
 };
 
@@ -388,21 +389,66 @@ export function VideoDetailView(props: VideoDetailViewProps) {
 
   keymap.bind(
     {
-      escape: handleClose,
-      left: handlePrevSentence,
-      right: handleNextSentence,
-      r: handleRepeatCurrent,
-      space: handleSpaceKey,
-      m: () => maskAll.set(!maskAll()),
-      b: handleToggleBlocker,
-      "[": handleDecreaseRate,
-      "]": handleIncreaseRate,
-      "0": handleResetRate,
-      up: handleVolumeUp,
-      down: handleVolumeDown,
-      "alt+1": () => handleChangeSentenceLength("short"),
-      "alt+2": () => handleChangeSentenceLength("medium"),
-      "alt+3": () => handleChangeSentenceLength("long"),
+      escape: () => {
+        if (props.disabled?.()) return;
+        handleClose();
+      },
+      left: () => {
+        if (props.disabled?.()) return;
+        handlePrevSentence();
+      },
+      right: () => {
+        if (props.disabled?.()) return;
+        handleNextSentence();
+      },
+      r: () => {
+        if (props.disabled?.()) return;
+        handleRepeatCurrent();
+      },
+      space: () => {
+        if (props.disabled?.()) return;
+        handleSpaceKey();
+      },
+      m: () => {
+        if (props.disabled?.()) return;
+        maskAll.set(!maskAll());
+      },
+      b: () => {
+        if (props.disabled?.()) return;
+        handleToggleBlocker();
+      },
+      "[": () => {
+        if (props.disabled?.()) return;
+        handleDecreaseRate();
+      },
+      "]": () => {
+        if (props.disabled?.()) return;
+        handleIncreaseRate();
+      },
+      "0": () => {
+        if (props.disabled?.()) return;
+        handleResetRate();
+      },
+      up: () => {
+        if (props.disabled?.()) return;
+        handleVolumeUp();
+      },
+      down: () => {
+        if (props.disabled?.()) return;
+        handleVolumeDown();
+      },
+      "alt+1": () => {
+        if (props.disabled?.()) return;
+        handleChangeSentenceLength("short");
+      },
+      "alt+2": () => {
+        if (props.disabled?.()) return;
+        handleChangeSentenceLength("medium");
+      },
+      "alt+3": () => {
+        if (props.disabled?.()) return;
+        handleChangeSentenceLength("long");
+      },
     },
     { when: "notEditing" },
   );

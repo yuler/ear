@@ -1,4 +1,4 @@
-import { keymap, signal, Text, View } from "nsh";
+import { effect, keymap, signal, Text, View } from "nsh";
 import type { DownloadTaskProgress, LibraryEntry } from "../library/types";
 import { ActiveDownloadRow } from "../ui/ActiveDownloadRow";
 import { Icon } from "../ui/Icon";
@@ -20,6 +20,7 @@ export { formatEntryDescription, isAudioEntry };
  * followed by saved videos/audio in the standard responsive grid style.
  */
 export function LibraryView(props: {
+  disabled?: () => boolean;
   activeTab: () => MediaTab;
   savedEntries: () => LibraryEntry[];
   activeDownloads?: () => DownloadTaskProgress[];
@@ -61,56 +62,111 @@ export function LibraryView(props: {
 
   const focusedIndex = signal<number>(-1);
 
+  // Reset or clamp cursor when visible entries list changes (e.g. deletion, tab switch, filter)
+  effect(() => {
+    const len = currentEntries().length;
+    const cur = focusedIndex();
+    if (len === 0) {
+      if (cur !== -1) focusedIndex.set(-1);
+    } else if (cur >= len) {
+      focusedIndex.set(len - 1);
+    }
+  });
+
   keymap.bind(
     {
       down: () => {
+        if (props.disabled?.()) return;
         const list = currentEntries();
-        if (list.length === 0) return;
-        const cur = focusedIndex();
+        if (list.length === 0) {
+          if (focusedIndex() !== -1) focusedIndex.set(-1);
+          return;
+        }
+        let cur = focusedIndex();
+        if (cur >= list.length) cur = list.length - 1;
         focusedIndex.set(cur < 0 ? 0 : (cur + 1) % list.length);
       },
       up: () => {
+        if (props.disabled?.()) return;
         const list = currentEntries();
-        if (list.length === 0) return;
-        const cur = focusedIndex();
+        if (list.length === 0) {
+          if (focusedIndex() !== -1) focusedIndex.set(-1);
+          return;
+        }
+        let cur = focusedIndex();
+        if (cur >= list.length) cur = list.length - 1;
         focusedIndex.set(cur <= 0 ? list.length - 1 : cur - 1);
       },
       right: () => {
+        if (props.disabled?.()) return;
         const list = currentEntries();
-        if (list.length === 0) return;
-        const cur = focusedIndex();
+        if (list.length === 0) {
+          if (focusedIndex() !== -1) focusedIndex.set(-1);
+          return;
+        }
+        let cur = focusedIndex();
+        if (cur >= list.length) cur = list.length - 1;
         focusedIndex.set(cur < 0 ? 0 : (cur + 1) % list.length);
       },
       left: () => {
+        if (props.disabled?.()) return;
         const list = currentEntries();
-        if (list.length === 0) return;
-        const cur = focusedIndex();
+        if (list.length === 0) {
+          if (focusedIndex() !== -1) focusedIndex.set(-1);
+          return;
+        }
+        let cur = focusedIndex();
+        if (cur >= list.length) cur = list.length - 1;
         focusedIndex.set(cur <= 0 ? list.length - 1 : cur - 1);
       },
       enter: () => {
+        if (props.disabled?.()) return;
         const list = currentEntries();
-        const cur = focusedIndex();
+        if (list.length === 0) return;
+        let cur = focusedIndex();
+        if (cur >= list.length) {
+          cur = list.length - 1;
+          focusedIndex.set(cur);
+        }
         if (cur >= 0 && cur < list.length) {
           props.onOpenEntry(list[cur]);
         }
       },
       o: () => {
+        if (props.disabled?.()) return;
         const list = currentEntries();
-        const cur = focusedIndex();
+        if (list.length === 0) return;
+        let cur = focusedIndex();
+        if (cur >= list.length) {
+          cur = list.length - 1;
+          focusedIndex.set(cur);
+        }
         if (cur >= 0 && cur < list.length) {
           props.onOpenFolder(list[cur]);
         }
       },
       delete: () => {
+        if (props.disabled?.()) return;
         const list = currentEntries();
-        const cur = focusedIndex();
+        if (list.length === 0) return;
+        let cur = focusedIndex();
+        if (cur >= list.length) {
+          cur = list.length - 1;
+          focusedIndex.set(cur);
+        }
         if (cur >= 0 && cur < list.length) {
           props.onDeleteEntry?.(list[cur]);
         }
       },
       backspace: () => {
+        if (props.disabled?.()) return;
         const list = currentEntries();
-        const cur = focusedIndex();
+        if (list.length === 0) return;
+        let cur = focusedIndex();
+        if (cur >= list.length) {
+          cur = list.length - 1;
+          focusedIndex.set(cur);
+        }
         if (cur >= 0 && cur < list.length) {
           props.onDeleteEntry?.(list[cur]);
         }
