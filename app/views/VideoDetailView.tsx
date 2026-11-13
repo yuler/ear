@@ -101,6 +101,7 @@ export function VideoDetailView(props: VideoDetailViewProps) {
   const clipEndMs = signal<number | null>(null);
   const sentencePause = signal(false);
   const muted = signal(false);
+  const volume = signal(1);
 
   // Mask state: default masked for listening practice (打码)
   const maskAll = signal(true);
@@ -352,6 +353,33 @@ export function VideoDetailView(props: VideoDetailViewProps) {
     updateSettings({ preferredRate: next });
   };
 
+  const handleDecreaseRate = () => {
+    const cur = rate();
+    const next = Math.max(0.5, Math.round((cur - 0.25) * 100) / 100) as PlaybackRate;
+    rate.set(next);
+    updateSettings({ preferredRate: next });
+  };
+
+  const handleIncreaseRate = () => {
+    const cur = rate();
+    const next = Math.min(2.0, Math.round((cur + 0.25) * 100) / 100) as PlaybackRate;
+    rate.set(next);
+    updateSettings({ preferredRate: next });
+  };
+
+  const handleResetRate = () => {
+    rate.set(1);
+    updateSettings({ preferredRate: 1 });
+  };
+
+  const handleVolumeUp = () => {
+    volume.set(Math.min(1, Math.round((volume() + 0.1) * 10) / 10));
+  };
+
+  const handleVolumeDown = () => {
+    volume.set(Math.max(0, Math.round((volume() - 0.1) * 10) / 10));
+  };
+
   const currentSentence = (): Sentence | null => {
     const list = sentences();
     if (list.length === 0) return null;
@@ -367,6 +395,14 @@ export function VideoDetailView(props: VideoDetailViewProps) {
       space: handleSpaceKey,
       m: () => maskAll.set(!maskAll()),
       b: handleToggleBlocker,
+      "[": handleDecreaseRate,
+      "]": handleIncreaseRate,
+      "0": handleResetRate,
+      up: handleVolumeUp,
+      down: handleVolumeDown,
+      "alt+1": () => handleChangeSentenceLength("short"),
+      "alt+2": () => handleChangeSentenceLength("medium"),
+      "alt+3": () => handleChangeSentenceLength("long"),
     },
     { when: "notEditing" },
   );
@@ -426,7 +462,7 @@ export function VideoDetailView(props: VideoDetailViewProps) {
             paused={paused()}
             muted={muted()}
             rate={rate()}
-            volume={1}
+            volume={volume()}
             controls={false}
             audioSession="playback"
             progressUpdateInterval={80}

@@ -1,4 +1,4 @@
-import { Text, View } from "nsh";
+import { keymap, signal, Text, View } from "nsh";
 import type { DownloadTaskProgress, LibraryEntry } from "../library/types";
 import { ActiveDownloadRow } from "../ui/ActiveDownloadRow";
 import { Icon } from "../ui/Icon";
@@ -59,6 +59,66 @@ export function LibraryView(props: {
   const totalVisibleCount = () =>
     currentEntries().length + currentDownloads().length;
 
+  const focusedIndex = signal<number>(-1);
+
+  keymap.bind(
+    {
+      down: () => {
+        const list = currentEntries();
+        if (list.length === 0) return;
+        const cur = focusedIndex();
+        focusedIndex.set(cur < 0 ? 0 : (cur + 1) % list.length);
+      },
+      up: () => {
+        const list = currentEntries();
+        if (list.length === 0) return;
+        const cur = focusedIndex();
+        focusedIndex.set(cur <= 0 ? list.length - 1 : cur - 1);
+      },
+      right: () => {
+        const list = currentEntries();
+        if (list.length === 0) return;
+        const cur = focusedIndex();
+        focusedIndex.set(cur < 0 ? 0 : (cur + 1) % list.length);
+      },
+      left: () => {
+        const list = currentEntries();
+        if (list.length === 0) return;
+        const cur = focusedIndex();
+        focusedIndex.set(cur <= 0 ? list.length - 1 : cur - 1);
+      },
+      enter: () => {
+        const list = currentEntries();
+        const cur = focusedIndex();
+        if (cur >= 0 && cur < list.length) {
+          props.onOpenEntry(list[cur]);
+        }
+      },
+      o: () => {
+        const list = currentEntries();
+        const cur = focusedIndex();
+        if (cur >= 0 && cur < list.length) {
+          props.onOpenFolder(list[cur]);
+        }
+      },
+      delete: () => {
+        const list = currentEntries();
+        const cur = focusedIndex();
+        if (cur >= 0 && cur < list.length) {
+          props.onDeleteEntry?.(list[cur]);
+        }
+      },
+      backspace: () => {
+        const list = currentEntries();
+        const cur = focusedIndex();
+        if (cur >= 0 && cur < list.length) {
+          props.onDeleteEntry?.(list[cur]);
+        }
+      },
+    },
+    { when: "notEditing" },
+  );
+
   return (
     <View class="gap-4">
       <If when={totalVisibleCount() > 0}>
@@ -91,8 +151,9 @@ export function LibraryView(props: {
               }
             >
               <Each of={currentEntries()} key={(entry) => entry.videoId}>
-                {(entry) => {
+                {(entry, index) => {
                   const mode = () => settings().libraryLayout;
+                  const isSelected = () => focusedIndex() === index();
                   return (
                     <>
                       <If when={mode() === "grade"}>
@@ -101,6 +162,7 @@ export function LibraryView(props: {
                           onOpenEntry={props.onOpenEntry}
                           onOpenFolder={props.onOpenFolder}
                           onDeleteEntry={props.onDeleteEntry}
+                          selected={isSelected()}
                         />
                       </If>
                       <If when={mode() === "list"}>
@@ -109,6 +171,7 @@ export function LibraryView(props: {
                           onOpenEntry={props.onOpenEntry}
                           onOpenFolder={props.onOpenFolder}
                           onDeleteEntry={props.onDeleteEntry}
+                          selected={isSelected()}
                         />
                       </If>
                       <If when={mode() !== "grade" && mode() !== "list"}>
@@ -117,6 +180,7 @@ export function LibraryView(props: {
                           onOpenEntry={props.onOpenEntry}
                           onOpenFolder={props.onOpenFolder}
                           onDeleteEntry={props.onDeleteEntry}
+                          selected={isSelected()}
                         />
                       </If>
                     </>

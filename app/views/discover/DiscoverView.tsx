@@ -1,4 +1,4 @@
-import { signal, Text, View } from "nsh";
+import { keymap, signal, Text, View } from "nsh";
 import { Button } from "nsh/base";
 import type { DownloadTaskProgress, LibraryEntry } from "../../library/types";
 import { Icon } from "../../ui/Icon";
@@ -61,6 +61,45 @@ export function DiscoverView(props: {
     const downloads = props.activeDownloads?.() ?? [];
     return new Set(downloads.map((d) => d.videoId));
   };
+
+  const focusedIndex = signal<number>(-1);
+
+  keymap.bind(
+    {
+      down: () => {
+        const list = filteredItems();
+        if (list.length === 0) return;
+        const cur = focusedIndex();
+        focusedIndex.set(cur < 0 ? 0 : (cur + 1) % list.length);
+      },
+      up: () => {
+        const list = filteredItems();
+        if (list.length === 0) return;
+        const cur = focusedIndex();
+        focusedIndex.set(cur <= 0 ? list.length - 1 : cur - 1);
+      },
+      right: () => {
+        const list = filteredItems();
+        if (list.length === 0) return;
+        const cur = focusedIndex();
+        focusedIndex.set(cur < 0 ? 0 : (cur + 1) % list.length);
+      },
+      left: () => {
+        const list = filteredItems();
+        if (list.length === 0) return;
+        const cur = focusedIndex();
+        focusedIndex.set(cur <= 0 ? list.length - 1 : cur - 1);
+      },
+      enter: () => {
+        const list = filteredItems();
+        const cur = focusedIndex();
+        if (cur >= 0 && cur < list.length) {
+          props.onPracticeItem(list[cur]);
+        }
+      },
+    },
+    { when: "notEditing" },
+  );
 
   return (
     <View class="gap-4 pb-12">
@@ -173,7 +212,7 @@ export function DiscoverView(props: {
             gap: 16,
           }}
         >
-          {filteredItems().map((item) => (
+          {filteredItems().map((item, idx) => (
             <DiscoverCard
               item={item}
               onInspect={props.onInspectItem}
@@ -182,6 +221,7 @@ export function DiscoverView(props: {
               onTagClick={(tag) => updateFilters({ tag })}
               isDownloaded={() => downloadedVideoIds().has(item.videoId)}
               isDownloading={() => downloadingVideoIds().has(item.videoId)}
+              selected={focusedIndex() === idx}
             />
           ))}
         </View>

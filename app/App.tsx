@@ -40,6 +40,7 @@ import type { DownloadTaskProgress, LibraryEntry } from "./library/types";
 import { localMediaCandidates, localMediaFileUrl } from "./player";
 import { ActivityBanner, type ActivityKind } from "./ui/ActivityBanner";
 import { Sidebar } from "./ui/Sidebar";
+import { ShortcutsModal } from "./ui/ShortcutsModal";
 import { VideoDetailView } from "./views/VideoDetailView";
 import { isDevMode, resolveDataDirOrNull } from "./env";
 import { DevRibbon } from "./ui/DevRibbon";
@@ -91,6 +92,9 @@ function App() {
   const playingEntry = signal<LibraryEntry | null>(null);
   const playingSrc = signal<string | null>(null);
   const transitionOriginRect = signal<ViewTransitionRect | null>(null);
+  const showShortcutsModal = signal(false);
+  const toggleShortcutsModal = () =>
+    showShortcutsModal.set(!showShortcutsModal());
   let urlInputRef: InputRef | null = null;
   const fetchingMetaIds = new Set<string>();
   const activeDownloadIds = new Set<string>();
@@ -723,6 +727,7 @@ function App() {
   keymap.bind(
     {
       enter: () => {
+        if (showShortcutsModal()) return;
         if (playingEntry()) return;
         if (activeTab() === "settings") return;
         const cur = activePreview();
@@ -730,6 +735,8 @@ function App() {
           void onStartDownload(cur);
         }
       },
+      "shift+/": toggleShortcutsModal,
+      f1: toggleShortcutsModal,
     },
     { when: "notEditing" },
   );
@@ -756,6 +763,10 @@ function App() {
       }
     },
     escape: () => {
+      if (showShortcutsModal()) {
+        showShortcutsModal.set(false);
+        return;
+      }
       if (playingEntry()) {
         // Let VideoDetailView keymap run smooth closing transition
         return;
@@ -767,8 +778,9 @@ function App() {
       const cur = activePreview();
       if (cur) dismissedVideoId.set(cur.videoId);
     },
-    "mod+1": () => activeTab.set("video"),
-    "mod+2": () => activeTab.set("audio"),
+    "mod+1": () => activeTab.set("discover"),
+    "mod+2": () => activeTab.set("video"),
+    "mod+3": () => activeTab.set("audio"),
   });
 
   effect(() => {
@@ -863,14 +875,20 @@ function App() {
           label: "View",
           submenu: [
             {
-              label: "Video",
+              label: "Discover",
               shortcut: "mod+1",
+              checked: activeTab() === "discover",
+              onSelect: () => activeTab.set("discover"),
+            },
+            {
+              label: "Video",
+              shortcut: "mod+2",
               checked: activeTab() === "video",
               onSelect: () => activeTab.set("video"),
             },
             {
               label: "Audio",
-              shortcut: "mod+2",
+              shortcut: "mod+3",
               checked: activeTab() === "audio",
               onSelect: () => activeTab.set("audio"),
             },
@@ -890,6 +908,16 @@ function App() {
             { role: "minimize" },
             { role: "zoom" },
             { role: "toggleFullScreen" },
+          ],
+        },
+        {
+          label: "Help",
+          submenu: [
+            {
+              label: "Keyboard Shortcuts",
+              shortcut: "shift+/",
+              onSelect: toggleShortcutsModal,
+            },
           ],
         },
       ]);
@@ -924,6 +952,7 @@ function App() {
           }
           activeTab.set("settings");
         }}
+        onOpenShortcuts={toggleShortcutsModal}
       />
 
       {/* 2. feed content area: TopBar + Scroll Workspace OR Settings View */}
@@ -1065,6 +1094,11 @@ function App() {
       <If when={isDevMode()}>
         <DevRibbon />
       </If>
+
+      <ShortcutsModal
+        open={showShortcutsModal}
+        onClose={() => showShortcutsModal.set(false)}
+      />
     </View>
   );
 }

@@ -16,6 +16,7 @@ export function LibraryListRow(props: {
   onOpenEntry: (entry: LibraryEntry, originRect?: ViewTransitionRect | null) => void;
   onOpenFolder: (entry: LibraryEntry) => void;
   onDeleteEntry?: (entry: LibraryEntry) => void;
+  selected?: boolean;
 }) {
   let thumbRef: ViewRef | null = null;
   const duration = formatDurationMs(props.entry.durationMs);
@@ -32,7 +33,11 @@ export function LibraryListRow(props: {
 
   return (
     <View
-      class="flex-row items-center justify-between gap-4 rounded-lg border-b border-line px-2 py-3 transition hover:bg-well/30"
+      class={`flex-row items-center justify-between gap-4 rounded-lg border-b border-line px-2 py-3 transition ${
+        props.selected
+          ? "bg-primary/10 ring-2 ring-primary border-transparent shadow-sm"
+          : "hover:bg-well/30"
+      }`}
     >
       {/* Clickable thumbnail to play */}
       <Button
@@ -128,6 +133,7 @@ export function LibraryGradeCard(props: {
   onOpenEntry: (entry: LibraryEntry, originRect?: ViewTransitionRect | null) => void;
   onOpenFolder?: (entry: LibraryEntry) => void;
   onDeleteEntry?: (entry: LibraryEntry) => void;
+  selected?: boolean;
 }) {
   let thumbRef: ViewRef | null = null;
   const duration = formatDurationMs(props.entry.durationMs);
@@ -146,7 +152,9 @@ export function LibraryGradeCard(props: {
     <Button
       onPress={() => void handleOpen()}
       class={`group w-[144px] items-center gap-1.5 rounded-lg border p-2 text-left transition-all duration-200 cursor-pointer active:scale-[0.98] hover:border-[#2f7cf6] hover:bg-well/70 ${
-        isRecent()
+        props.selected
+          ? "border-[#2f7cf6] bg-primary/10 ring-2 ring-[#2f7cf6] shadow-[0_0_12px_rgba(47,124,246,0.3)]"
+          : isRecent()
           ? "border-ready/60 shadow-[0_0_12px_rgba(34,197,94,0.2)]"
           : "border-transparent"
       }`}
@@ -195,6 +203,7 @@ export function LibraryPostCard(props: {
   onOpenEntry: (entry: LibraryEntry, originRect?: ViewTransitionRect | null) => void;
   onOpenFolder?: (entry: LibraryEntry) => void;
   onDeleteEntry?: (entry: LibraryEntry) => void;
+  selected?: boolean;
 }) {
   let thumbRef: ViewRef | null = null;
   const duration = formatDurationMs(props.entry.durationMs);
@@ -214,7 +223,9 @@ export function LibraryPostCard(props: {
       onPress={() => void handleOpen()}
       style={{ minWidth: 280 }}
       class={`group relative w-full max-w-[460px] flex-1 flex-col justify-between overflow-hidden rounded-xl border p-3 text-left transition-all duration-200 cursor-pointer active:scale-[0.99] hover:border-[#2f7cf6] hover:bg-well/35 hover:shadow-lg ${
-        isRecent()
+        props.selected
+          ? "border-[#2f7cf6] bg-primary/10 ring-2 ring-[#2f7cf6] shadow-[0_0_14px_rgba(47,124,246,0.3)]"
+          : isRecent()
           ? "border-ready/60 shadow-[0_0_14px_rgba(34,197,94,0.25)]"
           : "border-line/60 bg-well/15"
       }`}
