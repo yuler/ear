@@ -26,35 +26,49 @@ pub fn get_default_downloads_dir() -> PathBuf {
 }
 
 pub fn get_library_dir() -> Option<PathBuf> {
-    if let Ok(dir) = std::env::var("EAR_LIBRARY_DIR") {
-        if !dir.is_empty() {
-            return Some(PathBuf::from(dir));
-        }
+    resolve_library_dir_from(
+        std::env::var("EAR_LIBRARY_DIR").ok().as_deref(),
+        std::env::var("EAR_DATA_DIR").ok().as_deref(),
+        std::env::var("HOME").ok().as_deref(),
+        std::env::var("XDG_DATA_HOME").ok().as_deref(),
+        std::env::var("APPDATA").ok().as_deref(),
+    )
+}
+
+fn resolve_library_dir_from(
+    ear_library_dir: Option<&str>,
+    ear_data_dir: Option<&str>,
+    home: Option<&str>,
+    xdg_data_home: Option<&str>,
+    app_data: Option<&str>,
+) -> Option<PathBuf> {
+    if let Some(dir) = ear_library_dir.filter(|d| !d.is_empty()) {
+        return Some(PathBuf::from(dir));
     }
 
-    if let Ok(dir) = std::env::var("EAR_DATA_DIR") {
-        if !dir.is_empty() {
-            return Some(PathBuf::from(dir).join("library"));
-        }
+    if let Some(dir) = ear_data_dir.filter(|d| !d.is_empty()) {
+        return Some(PathBuf::from(dir).join("library"));
     }
 
-    if let Ok(home) = std::env::var("HOME") {
+    if let Some(home) = home {
         #[cfg(target_os = "macos")]
         {
-            let mac_dir = PathBuf::from(&home).join("Library/Application Support/dev.yuler.ear/library");
+            let mac_dir = PathBuf::from(home).join("Library/Application Support/dev.yuler.ear/library");
             return Some(mac_dir);
         }
 
         #[cfg(target_os = "windows")]
         {
-            if let Ok(app_data) = std::env::var("APPDATA") {
+            if let Some(app_data) = app_data {
                 return Some(PathBuf::from(app_data).join("dev.yuler.ear").join("library"));
             }
         }
 
-        let xdg_data = std::env::var("XDG_DATA_HOME")
+        let _ = app_data;
+        let xdg_data = xdg_data_home
+            .filter(|d| !d.is_empty())
             .map(PathBuf::from)
-            .unwrap_or_else(|_| PathBuf::from(&home).join(".local/share"));
+            .unwrap_or_else(|| PathBuf::from(home).join(".local/share"));
 
         let primary = xdg_data.join("dev.yuler.ear").join("library");
         let fallback = xdg_data.join("ear").join("library");
@@ -429,6 +443,29 @@ mod tests {
         // Japanese title
         let chosen = select_best_caption_track(&tracks, "日本語の練習").unwrap();
         assert_eq!(chosen.base_url, "http://ja");
+    }
+
+    #[test]
+    fn test_resolve_library_dir_isolates_dev_ear_data_dir() {
+        let dev_dir = resolve_library_dir_from(
+            None,
+            Some("/tmp/ear-prod/dev"),
+            Some("/tmp/home"),
+            None,
+            None,
+        )
+        .unwrap();
+        assert_eq!(dev_dir, PathBuf::from("/tmp/ear-prod/dev/library"));
+
+        let prod_dir = resolve_library_dir_from(
+            None,
+            None,
+            Some("/tmp/home"),
+            Some("/tmp/xdg"),
+            None,
+        )
+        .unwrap();
+        assert_eq!(prod_dir, PathBuf::from("/tmp/xdg/dev.yuler.ear/library"));
     }
 }
 

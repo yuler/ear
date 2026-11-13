@@ -1,4 +1,5 @@
 import process from "process";
+import { resolveDataDirOrNull, type EnvMap } from "../env";
 import { isNativeHost } from "./host";
 import type { CaptionCue, ParsedVideo } from "./types";
 
@@ -35,6 +36,7 @@ export type SpawnChildLike = {
 export type SpawnHook = (
   bin: string,
   args: string[],
+  options?: { env?: Record<string, string> },
 ) => SpawnChildLike;
 
 let currentSpawnHook: SpawnHook | null = null;
@@ -70,13 +72,38 @@ export function earBinaryCandidates(): string[] {
   return list;
 }
 
-export function spawnEar(bin: string, args: string[]): SpawnChildLike | null {
+/**
+ * Resolves child environment overrides so `ear` CLI writes to the same
+ * data directory as the host app (isolating Dev under `<dataDir>/dev`
+ * while preserving explicit `EAR_DATA_DIR` overrides).
+ */
+export function resolveEarChildEnv(
+  baseDataDir?: string,
+  env: EnvMap = process.env ?? {},
+): Record<string, string> | undefined {
+  const dataDir = resolveDataDirOrNull(baseDataDir, env);
+  if (!dataDir) return undefined;
+  return { EAR_DATA_DIR: dataDir };
+}
+
+export function spawnEar(
+  bin: string,
+  args: string[],
+  baseDataDir?: string,
+  env?: EnvMap,
+): SpawnChildLike | null {
+  const childEnv = resolveEarChildEnv(baseDataDir, env);
+  const spawnOpts = childEnv ? { env: childEnv } : undefined;
   if (currentSpawnHook) {
-    return currentSpawnHook(bin, args);
+    return currentSpawnHook(bin, args, spawnOpts);
   }
   try {
     if (isNativeHost() && typeof process.spawn === "function") {
-      return process.spawn(bin, args, { lines: true, timeoutMs: 600_000 }) as unknown as SpawnChildLike;
+      return process.spawn(bin, args, {
+        lines: true,
+        timeoutMs: 600_000,
+        ...(spawnOpts ?? {}),
+      }) as unknown as SpawnChildLike;
     }
   } catch {
     return null;

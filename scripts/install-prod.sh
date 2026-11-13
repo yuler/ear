@@ -45,7 +45,7 @@ if [[ "$OS" == "Linux" && "$ARCH" == "x86_64" ]]; then
   mkdir -p "$TMP_DIR/extracted"
   tar -xzf "${TMP_DIR}/${ASSET}" -C "$TMP_DIR/extracted"
 
-  INSTALL_DIR="${HOME}/.local/share/ear"
+  INSTALL_DIR="${HOME}/.local/share/ear-app"
   rm -rf "$INSTALL_DIR"
   mkdir -p "$INSTALL_DIR" "${HOME}/.local/bin" "${HOME}/.local/share/applications" "${HOME}/.local/share/icons/hicolor/scalable/apps"
   cp -a "$TMP_DIR/extracted/Ear/." "$INSTALL_DIR/"

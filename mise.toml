@@ -56,7 +56,7 @@ depends = ["cli:test", "app:test"]
 [tasks.doctor]
 description = "Check system dependencies (WebKitGTK, GStreamer, ffmpeg)"
 depends = ["cli:dev"]
-run = "ear doctor"
+run = "cli/target/debug/ear doctor"
 
 [tasks.setup]
 description = "Install tools, Ear CLI (release), and Linux host deps (WebKitGTK 6)"
@@ -65,3 +65,24 @@ run = "bash scripts/setup.sh"
 [tasks."prod:install"]
 description = "Download and install Production Ear desktop app & CLI from GitHub Releases"
 run = "bash scripts/install-prod.sh"
+
+[tasks."dev:import-prod"]
+description = "Copy Production library data into the isolated Dev library directory"
+run = """
+#!/usr/bin/env bash
+set -euo pipefail
+if [[ "$(uname -s)" == "Darwin" ]]; then
+  BASE_DIR="${HOME}/Library/Application Support/dev.yuler.ear"
+else
+  BASE_DIR="${XDG_DATA_HOME:-${HOME}/.local/share}/dev.yuler.ear"
+fi
+SRC="${BASE_DIR}/library"
+DST="${BASE_DIR}/dev/library"
+if [[ ! -d "$SRC" ]]; then
+  echo "No Production library found at: $SRC" >&2
+  exit 1
+fi
+mkdir -p "$DST"
+cp -a "${SRC}/." "$DST/"
+echo "Imported Production library from $SRC -> $DST"
+"""
