@@ -1,5 +1,6 @@
 pub mod checkpoint;
 pub mod library_sync;
+pub mod source;
 pub mod transfer;
 
 use crate::commands::download::checkpoint::PartCheckpoint;
@@ -7,63 +8,20 @@ use crate::commands::download::library_sync::{
     fetch_and_save_captions, get_default_downloads_dir, get_library_dir, sync_entry_error,
     sync_entry_paused, sync_entry_progress, sync_entry_ready, LibraryEntrySync,
 };
+use crate::commands::download::source::{fallback_yt_dlp, refresh_stream_url, resolve_streams};
 use crate::commands::download::transfer::{
     download_stream_parallel, download_stream_sequential, probe_remote_size, StreamDownloadParams,
 };
 use crate::emit::emit_json;
-use crate::youtube::{
-    build_quality_options, extract_player_response, extract_video_id, extract_visitor_data,
-    fetch_visionos_player, http_get_text, is_valid_id, pick_best_audio, WATCH_UA,
-};
+use crate::youtube::{extract_video_id, is_valid_id};
 use serde_json::json;
 use std::fs;
-use std::path::{Path, PathBuf};
-use std::process::{Command, Stdio};
+use std::path::PathBuf;
+use std::process::Command;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, RwLock};
 use std::thread;
 use std::time::{Duration, Instant};
-
-fn fallback_yt_dlp(video_id: &str, quality: &str, output_path: &Path) -> Result<u64, String> {
-    let url = format!("https://www.youtube.com/watch?v={video_id}");
-    let format_selector = match quality {
-        "audio" => "bestaudio[ext=m4a]/bestaudio".to_string(),
-        q if q.ends_with('p') => {
-            let height = q.trim_end_matches('p');
-            format!(
-                "bestvideo[height<={height}][ext=mp4]+bestaudio[ext=m4a]/best[height<={height}][ext=mp4]/best"
-            )
-        }
-        _ => "bestvideo[height<=720][ext=mp4]+bestaudio[ext=m4a]/best[height<=720][ext=mp4]/best"
-            .to_string(),
-    };
-
-    let mut child = Command::new("yt-dlp")
-        .args([
-            "--newline",
-            "--progress",
-            "--no-playlist",
-            "--no-warnings",
-            "-f",
-            &format_selector,
-            "--merge-output-format",
-            if quality == "audio" { "m4a" } else { "mp4" },
-            "-o",
-            &output_path.to_string_lossy(),
-            &url,
-        ])
-        .stdout(Stdio::piped())
-        .stderr(Stdio::null())
-        .spawn()
-        .map_err(|e| format!("yt-dlp fallback failed to start: {e}"))?;
-
-    let st = child.wait().map_err(|e| e.to_string())?;
-    if !st.success() || !output_path.exists() {
-        return Err("yt-dlp failed to download media".to_string());
-    }
-    let meta = fs::metadata(output_path).map_err(|e| e.to_string())?;
-    Ok(meta.len())
-}
 
 pub fn run(args: &[String]) -> Result<(), String> {
     let mut video_id = String::new();
@@ -73,6 +31,7 @@ pub fn run(args: &[String]) -> Result<(), String> {
     let mut quality = "720p".to_string();
     let mut concurrency: usize = 4;
     let mut no_captions = false;
+    let mut no_library_sync = false;
     let mut library_dir_override: Option<PathBuf> = None;
 
     let mut i = 0;
@@ -92,6 +51,9 @@ pub fn run(args: &[String]) -> Result<(), String> {
                 if !dir.is_empty() {
                     library_dir_override = Some(PathBuf::from(dir));
                 }
+            }
+            "--no-library-sync" => {
+                no_library_sync = true;
             }
             "--quality" | "-q" => {
                 i += 1;
@@ -158,54 +120,22 @@ pub fn run(args: &[String]) -> Result<(), String> {
         fs::create_dir_all(parent).map_err(|e| format!("mkdir {}: {e}", parent.display()))?;
     }
 
-    let library_dir = library_dir_override.or_else(get_library_dir);
-    let mut player_json: Option<serde_json::Value> = None;
-    let mut video_title = video_id.clone();
-    let mut thumbnail_url: Option<String> = None;
+    let library_dir = if no_library_sync {
+        None
+    } else {
+        library_dir_override.or_else(get_library_dir)
+    };
 
-    // Resolve stream URLs via YouTube VisionOS player API
-    if !video_id.is_empty() {
-        let watch_url = format!("https://www.youtube.com/watch?v={video_id}");
-        let watch_html = http_get_text(&watch_url, WATCH_UA).ok();
-        let visitor = watch_html.as_deref().and_then(extract_visitor_data);
-        let resolved_player = fetch_visionos_player(&video_id, visitor.as_deref())
-            .or_else(|| watch_html.as_deref().and_then(extract_player_response));
-        if let Some(player) = resolved_player {
-            if let Some(details) = player.get("videoDetails") {
-                if let Some(t) = details.get("title").and_then(|t| t.as_str()) {
-                    video_title = t.to_string();
-                }
-            }
-            let streaming = player.get("streamingData");
-            let formats = streaming
-                .and_then(|s| s.get("formats"))
-                .and_then(|f| f.as_array())
-                .cloned()
-                .unwrap_or_default();
-            let adaptive = streaming
-                .and_then(|s| s.get("adaptiveFormats"))
-                .and_then(|f| f.as_array())
-                .cloned()
-                .unwrap_or_default();
-            let best_audio = pick_best_audio(&adaptive);
-            let qualities = build_quality_options(&formats, &adaptive, best_audio.as_ref());
-
-            if let Some(q) = qualities
-                .iter()
-                .find(|q| q.id == quality)
-                .or_else(|| qualities.first())
-            {
-                if video_url.is_none() {
-                    video_url = q.video_url.clone();
-                }
-                if audio_url.is_none() {
-                    audio_url = q.audio_url.clone();
-                }
-            }
-            thumbnail_url = Some(format!("https://i.ytimg.com/vi/{video_id}/hqdefault.jpg"));
-            player_json = Some(player);
-        }
+    let resolved = resolve_streams(&video_id, &quality);
+    let video_title = resolved.video_title;
+    if video_url.is_none() {
+        video_url = resolved.video_url;
     }
+    if audio_url.is_none() {
+        audio_url = resolved.audio_url;
+    }
+    let thumbnail_url = resolved.thumbnail_url;
+    let player_json = resolved.player_json;
 
     // Initialize or update library entry with state: downloading
     if let Some(ref lib_dir) = library_dir {
@@ -320,24 +250,7 @@ pub fn run(args: &[String]) -> Result<(), String> {
     let make_url_refresher = move |is_video: bool| -> Arc<dyn Fn() -> Option<String> + Send + Sync> {
         let vid = vid_for_refresh.clone();
         let qid = quality_for_refresh.clone();
-        Arc::new(move || {
-            let watch_url = format!("https://www.youtube.com/watch?v={vid}");
-            let visitor = http_get_text(&watch_url, WATCH_UA)
-                .ok()
-                .and_then(|h| extract_visitor_data(&h));
-            let player = fetch_visionos_player(&vid, visitor.as_deref())?;
-            let streaming = player.get("streamingData")?;
-            let formats = streaming.get("formats").and_then(|f| f.as_array()).cloned().unwrap_or_default();
-            let adaptive = streaming.get("adaptiveFormats").and_then(|f| f.as_array()).cloned().unwrap_or_default();
-            let best_audio = pick_best_audio(&adaptive);
-            let qualities = build_quality_options(&formats, &adaptive, best_audio.as_ref());
-            let target_q = qualities.iter().find(|q| q.id == qid).or_else(|| qualities.first())?;
-            if is_video {
-                target_q.video_url.clone()
-            } else {
-                target_q.audio_url.clone()
-            }
-        })
+        Arc::new(move || refresh_stream_url(&vid, &qid, is_video))
     };
 
     if let Some(ref vurl) = video_url {
@@ -592,5 +505,29 @@ mod tests {
             err.contains("Invalid video ID"),
             "unexpected error message: {err}"
         );
+    }
+
+    #[test]
+    fn test_no_library_sync_does_not_create_library_entry() {
+        let temp_dir = std::env::temp_dir().join(format!(
+            "ear_no_sync_{}",
+            crate::commands::download::library_sync::now_millis()
+        ));
+        let args = vec![
+            "--video-id".to_string(),
+            "dQw4w9WgXcQ".to_string(),
+            "--library-dir".to_string(),
+            temp_dir.to_string_lossy().to_string(),
+            "--no-library-sync".to_string(),
+            "--output".to_string(),
+            temp_dir.join("test.mp4").to_string_lossy().to_string(),
+        ];
+        let _ = run(&args);
+        let entry_file = temp_dir.join("dQw4w9WgXcQ.json");
+        assert!(
+            !entry_file.exists(),
+            "entry file must not be created when --no-library-sync is active"
+        );
+        let _ = fs::remove_dir_all(&temp_dir);
     }
 }

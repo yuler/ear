@@ -17,6 +17,7 @@
   "appearance": "dark",
   "theme": "theme.json",
   "capabilities": {
+    "statusBar": true,
     "clipboard": true,
     "network": {
       "hosts": [

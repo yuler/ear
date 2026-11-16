@@ -63,6 +63,8 @@ test("earDownload passes --library-dir in argv to isolate CLI writes", async () 
     expect(capturedBin).toBe("./ear");
     expect(capturedArgs).toContain("download");
     expect(capturedArgs).toContain("abc123");
+    expect(capturedArgs).toContain("--no-library-sync");
+    expect(capturedArgs).toContain("--no-captions");
     const libFlagIdx = capturedArgs.indexOf("--library-dir");
     expect(libFlagIdx).toBeGreaterThan(-1);
     expect(capturedArgs[libFlagIdx + 1]).toBe("/tmp/ear-prod/dev/library");
@@ -108,6 +110,45 @@ test("earDownload preserves Dev argv isolation while stopping on application err
     const args = calls[0]!;
     expect(args.indexOf("--library-dir")).toBeGreaterThan(-1);
     expect(args[args.indexOf("--library-dir") + 1]).toBe("/tmp/ear-prod/dev/library");
+  } finally {
+    setEarSpawnHook(null);
+    setEarBinaryCandidates(null);
+  }
+});
+
+test("earDownload supports overriding noLibrarySync and noCaptions flags", async () => {
+  let capturedArgs: string[] = [];
+  setEarBinaryCandidates(["./ear"]);
+  setEarSpawnHook((_bin, args) => {
+    capturedArgs = args;
+    const handlers: Record<string, (arg: any) => void> = {};
+    setTimeout(() => {
+      handlers.stdout?.(
+        JSON.stringify({
+          type: "result",
+          path: "/tmp/out.mp4",
+          sizeBytes: 999,
+        }),
+      );
+      handlers.exit?.({ code: 0 });
+    }, 0);
+    return {
+      on(event: string, handler: (arg: any) => void) {
+        handlers[event] = handler;
+      },
+    };
+  });
+
+  try {
+    await earDownload({
+      videoId: "abc123",
+      qualityId: "720p",
+      outputPath: "/tmp/out.mp4",
+      noLibrarySync: false,
+      noCaptions: false,
+    });
+    expect(capturedArgs).not.toContain("--no-library-sync");
+    expect(capturedArgs).not.toContain("--no-captions");
   } finally {
     setEarSpawnHook(null);
     setEarBinaryCandidates(null);

@@ -19,6 +19,8 @@ pub fn probe_remote_size(url: &str) -> Option<u64> {
         .args([
             "-sS",
             "-L",
+            "--proto",
+            "=https",
             "-I",
             "--max-time",
             "15",
@@ -155,6 +157,8 @@ pub fn download_stream_parallel(params: StreamDownloadParams) -> Result<(), Stri
                             .args([
                                 "-sS",
                                 "-L",
+                                "--proto",
+                                "=https",
                                 "--fail",
                                 "--connect-timeout",
                                 "15",
@@ -279,7 +283,16 @@ pub fn download_stream_sequential(params: StreamDownloadParams) -> Result<(), St
     };
 
     let mut child = Command::new("curl")
-        .args(["-sS", "-L", "--fail", "-A", VISIONOS_UA, &current_url])
+        .args([
+            "-sS",
+            "-L",
+            "--proto",
+            "=https",
+            "--fail",
+            "-A",
+            VISIONOS_UA,
+            &current_url,
+        ])
         .stdout(Stdio::piped())
         .stderr(Stdio::null())
         .spawn()
