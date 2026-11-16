@@ -318,6 +318,16 @@ pub fn fetch_and_save_captions(
     library_dir: &Path,
     player: &Value,
 ) -> Option<PathBuf> {
+    let entry_folder = library_dir.join(video_id);
+    let cap_file = entry_folder.join("captions.json");
+    if cap_file.exists() {
+        if let Ok(meta) = fs::metadata(&cap_file) {
+            if meta.len() > 0 {
+                return Some(cap_file);
+            }
+        }
+    }
+
     let tracks = read_caption_tracks(player);
     let chosen_track = select_best_caption_track(&tracks, title)?;
     let base_url = &chosen_track.base_url;
@@ -472,6 +482,21 @@ mod tests {
         )
         .unwrap();
         assert_eq!(prod_dir, PathBuf::from("/tmp/xdg/dev.yuler.ear/library"));
+    }
+
+    #[test]
+    fn test_fetch_and_save_captions_reuses_existing_file() {
+        let temp_dir = std::env::temp_dir().join(format!("ear_test_lib_{}", now_millis()));
+        let video_dir = temp_dir.join("test_vid_123");
+        let _ = fs::create_dir_all(&video_dir);
+        let cap_file = video_dir.join("captions.json");
+        fs::write(&cap_file, r#"{"cues":[]}"#).unwrap();
+
+        let dummy_player = json!({});
+        let result = fetch_and_save_captions("test_vid_123", "Title", &temp_dir, &dummy_player);
+        assert_eq!(result, Some(cap_file));
+
+        let _ = fs::remove_dir_all(&temp_dir);
     }
 }
 

@@ -26,6 +26,8 @@ export type EarDownloadParams = {
   videoUrl?: string | null;
   audioUrl?: string | null;
   libraryDir?: string | null;
+  noLibrarySync?: boolean;
+  noCaptions?: boolean;
   signal?: AbortSignal;
   onProgress?: (ev: DownloadProgressEvent) => void;
 };
@@ -279,6 +281,11 @@ export async function earDownload(
       ? params.libraryDir
       : resolveEarLibraryDir();
   if (libraryDir) args.push("--library-dir", libraryDir);
+
+  const noLibrarySync = params.noLibrarySync ?? true;
+  if (noLibrarySync) args.push("--no-library-sync");
+  const noCaptions = params.noCaptions ?? true;
+  if (noCaptions) args.push("--no-captions");
 
   let lastErr = "ear binary not available";
 
