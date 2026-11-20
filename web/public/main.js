@@ -1,4 +1,4 @@
-/* www/public/main.js - Ear Landing Page Interactivity */
+/* web/public/main.js - Ear Landing Page Interactivity */
 
 // Chinese is the strict priority/default unless explicitly chosen and saved as "en"
 const savedLang = localStorage.getItem("ear_lang");

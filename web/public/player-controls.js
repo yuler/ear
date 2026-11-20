@@ -1,4 +1,4 @@
-/* www/public/player-controls.js - Mock video player controls for the hero demo */
+/* web/public/player-controls.js - Mock video player controls for the hero demo */
 (function() {
   const $ = (id) => document.getElementById(id);
   const PAUSE_ICON = `<rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/>`;

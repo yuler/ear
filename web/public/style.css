@@ -1,4 +1,4 @@
-/* www/public/style.css - Ear Immersion Player Styles */
+/* web/public/style.css - Ear Immersion Player Styles */
 :root {
   --radius-sm: 6px;
   --radius-md: 10px;
@@ -310,7 +310,7 @@ header {
   border-color: var(--text-muted);
 }
 
-/* App mockup & video practice player styles: www/public/player.css */
+/* App mockup & video practice player styles: web/public/player.css */
 @import "./player.css";
 
 /* ── Section Header ── */

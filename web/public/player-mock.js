@@ -1,4 +1,4 @@
-/* www/public/player-mock.js - DOM Template for Interactive Desktop App Walkthrough */
+/* web/public/player-mock.js - DOM Template for Interactive Desktop App Walkthrough */
 window.MOCK_WINDOW_HTML = `<div class="window-titlebar">
   <div class="window-dots">
     <div class="dot dot-red"></div>

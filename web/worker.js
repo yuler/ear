@@ -1,12 +1,12 @@
 /**
- * www/worker.js
+ * web/worker.js
  * Cloudflare Worker for Ear official website (ear.yuler.dev)
  *
  * Capabilities:
  * - Dynamic /download redirection based on User-Agent (Mac ARM64, Windows, Linux)
  * - Platform-specific download shortcuts: /download/mac, /download/windows, /download/linux
  * - /api/latest endpoint caching GitHub Releases metadata (5-minute TTL)
- * - Transparent static asset serving via env.ASSETS (www/public/)
+ * - Transparent static asset serving via env.ASSETS (web/public/)
  */
 
 const REPO = "yuler/ear";

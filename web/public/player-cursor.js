@@ -1,4 +1,4 @@
-/* www/public/player-cursor.js - Demo timers + virtual cursor (transform-only motion) */
+/* web/public/player-cursor.js - Demo timers + virtual cursor (transform-only motion) */
 (function() {
   const $ = (id) => document.getElementById(id);
   const timers = new Set();
