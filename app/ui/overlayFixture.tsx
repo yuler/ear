@@ -4,7 +4,6 @@ import type { LibraryEntry } from "../library/types";
 import { ShortcutsModal } from "./ShortcutsModal";
 import { VideoDetailView } from "../views/VideoDetailView";
 import { LibraryView } from "../views/LibraryView";
-import type { MediaTab } from "./TopBar";
 
 function mockEntry(id: string): LibraryEntry {
   return {
@@ -31,7 +30,6 @@ function mockEntry(id: string): LibraryEntry {
 export function OverlayFixtureApp() {
   const showModal = signal(false);
   const showPlayer = signal(false);
-  const activeTab = signal<MediaTab>("video");
   const entries = signal<LibraryEntry[]>([mockEntry("v1"), mockEntry("v2"), mockEntry("v3")]);
   const deleteCount = signal(0);
   const openCount = signal(0);
@@ -94,7 +92,6 @@ export function OverlayFixtureApp() {
 
       <LibraryView
         disabled={isBackgroundDisabled}
-        activeTab={activeTab}
         savedEntries={entries}
         onOpenEntry={(e) => {
           openCount.set(openCount() + 1);

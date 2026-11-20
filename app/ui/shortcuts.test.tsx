@@ -6,13 +6,12 @@ import {
 } from "./shortcuts";
 import { ShortcutsModal } from "./ShortcutsModal";
 
-test("SHORTCUT_CATEGORIES covers all four core domains with non-empty shortcuts", () => {
-  expect(SHORTCUT_CATEGORIES.length).toBe(4);
-  const keys = SHORTCUT_CATEGORIES.map((c) => c.key);
-  expect(keys).toContain("global");
-  expect(keys).toContain("list");
-  expect(keys).toContain("player");
-  expect(keys).toContain("blind");
+test("SHORTCUT_CATEGORIES covers the global, list and player domains", () => {
+  expect(SHORTCUT_CATEGORIES.map((c) => c.key)).toEqual(["global", "list", "player"]);
+  const global = SHORTCUT_CATEGORIES[0].shortcuts.map((s) => s.keystroke);
+  expect(global).toContain("mod+1");
+  expect(global).toContain("mod+2");
+  expect(global).not.toContain("mod+3");
 
   for (const cat of SHORTCUT_CATEGORIES) {
     expect(cat.title.length > 0).toBe(true);
@@ -98,7 +97,8 @@ test("Overlay hierarchy: guide-over-player Escape closes only modal, and player 
   await app.waitFor("Player is Inactive");
   expect(app.texts().some((t) => t.includes("Player is Inactive"))).toBe(true);
 
-  // 8. Now back in library with no overlay: pressing Delete deletes the focused entry
+  // 8. Now back in library with no overlay: Delete asks, then deletes the focused entry
+  app.onDialog(() => "Delete");
   await app.keyboard.press("delete");
   await app.waitFor("Video v2");
   expect(app.texts().some((t) => t.includes("Video v1"))).toBe(false);
@@ -154,61 +154,36 @@ test("Cursor clamping: shrinking list clamps cursor to valid bounds and empty li
 
   // Clear all entries to empty list
   await app.press("Clear Entries");
-  await app.waitFor("暂无下载视频。在上方粘贴 YouTube 链接即可开始下载。");
+  await app.waitFor("Your library is empty");
 
   // Key operations on empty list must be safe no-ops
   await app.keyboard.press("down");
   await app.keyboard.press("up");
   await app.keyboard.press("enter");
   await app.keyboard.press("delete");
-  expect(app.texts().some((t) => t.includes("暂无下载视频。在上方粘贴 YouTube 链接即可开始下载。"))).toBe(true);
+  expect(app.texts().some((t) => t.includes("Your library is empty"))).toBe(true);
 });
 
 test("ShortcutsModal exports valid component", () => {
   expect(typeof ShortcutsModal).toBe("function");
 });
 
-test("ShortcutsModal opens via sidebar click and can be closed with Esc or button", async () => {
+test("Keyboard shortcuts trigger modal via shift+/ and switch Discover / Library", async () => {
   const app = await open("../App.tsx");
-  expect(app.texts().some((t) => t.includes("Shortcuts"))).toBe(true);
 
-  // Click Shortcuts in left sidebar footer
-  await app.press("Shortcuts");
+  await app.keyboard.press("shift+/");
   await app.waitFor("快捷键指南");
-  expect(app.texts().some((t) => t.includes("快捷键指南"))).toBe(true);
   expect(app.texts().some((t) => t.includes("全局导航"))).toBe(true);
   expect(app.texts().some((t) => t.includes("列表与卡片漫游"))).toBe(true);
   expect(app.texts().some((t) => t.includes("视频播放与精听"))).toBe(true);
-  expect(app.texts().some((t) => t.includes("盲听模式专属"))).toBe(true);
 
-  // Press Esc to dismiss modal
-  await app.keyboard.press("escape");
-  expect(app.texts().every((t) => t !== "快捷键指南")).toBe(true);
-});
-
-test("Keyboard shortcuts trigger modal via shift+/ and support global tab switching", async () => {
-  const app = await open("../App.tsx");
-
-  // Press '?' (shift+/) to open shortcuts panel
-  await app.keyboard.press("shift+/");
-  await app.waitFor("快捷键指南");
-  expect(app.texts().some((t) => t.includes("快捷键指南"))).toBe(true);
-
-  // Close with Esc
   await app.keyboard.press("escape");
   expect(app.texts().every((t) => t !== "快捷键指南")).toBe(true);
 
-  // Global tab navigation with Mod+1, Mod+2, Mod+3
-  // Mod+1 -> Discover
-  await app.keyboard.press("mod+1");
-  await app.waitFor("Discover · 精听推荐");
-  expect(app.texts().some((t) => t.includes("Discover · 精听推荐"))).toBe(true);
-
-  // Mod+2 -> Video Library
   await app.keyboard.press("mod+2");
-  expect(app.texts().some((t) => t.includes("Videos") || t.includes("Video"))).toBe(true);
+  await app.waitFor("Your library is empty");
 
-  // Mod+3 -> Audio Library
-  await app.keyboard.press("mod+3");
-  expect(app.texts().some((t) => t.includes("Audio"))).toBe(true);
+  await app.keyboard.press("mod+1");
+  await app.waitFor("label:Japanese");
+  expect(app.texts().some((t) => t.includes("Your library is empty"))).toBe(false);
 });

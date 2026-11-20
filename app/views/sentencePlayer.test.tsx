@@ -1,6 +1,7 @@
 import { expect, test } from "nsh/test";
 import {
   clampSentenceIndex,
+  cycleRate,
   displaySentenceText,
   evaluatePlaybackProgress,
   findSentenceIndexAtTime,
@@ -162,4 +163,12 @@ test("evaluatePlaybackProgress handles sentencePause and continuous streaming", 
     activeIndex: 0,
   });
   expect(pauseRes.action).toBe("pause");
+});
+
+test("cycleRate cycles 0.8 → 1 → 1.2 → 1.5 → 2.0 → 0.8", () => {
+  expect(cycleRate(0.8)).toBe(1);
+  expect(cycleRate(1)).toBe(1.2);
+  expect(cycleRate(1.2)).toBe(1.5);
+  expect(cycleRate(1.5)).toBe(2);
+  expect(cycleRate(2)).toBe(0.8);
 });

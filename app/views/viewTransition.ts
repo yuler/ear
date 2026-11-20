@@ -196,7 +196,7 @@ export function getViewTransitionHeroStyle(
     pointerEvents: "none" as const,
     overflow: "hidden" as const,
     transitionProperty: isMoving
-      ? "all, left, top, width, height, border-radius, opacity, box-shadow"
+      ? "all"
       : "none",
     transitionDuration: duration,
     transitionTimingFunction: "cubic-bezier(0.16, 1, 0.3, 1)" as const,

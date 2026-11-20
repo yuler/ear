@@ -37,11 +37,8 @@ export type DiscoverItem = {
   hasSubtitles?: boolean;
 };
 
-/** Active filter states for discover. */
+/** Active Discover filters: a language and one level of its scale. */
 export type DiscoverFilterState = {
-  language: "all" | DiscoverLanguage;
+  language: DiscoverLanguage;
   level: "all" | DiscoverLevel;
-  durationTier: "all" | DurationTier;
-  tag: string | null;
-  searchQuery: string;
 };

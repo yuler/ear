@@ -78,7 +78,7 @@ test("getViewTransitionHeroStyle manages position, opacity, and transition prope
   expect(enteringStyle.height).toBe(450);
   expect(enteringStyle.borderRadius).toBe(12);
   expect(enteringStyle.opacity).toBe(1);
-  expect(enteringStyle.transitionProperty).toContain("left");
+  expect(enteringStyle.transitionProperty).toBe("all");
 
   // Phase 3: settled (hidden at target, native player takes over)
   const settledStyle = getViewTransitionHeroStyle("settled", origin, target);
@@ -91,7 +91,7 @@ test("getViewTransitionHeroStyle manages position, opacity, and transition prope
   expect(closingStyle.width).toBe(120);
   expect(closingStyle.height).toBe(68);
   expect(closingStyle.opacity).toBe(1);
-  expect(closingStyle.transitionProperty).toContain("left");
+  expect(closingStyle.transitionProperty).toBe("all");
   expect(closingStyle.transitionDuration).toBe("340ms");
 });
 

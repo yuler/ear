@@ -17,6 +17,14 @@ import {
 import type { SentenceLengthMode } from "../youtube/captions";
 import { VideoDetailView } from "./VideoDetailView";
 import { getSentence3DStyle, SentenceRow } from "./SentenceRow";
+import {
+  computePlayerLayout,
+  nextLayoutMode,
+  PLAYER_CONTROLS_H,
+  PLAYER_HEADER_H,
+  PLAYER_SIDE_PAD,
+  subtitleTextSize,
+} from "./playerLayout";
 
 const sentences: Sentence[] = [
   {
@@ -194,7 +202,7 @@ test("normalizeSettings defaults language to English and validates Chinese", () 
   expect(fallback.language).toBe("en");
 });
 
-test("VideoDetailMetaBar and sentence length switching updates sentences in real time", () => {
+test("Sentence length switching updates sentences in real time", () => {
   const cues = [
     { startMs: 0, endMs: 1500, text: "Hello everyone," },
     { startMs: 1500, endMs: 3000, text: "welcome to the channel," },
@@ -259,42 +267,33 @@ test("Sentence pause listening flow: continuous playback by default (sentencePau
   expect(paused).toBe(false);
 });
 
-test("Immersive video controls visibility: hidden during auto-play/auto-pause, shows on mouse activity with 5s reset", () => {
-  let controlsVisible = false;
-  let timerMs = 0;
+test("Player layout: aspect ratio switches mode with hysteresis, sizes follow the spec", () => {
+  // ≥ 1.65 → side, ≤ 1.55 → stacked, in between keep the current mode.
+  expect(nextLayoutMode("stacked", 1600, 700)).toBe("side");
+  expect(nextLayoutMode("side", 800, 560)).toBe("stacked");
+  expect(nextLayoutMode("stacked", 1200, 750)).toBe("stacked"); // 1.6
+  expect(nextLayoutMode("side", 1200, 750)).toBe("side"); // 1.6
 
-  // 1. Initial state and playback states: controls stay hidden
-  expect(controlsVisible).toBe(false);
+  // Side: subtitle column 38% of width clamped to 360..520, video 16:9 fits the left column.
+  const wide = computePlayerLayout("side", 1600, 700);
+  expect(wide.subtitleWidth).toBe(520);
+  expect(wide.mainWidth).toBe(1080);
+  const maxH = 700 - PLAYER_HEADER_H - PLAYER_CONTROLS_H - PLAYER_SIDE_PAD * 2;
+  expect(wide.videoWidth).toBe(Math.floor(Math.min(1080 - PLAYER_SIDE_PAD * 2, (maxH * 16) / 9)));
+  expect(wide.videoHeight).toBe(Math.floor((wide.videoWidth * 9) / 16));
+  expect(computePlayerLayout("side", 900, 500).subtitleWidth).toBe(360);
 
-  // Auto-pause or playback state changes do NOT force controls to show
-  const onAutoPause = () => {
-    // Controls stay hidden when auto-pausing
-  };
-  onAutoPause();
-  expect(controlsVisible).toBe(false);
+  // Stacked: video height = min(width * 9/16, 55% of the height under the header).
+  const small = computePlayerLayout("stacked", 800, 560);
+  expect(small.videoWidth).toBe(800);
+  expect(small.videoHeight).toBe(Math.floor((560 - PLAYER_HEADER_H) * 0.55));
+  const tall = computePlayerLayout("stacked", 800, 1400);
+  expect(tall.videoHeight).toBe(450);
 
-  // 2. Mouse enters / moves: controls become visible with 5-second countdown
-  const onPointerActivity = () => {
-    controlsVisible = true;
-    timerMs = 5000;
-  };
-
-  onPointerActivity();
-  expect(controlsVisible).toBe(true);
-  expect(timerMs).toBe(5000);
-
-  // 3. Mouse continues moving inside the area -> 5s timer resets
-  timerMs = 2000; // 3 seconds elapsed
-  onPointerActivity(); // mouse moved again
-  expect(timerMs).toBe(5000); // reset to 5s!
-  expect(controlsVisible).toBe(true);
-
-  // 4. Time elapses -> controls hide
-  const onTimerExpire = () => {
-    controlsVisible = false;
-  };
-  onTimerExpire();
-  expect(controlsVisible).toBe(false);
+  // Subtitle text size picks one of 3 sizes from the column width.
+  expect(subtitleTextSize(360)).toBe("sm");
+  expect(subtitleTextSize(600)).toBe("md");
+  expect(subtitleTextSize(1200)).toBe("lg");
 });
 
 test("Smooth continuous playback: streams forward without seek halts", () => {
@@ -367,7 +366,7 @@ test("3D rolling subtitles: preceding sentences tilt back, upcoming sentences vi
   expect(next3Style.opacity).toBe(0.36);
 });
 
-test("SentenceRow: clutter-free active row has no redundant repeat/reveal buttons", () => {
+test("SentenceRow: shows only the text, no index, difficulty or masked badges", () => {
   let toggled = false;
   let listened = false;
 
@@ -391,6 +390,8 @@ test("SentenceRow: clutter-free active row has no redundant repeat/reveal button
   const str = JSON.stringify(row);
   expect(str.includes("Reveal sentence")).toBe(false);
   expect(str.includes("Repeat")).toBe(false);
+  expect(str.includes("i-1")).toBe(false);
+  expect(str.includes("Masked")).toBe(false);
 });
 
 
