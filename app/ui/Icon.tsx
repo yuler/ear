@@ -5,6 +5,7 @@ import chevronRight from "./icons/chevron-right.svg";
 import clipboard from "./icons/clipboard.svg";
 import compass from "./icons/compass.svg";
 import download from "./icons/download.svg";
+import ear from "./icons/ear.svg";
 import eye from "./icons/eye.svg";
 import eyeOff from "./icons/eye-off.svg";
 import film from "./icons/film.svg";
@@ -34,6 +35,7 @@ const ICONS = {
   clipboard,
   compass,
   download,
+  ear,
   eye,
   "eye-off": eyeOff,
   film,

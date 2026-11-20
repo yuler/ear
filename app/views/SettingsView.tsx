@@ -23,6 +23,7 @@ import type {
   EarLocale,
   SentenceLengthMode,
 } from "../store";
+import { EarMark } from "../ui/EarMark";
 import { Icon } from "../ui/Icon";
 import { settings, updateSettings } from "../ui/settings";
 
@@ -356,8 +357,8 @@ export function SettingsView(props?: { onBack?: () => void; onClose?: () => void
           <View class="flex-col rounded-2xl border border-line bg-card p-5 gap-3.5">
             <View class="flex-row items-center justify-between">
               <View class="flex-row items-center gap-3">
-                <View class="h-9 w-9 items-center justify-center rounded-xl bg-well">
-                  <Icon name="headphones" size={18} tone="primary" />
+                <View class="h-9 w-9 items-center justify-center rounded-xl border border-line bg-well">
+                  <EarMark size={19} />
                 </View>
                 <View class="flex-col">
                   <Text class="text-sm font-bold text-foreground">Ear · Immersion Player</Text>

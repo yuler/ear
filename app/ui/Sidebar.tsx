@@ -1,5 +1,6 @@
 import { platform, Text, View } from "nsh";
 import { Button } from "nsh/base";
+import { EarMark } from "./EarMark";
 import { Icon } from "./Icon";
 import { macTitleBarInsets } from "./titleBarInsets";
 import { globalUpdateAvailable } from "../updater";
@@ -36,8 +37,8 @@ export function Sidebar(props: SidebarProps) {
           class="flex-col pb-1"
         >
           <View class="flex-row items-center gap-2.5 py-1" accessibilityLabel="Ear">
-            <View class="h-7 w-7 items-center justify-center rounded-lg bg-primary/15">
-              <Icon name="headphones" size={16} color="#2f7cf6" />
+            <View class="h-7 w-7 items-center justify-center rounded-lg border border-line bg-well">
+              <EarMark size={17} />
             </View>
             <View class="flex-col">
               <Text class="text-sm font-bold tracking-tight text-foreground">

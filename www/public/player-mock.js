@@ -68,8 +68,9 @@ window.MOCK_WINDOW_HTML = `<div class="window-titlebar">
         <div>
           <div class="sidebar-brand">
             <div class="brand-icon" style="width:22px; height:22px;">
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
-                <path d="M3 14h3a2 2 0 0 1 2 2v3a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-7a9 9 0 0 1 18 0v7a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3"/>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M5 12H17A6 6 0 1 0 15.24 16.24" stroke="currentColor"/>
+                <path d="M19.19 6.26A10 10 0 0 1 19.19 17.74" stroke="var(--accent)"/>
               </svg>
             </div>
             <span style="font-size:13px; font-weight:700;">Ear</span>
