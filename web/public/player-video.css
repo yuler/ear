@@ -1,4 +1,4 @@
-/* www/public/player-video.css - Hero demo Stage 2 practice player + responsive/reduced-motion rules */
+/* web/public/player-video.css - Hero demo Stage 2 practice player + responsive/reduced-motion rules */
 /* Stage 2: 播放视频，下面显示字幕 */
 .player-stage { display:flex; flex-direction:column; gap:8px; height:100% }
 .player-top-header { display:flex; align-items:center; justify-content:space-between; padding-bottom:4px; border-bottom:1px solid var(--border) }

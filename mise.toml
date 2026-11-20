@@ -26,7 +26,7 @@ depends = ["cli:dev"]
 run = "nsh run app"
 
 [tasks.dev]
-description = "Run all *:dev tasks in parallel (cli + app + www)"
+description = "Run all *:dev tasks in parallel (cli + app + web)"
 depends = ["*:dev"]
 
 [tasks."app:check"]
@@ -38,15 +38,16 @@ run = "nsh check app"
 description = "Run tests on Native Shell desktop app"
 run = "nsh test app"
 
-[tasks."www:dev"]
+[tasks."web:dev"]
 description = "Start Cloudflare Worker & static site preview locally via Wrangler"
-dir = "www"
+alias = ["www:dev"]
+dir = "web"
 run = "wrangler dev"
 
-[tasks."www:deploy"]
+[tasks."web:deploy"]
 description = "Deploy website & Cloudflare Worker to Cloudflare"
-alias = ["deploy", "deploy-www"]
-dir = "www"
+alias = ["deploy", "deploy-web", "www:deploy", "deploy-www"]
+dir = "web"
 run = "wrangler deploy"
 
 [tasks.test]
