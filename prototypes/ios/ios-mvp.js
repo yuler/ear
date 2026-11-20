@@ -59,7 +59,6 @@ function maybeStartAutoSync() {
 
   syncTimer = setInterval(() => {
     if (state.offlineMode || !state.lanConnected || !state.pairedDevice) {
-      next.state = "remote";
       stopAutoSync();
       renderLibrary();
       return;
@@ -79,6 +78,8 @@ function maybeStartAutoSync() {
 }
 
 function stopAutoSync() {
+  const active = state.library.find((item) => item.id === state.syncingId);
+  if (active && active.state === "syncing") active.state = "remote";
   if (syncTimer) {
     clearInterval(syncTimer);
     syncTimer = null;
