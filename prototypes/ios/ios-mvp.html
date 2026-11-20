@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Ear iOS MVP · 原型预览</title>
+  <link rel="stylesheet" href="./ios-mvp.css" />
+</head>
+<body>
+  <header class="sim-bar">
+    <div class="sim-title">Ear iOS MVP · 交互原型</div>
+    <div class="sim-controls">
+      <button id="simLanBtn" class="sim-btn active" type="button">LAN: 已接入家庭 Wi-Fi</button>
+      <button id="simPairBtn" class="sim-btn active" type="button">已配对: MacBook Pro</button>
+      <button id="simAddMacBtn" class="sim-btn" type="button">+ Mac 新下好 1 个视频</button>
+      <button id="simAirDropBtn" class="sim-btn" type="button">模拟 AirDrop 配对文件</button>
+    </div>
+  </header>
+
+  <main class="stage">
+    <section class="phone" aria-label="iPhone 预览壳">
+      <div class="notch"></div>
+
+      <!-- View 1: Library -->
+      <div id="libraryView" class="screen active">
+        <div class="top-header">
+          <div>
+            <h1>Ear</h1>
+            <p class="subtitle">Local Listening Mirror</p>
+          </div>
+          <button id="offlineToggle" class="offline-pill" type="button" aria-pressed="false">
+            <span class="dot"></span>
+            <span id="offlineLabel">Offline Mode</span>
+          </button>
+        </div>
+
+        <div id="syncBanner" class="sync-banner">
+          <div class="sync-row">
+            <div class="sync-info">
+              <span id="syncIcon" class="sync-icon">↻</span>
+              <div>
+                <div id="syncTitle" class="sync-title">正在连接 MacBook Pro…</div>
+                <div id="syncDetail" class="sync-detail">接入同一局域网后自动镜像同步</div>
+              </div>
+            </div>
+            <button id="pairEntryBtn" class="ghost-btn" type="button">设备</button>
+          </div>
+          <div id="syncProgressWrap" class="sync-progress-wrap hidden">
+            <div id="syncProgressBar" class="sync-progress-bar"></div>
+          </div>
+        </div>
+
+        <div id="libraryList" class="library-list"></div>
+      </div>
+
+      <!-- View 2: Top-Bottom Player -->
+      <div id="playerView" class="screen">
+        <div class="player-nav">
+          <button id="backToLibBtn" class="nav-btn" type="button">‹ 返回</button>
+          <div id="playerTitle" class="player-title">Video Title</div>
+          <div class="player-nav-right">
+            <span id="playerOfflineTag" class="mini-badge hidden">Offline</span>
+            <button id="speedBtn" class="speed-pill" type="button">1.0× </button>
+          </div>
+        </div>
+
+        <!-- Top Video Stage (fixed) -->
+        <div class="video-stage" id="videoTapArea">
+          <div class="video-canvas">
+            <div class="ambient-scene" id="ambientScene"></div>
+            <div class="video-caption-chip" id="videoTimeLabel">00:12 / 02:45</div>
+            <div id="playOverlay" class="play-overlay">▶</div>
+          </div>
+          <div class="timeline-track">
+            <div id="loopHighlight" class="loop-highlight"></div>
+            <div id="timelineFill" class="timeline-fill"></div>
+          </div>
+        </div>
+
+        <!-- Bottom Subtitle Stream (scrollable) -->
+        <div id="subtitleScroll" class="subtitle-scroll"></div>
+
+        <!-- Thumb-Zone Action Controls -->
+        <div class="thumb-bar">
+          <button id="maskBtn" class="ctrl-btn" type="button" title="盲听遮罩">
+            <span class="ctrl-glyph">👁</span>
+            <span class="ctrl-label" id="maskLabel">遮罩</span>
+          </button>
+          <button id="prevSentBtn" class="ctrl-btn" type="button" title="上一句">
+            <span class="ctrl-glyph">⏮</span>
+            <span class="ctrl-label">上一句</span>
+          </button>
+          <button id="playPauseBtn" class="ctrl-btn primary" type="button" title="播放或暂停">
+            <span class="ctrl-glyph" id="playPauseGlyph">⏸</span>
+          </button>
+          <button id="loopBtn" class="ctrl-btn" type="button" title="单句循环">
+            <span class="ctrl-glyph">↻</span>
+            <span class="ctrl-label" id="loopLabel">单句循环</span>
+          </button>
+          <button id="nextSentBtn" class="ctrl-btn" type="button" title="下一句">
+            <span class="ctrl-glyph">⏭</span>
+            <span class="ctrl-label">下一句</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Modal Sheet: Pair & LAN Sync -->
+      <div id="pairSheetBackdrop" class="sheet-backdrop hidden">
+        <div class="sheet" role="dialog" aria-modal="true" aria-label="桌面配对与同步">
+          <div class="sheet-handle"></div>
+          <div class="sheet-head">
+            <h2>桌面配对 &amp; 镜像</h2>
+            <button id="closeSheetBtn" class="ghost-btn" type="button">关闭</button>
+          </div>
+          <div id="sheetBody" class="sheet-body"></div>
+        </div>
+      </div>
+
+      <div class="home-indicator"></div>
+    </section>
+  </main>
+
+  <script src="./ios-mvp.js"></script>
+</body>
+</html>
