@@ -55,3 +55,9 @@
 - 桌面客户端使用 NSH 原生模块 `nsh/updater`，启动时静默检查更新（通过 `nsh.json` 的 `updater` 声明）。
 - **增量 OTA 更新**：优先检查 `checkForPackage()`。若存在受信任根密钥认证的新版签名包（`.nshpkg`），客户端通过 `downloadPackage()` 极速下载至用户数据目录（不触碰系统目录与 macOS 代码签名），并调用 `restartToPackage()` 毫秒级重启进入新版本，自带 10 秒试运行和自动回滚保护机制。
 - **全量平台升级**：当 Native Runner 底座发生变更时，回退到 `checkForUpdate()`，提示用户通过 `downloadUpdate()` / `installAndRestart()` 安装完整平台包。
+
+## Release delivery policy
+
+See [Release delivery modes](./release-modes.md) for the implemented automatic
+full-update detection and manual override. Shell-changing releases omit OTA from
+the manifest; UI-only releases keep the normal signed OTA path.
