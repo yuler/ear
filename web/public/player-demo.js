@@ -1,4 +1,4 @@
-/* www/public/player-demo.js - 3-step walkthrough state machine for the hero demo.
+/* web/public/player-demo.js - 3-step walkthrough state machine for the hero demo.
    Cursor + timers: /player-cursor.js · Video controls: /player-controls.js */
 (function() {
   const $ = (id) => document.getElementById(id);

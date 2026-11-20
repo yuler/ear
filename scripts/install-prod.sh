@@ -59,7 +59,7 @@ EOF
   chmod +x "${HOME}/.local/bin/Ear"
 
   SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-  ICON_SRC="${SCRIPT_DIR}/../www/public/favicon.svg"
+  ICON_SRC="${SCRIPT_DIR}/../web/public/favicon.svg"
   if [[ -f "$ICON_SRC" ]]; then
     cp "$ICON_SRC" "${HOME}/.local/share/icons/hicolor/scalable/apps/ear.svg"
   fi

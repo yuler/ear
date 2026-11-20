@@ -1,4 +1,4 @@
-/* www/public/player.css - App Mockup, Downbit Download Row & Video Practice Player */
+/* web/public/player.css - App Mockup, Downbit Download Row & Video Practice Player */
 .app-window { max-width:960px; margin:0 auto 60px; background:var(--surface); border-radius:var(--radius-lg); border:1px solid var(--border); box-shadow:var(--window-shadow); overflow:hidden; display:flex; flex-direction:column; position:relative; -webkit-font-smoothing:antialiased; -moz-osx-font-smoothing:grayscale; text-rendering:optimizeLegibility }
 .window-titlebar { height:42px; background:var(--bg-subtle); border-bottom:1px solid var(--border); display:flex; align-items:center; justify-content:space-between; padding:0 14px; user-select:none; z-index:10 }
 .window-dots { display:flex; gap:7px }

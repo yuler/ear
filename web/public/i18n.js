@@ -1,4 +1,4 @@
-/* www/public/i18n.js - English & Chinese Translations for Ear */
+/* web/public/i18n.js - English & Chinese Translations for Ear */
 const I18N = {
   en: {
     nav_how: "How it Works",
