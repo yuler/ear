@@ -50,6 +50,35 @@ expect_mode full "$before"
 if bash "$root/scripts/release-mode.sh" missing-ref HEAD false >/dev/null 2>&1; then exit 1; fi
 if bash "$root/scripts/release-mode.sh" "$base" HEAD invalid >/dev/null 2>&1; then exit 1; fi
 
+# A pushed tag is not proof of a successful release. Mock the successful-run
+# lookup separately so reruns and subsequent UI pushes use the shipped SHA.
+mkdir -p "$tmp/baseline-bin"
+cat > "$tmp/baseline-bin/gh" <<'GH'
+#!/usr/bin/env bash
+set -euo pipefail
+[[ "$*" == *'actions/workflows/release.yml/runs?branch=main&status=success&per_page=1'* ]]
+[ "${LOOKUP_FAIL:-false}" = false ] || exit 1
+printf '%s\n' "${SHIPPED_SHA:-}"
+GH
+chmod +x "$tmp/baseline-bin/gh"
+export PATH="$tmp/baseline-bin:$PATH" GITHUB_REPOSITORY=test/ear
+export SHIPPED_SHA=$base
+# Model tag creation (or partial visible Release creation) followed by failure.
+native_head=$(git rev-parse HEAD)
+git tag v1.0.1
+published=$(bash "$root/scripts/release-baseline.sh")
+expect_mode full "$published"
+printf 'after failed release' >> app/ui/View.tsx
+git add . && git commit -qm UI-after-failure
+expect_mode full "$(bash "$root/scripts/release-baseline.sh")"
+# Once the native release workflow completes successfully, the UI diff is OTA.
+export SHIPPED_SHA=$native_head
+expect_mode ota "$(bash "$root/scripts/release-baseline.sh")"
+# No successful release, or a failed API lookup, must never silently offer OTA.
+export SHIPPED_SHA=''
+expect_mode full "$(bash "$root/scripts/release-baseline.sh")"
+expect_mode full "$(LOOKUP_FAIL=true bash "$root/scripts/release-baseline.sh")"
+
 mkdir -p "$tmp/bin" "$tmp/fixture/app" "$tmp/fixture/dist" "$tmp/fixture/keys"
 cat > "$tmp/bin/nsh" <<'MOCK'
 #!/usr/bin/env bash

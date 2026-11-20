@@ -11,8 +11,12 @@ whether the signed update manifest may also advertise an OTA package.
 
 ## Automatic selection
 
-`prepare` compares the release commit with the latest version tag, covering all
-changes since that release, not just the final commit. Any change to these inputs
+`prepare` compares the release commit with the source SHA of the most recent
+**successful `release.yml` workflow on main**, covering all changes since that
+completed release, not just the final commit. Tags remain the version-allocation
+source only: a pushed tag, or a partially uploaded visible Release, is not proof
+that delivery succeeded. A fresh retry or later UI commit still requires full
+delivery until the native change has a successful release run. Any change to these inputs
 requires a full update:
 
 - `app/icon.*` (including this PR's installed icon), `app/nsh.json` (platform
@@ -20,8 +24,8 @@ requires a full update:
 - `cli/**`, `scripts/linux-launcher.sh` (native executable/bundle contents).
 - `mise.toml` (pinned NSH runtime), `.github/workflows/release.yml` (packaging).
 
-Added, removed and renamed paths are checked. The first release is full; an
-invalid comparison fails instead of silently selecting OTA. Changes confined to
+Added, removed and renamed paths are checked. Without a successful release (including an unavailable Actions API), delivery
+defaults to full. An invalid comparison fails instead of silently selecting OTA. Changes confined to
 TSX, styles or UI-imported assets do not force a full update.
 
 ## Manual override
@@ -37,4 +41,6 @@ Normal release/update signing keys remain required for signed delivery. Without
 release signing material, the existing full-app fallback remains in place.
 
 Run `bash scripts/release.test.sh` for hermetic policy and manifest-command tests.
-The same tests run in the required `Check & Test` CI job.
+The same tests run in the required `Check & Test` CI job and release quality
+gate, including failed-publication retry and later-UI-commit cases. The release
+workflow needs `actions: read` to resolve successful runs.

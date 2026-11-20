@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Resolve changes since the last release, not merely the last commit.
+# Resolve changes since the last successful release workflow, not merely the last commit.
 set -euo pipefail
 base=${1:-}
 head=${2:-HEAD}

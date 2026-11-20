@@ -22,6 +22,7 @@ on:
 
 permissions:
   contents: write
+  actions: read
 
 concurrency:
   group: release-main
@@ -51,10 +52,12 @@ jobs:
         id: vars
         env:
           FORCE_FULL_UPDATE: ${{ inputs.full_update || false }}
+          GH_TOKEN: ${{ github.token }}
         shell: bash
         run: |
           LATEST_TAG=$(git for-each-ref --sort=-version:refname --count=1 --format='%(refname:short)' 'refs/tags/v*')
-          RELEASE_MODE=$(bash scripts/release-mode.sh "$LATEST_TAG" HEAD "$FORCE_FULL_UPDATE")
+          RELEASE_BASELINE=$(bash scripts/release-baseline.sh)
+          RELEASE_MODE=$(bash scripts/release-mode.sh "$RELEASE_BASELINE" HEAD "$FORCE_FULL_UPDATE")
           echo "release_mode=$RELEASE_MODE" >> "$GITHUB_OUTPUT"
 
           OVERRIDE_TAG="${{ github.event.inputs.tag }}"

@@ -47,7 +47,7 @@ Ear 桌面客户端通过 `nsh/updater` 做自动更新。本文说明 OTA（`.n
 
 Implemented full-update controls:
 
-- Automatic detection compares all changes since the latest version tag: `app/icon.*`, `app/nsh.json`, `cli/**`, `mise.toml`, `scripts/linux-launcher.sh`, and `.github/workflows/release.yml` require full delivery.
+- Automatic detection compares all changes since the last successful `release.yml` workflow on main (not merely a pushed tag or a partially published Release): `app/icon.*`, `app/nsh.json`, `cli/**`, `mise.toml`, `scripts/linux-launcher.sh`, and `.github/workflows/release.yml` require full delivery.
 - `workflow_dispatch` with `full_update: true` forces full delivery for other shell-affecting changes. `false` keeps automatic selection; it does not force OTA.
 - Full delivery skips OTA publication, never passes `--package`, and verifies that the generated manifest has no `package` field before publication. UI-only releases retain signed OTA when signing material is available.
 - Commit markers and PR labels are not implemented controls.
