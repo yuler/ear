@@ -124,6 +124,9 @@ jobs:
       - name: Release policy regressions
         run: bash scripts/release.test.sh
 
+      - name: iOS prototype regressions
+        run: node --test prototypes/ios/*.test.cjs
+
       - name: Evaluate status
         run: |
           DETECT_RES="${{ needs.detect-changes.result }}"
