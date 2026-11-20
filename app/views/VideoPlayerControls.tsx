@@ -1,9 +1,11 @@
-import { signal, Text, View, type ViewRef } from "nsh";
+import { Text, View } from "nsh";
 import { Button } from "nsh/base";
 import type { PlaybackRate } from "../player";
-import { Icon } from "../ui/Icon";
+import { Icon, type IconName } from "../ui/Icon";
 import { t, type EarLocale } from "../ui/i18n";
+import type { SentenceLengthMode } from "../youtube/captions";
 import type { Sentence } from "../youtube/types";
+import { PLAYER_CONTROLS_H } from "./playerLayout";
 import { formatSentenceTime } from "./sentencePlayer";
 
 export type VideoPlayerControlsProps = {
@@ -11,266 +13,213 @@ export type VideoPlayerControlsProps = {
   onTogglePlay: () => void;
   currentTimeSec: () => number;
   durationSec: () => number;
-  rate: () => PlaybackRate;
-  onCycleRate: () => void;
-  muted: () => boolean;
-  onToggleMute: () => void;
-  maskAll: () => boolean;
-  onToggleMask: () => void;
-  blockerEnabled?: () => boolean;
-  onToggleBlocker?: () => void;
+  onSeek: (seconds: number) => void;
   sentences: () => Sentence[];
   onPrevSentence: () => void;
   onRepeatSentence: () => void;
   onNextSentence: () => void;
-  onSeek: (seconds: number) => void;
-  language?: () => EarLocale;
-  visible?: () => boolean;
-  onActivity?: () => void;
+  rate: () => PlaybackRate;
+  onCycleRate: () => void;
+  sentencePause: () => boolean;
+  onToggleSentencePause: () => void;
+  maskAll: () => boolean;
+  onToggleMask: () => void;
+  sentenceLength: () => SentenceLengthMode;
+  onChangeSentenceLength: (mode: SentenceLengthMode) => void;
+  /** Omitted for audio-only entries (nothing to block). */
+  blockerEnabled?: () => boolean;
+  onToggleBlocker?: () => void;
+  language: () => EarLocale;
 };
 
+const BTN = "h-8 min-w-8 flex-row items-center justify-center gap-1.5 rounded-md px-2";
+
+function toggleClass(on: boolean): string {
+  return `${BTN} border ${
+    on
+      ? "border-ring bg-accent"
+      : "border-transparent hover:bg-accent"
+  }`;
+}
+
+function IconButton(props: {
+  icon: IconName;
+  label: string;
+  onPress: () => void;
+  active?: boolean;
+}) {
+  return (
+    <Button
+      onPress={props.onPress}
+      class={toggleClass(Boolean(props.active))}
+      accessibilityLabel={props.label}
+      tooltip={<Text class="text-xs">{props.label}</Text>}
+    >
+      <Icon
+        name={props.icon}
+        size={15}
+        tone={props.active ? "foreground" : "muted-foreground"}
+      />
+    </Button>
+  );
+}
+
+/** Seekable progress track with sentence ticks. */
+function SeekBar(props: VideoPlayerControlsProps) {
+  let trackWidth = 0;
+  const dur = () => Math.max(0.1, props.durationSec());
+  const percent = () =>
+    Math.min(100, Math.max(0, (Math.max(0, props.currentTimeSec()) / dur()) * 100));
+
+  return (
+    <View class="flex-row items-center gap-3">
+      <Text class="font-mono text-xs tabular-nums text-muted-foreground">
+        {formatSentenceTime(Math.max(0, props.currentTimeSec()) * 1000)}
+      </Text>
+      <View
+        onLayout={(e) => {
+          trackWidth = e.bounds.size.width;
+        }}
+        onPress={(e: { position?: { x: number } }) => {
+          const x = e?.position?.x;
+          if (typeof x === "number" && trackWidth > 0) {
+            props.onSeek(Math.max(0, Math.min(1, x / trackWidth)) * dur());
+          }
+        }}
+        class="h-4 flex-1 cursor-pointer justify-center"
+        accessibilityLabel={t(props.language()).seekProgress}
+      >
+        <View class="relative h-1 w-full overflow-hidden rounded-full bg-muted">
+          <View style={{ width: `${percent()}%` }} class="h-full bg-foreground" />
+          <Each of={props.sentences()} key={(s) => `${s.startMs}-${s.endMs}-${s.index}`}>
+            {(s) => (
+              <View
+                style={{ left: `${(s().startMs / 1000 / dur()) * 100}%` }}
+                class="pointer-events-none absolute inset-y-0 w-px bg-background/60"
+              />
+            )}
+          </Each>
+        </View>
+        <View
+          style={{ left: `${percent()}%` }}
+          class="pointer-events-none absolute -ml-1.5 h-3 w-3 rounded-full bg-foreground"
+        />
+      </View>
+      <Text class="font-mono text-xs tabular-nums text-muted-foreground">
+        {formatSentenceTime(dur() * 1000)}
+      </Text>
+    </View>
+  );
+}
+
 /**
- * 100% width video player controls and interactive progress bar.
+ * Fixed control bar directly under the video: progress on top,
+ * playback and sentence controls below. No overlay, no auto-hide.
  */
 export function VideoPlayerControls(props: VideoPlayerControlsProps) {
-  let trackRef: ViewRef | null = null;
-  let trackWidth = 0;
-  const isBottomVisible = () => (props.visible ? props.visible() : false);
-
-  const lang = () => props.language?.() ?? "en";
-  const m = () => t(lang());
-
-  const curSec = () => Math.max(0, props.currentTimeSec());
-  const durSec = () => Math.max(0.1, props.durationSec());
-  const percent = () => Math.min(100, Math.max(0, (curSec() / durSec()) * 100));
-
-  const handleTrackPress = (e: { position?: { x: number; y: number } }) => {
-    const x = e?.position?.x;
-    if (typeof x === "number" && trackWidth > 0) {
-      const ratio = Math.max(0, Math.min(1, x / trackWidth));
-      props.onSeek(ratio * durSec());
-    } else if (trackRef && typeof x === "number") {
-      void trackRef.measure().then((mRef) => {
-        if (mRef && mRef.bounds && mRef.bounds.size.width > 0) {
-          const ratio = Math.max(0, Math.min(1, x / mRef.bounds.size.width));
-          props.onSeek(ratio * durSec());
-        }
-      });
-    }
-  };
+  const m = () => t(props.language());
+  const lengths: { mode: SentenceLengthMode; label: () => string; desc: () => string }[] = [
+    { mode: "short", label: () => m().shortSentences, desc: () => m().shortSentencesDesc },
+    { mode: "medium", label: () => m().mediumSentences, desc: () => m().mediumSentencesDesc },
+    { mode: "long", label: () => m().longSentences, desc: () => m().longSentencesDesc },
+  ];
 
   return (
     <View
-      onMouseEnter={props.onActivity}
-      onMouseMove={props.onActivity}
-      class="absolute inset-0 flex-col justify-between pointer-events-none z-20"
+      style={{ height: PLAYER_CONTROLS_H }}
+      class="w-full shrink-0 justify-center gap-2 px-3"
     >
-      {/* 1. Big Center Play Overlay Button when paused (only shown when controls are active) */}
-      <If when={props.paused() && isBottomVisible()}>
-        <View class="absolute inset-0 items-center justify-center bg-black/25 pointer-events-auto">
+      <SeekBar {...props} />
+
+      <View class="flex-row items-center justify-between gap-2">
+        <View class="flex-row items-center gap-1">
+          <IconButton
+            icon="chevron-left"
+            label={m().previousSentenceFull}
+            onPress={props.onPrevSentence}
+          />
           <Button
             onPress={props.onTogglePlay}
-            class="h-16 w-16 items-center justify-center rounded-full border border-white/40 bg-black/75 shadow-2xl transition hover:scale-105 active:scale-95"
-            accessibilityLabel={m().playVideo}
+            class={`${BTN} w-9 bg-primary`}
+            accessibilityLabel={props.paused() ? m().play : m().pause}
           >
-            <Icon name="play" size={26} color="#ffffff" />
+            <Icon
+              name={props.paused() ? "play" : "pause"}
+              size={15}
+              tone="primary-foreground"
+            />
+          </Button>
+          <IconButton
+            icon="chevron-right"
+            label={m().nextSentenceFull}
+            onPress={props.onNextSentence}
+          />
+          <IconButton
+            icon="repeat"
+            label={m().repeatSentenceFull}
+            onPress={props.onRepeatSentence}
+          />
+          <Button
+            onPress={props.onCycleRate}
+            class={`${toggleClass(props.rate() !== 1)} w-12`}
+            accessibilityLabel={m().playbackSpeed}
+          >
+            <Text class="font-mono text-xs text-foreground">{props.rate()}x</Text>
           </Button>
         </View>
-      </If>
 
-      {/* Spacer to push controls to bottom */}
-      <View class="pointer-events-none flex-1" />
-
-      {/* 2. Bottom Area: progress bar + controls (no in-video subtitles) */}
-      <View
-        class={`w-full flex-col justify-end bg-gradient-to-t from-black/90 via-black/50 to-transparent px-3 pt-8 pb-3 sm:px-4 sm:pb-3.5 transition-all duration-300 ease-out pointer-events-auto ${
-          isBottomVisible()
-            ? "opacity-100 translate-y-0"
-            : "opacity-0 translate-y-2 pointer-events-none"
-        }`}
-      >
-        {/* 4. Seekable Progress Bar */}
-        <View class="mb-2 w-full flex-col">
-          <View
-            ref={(node) => {
-              trackRef = node;
-            }}
-            onLayout={(e) => {
-              trackWidth = e.bounds.size.width;
-            }}
-            onPress={(e) => handleTrackPress(e)}
-            class="group relative h-4 w-full cursor-pointer justify-center"
-            accessibilityLabel={m().seekProgress}
+        <View class="flex-row items-center gap-1">
+          <Button
+            onPress={props.onToggleSentencePause}
+            class={toggleClass(props.sentencePause())}
+            accessibilityLabel={m().sentencePauseToggle}
+            selected={props.sentencePause()}
           >
-            {/* Background Track */}
-            <View class="relative h-1.5 w-full overflow-hidden rounded-full bg-white/25 transition group-hover:h-2.5">
-              {/* Played Fill */}
-              <View
-                style={{ width: `${percent()}%` }}
-                class="h-full rounded-full bg-[#2f7cf6]"
-              />
-
-              {/* Sentence marker ticks */}
-              <Each of={props.sentences()} key={(s) => `${s.startMs}-${s.endMs}-${s.index}`}>
-                {(s) => {
-                  return (
-                    <View
-                      style={{ left: `${(s().startMs / 1000 / durSec()) * 100}%` }}
-                      class="pointer-events-none absolute top-0 bottom-0 w-[1.5px] bg-white/40"
-                    />
-                  );
-                }}
-              </Each>
-            </View>
-
-            {/* Draggable Scrubber Thumb */}
-            <View
-              style={{ left: `${percent()}%` }}
-              class="pointer-events-none absolute -ml-1.5 h-3 w-3 rounded-full border border-black/30 bg-white shadow-md transition group-hover:scale-125"
-            />
-          </View>
-        </View>
-
-        {/* 5. Controllers Toolbar */}
-        <View class="flex-row items-center justify-between gap-2">
-          {/* Left: Play/Pause, Sentence jumps, Time */}
-          <View class="flex-row items-center gap-1.5 sm:gap-2">
-            {/* Play / Pause Toggle */}
-            <Button
-              onPress={props.onTogglePlay}
-              class="h-8 w-8 items-center justify-center rounded-lg border border-white/20 bg-white/10 text-white transition hover:bg-white/25 active:scale-95"
-              accessibilityLabel={props.paused() ? m().play : m().pause}
-            >
-              <Icon
-                name={props.paused() ? "play" : "pause"}
-                size={14}
-                color="#ffffff"
-              />
-            </Button>
-
-            {/* Previous Sentence (⏮) */}
-            <Button
-              onPress={props.onPrevSentence}
-              class="h-8 flex-row items-center gap-1.5 rounded-lg border border-white/15 bg-white/10 px-2.5 text-white transition hover:bg-white/20 active:scale-95 shrink-0"
-              accessibilityLabel={m().previousSentenceFull}
-            >
-              <Icon name="chevron-left" size={13} color="#ffffff" />
-              <Text class="font-mono text-[11px] text-white/90 whitespace-nowrap">
-                {m().prevSentence}
-              </Text>
-            </Button>
-
-            {/* Repeat Current Sentence (🔁) */}
-            <Button
-              onPress={props.onRepeatSentence}
-              class="h-8 flex-row items-center gap-1.5 rounded-lg bg-[#2f7cf6] px-3 text-white shadow-xs transition hover:bg-[#2f7cf6]/90 active:scale-95 shrink-0"
-              accessibilityLabel={m().repeatSentenceFull}
-            >
-              <Icon name="repeat" size={12} color="#ffffff" />
-              <Text class="text-xs font-semibold text-white whitespace-nowrap">
-                {m().repeatSentence}
-              </Text>
-            </Button>
-
-            {/* Next Sentence (⏭) */}
-            <Button
-              onPress={props.onNextSentence}
-              class="h-8 flex-row items-center gap-1.5 rounded-lg border border-white/15 bg-white/10 px-2.5 text-white transition hover:bg-white/20 active:scale-95 shrink-0"
-              accessibilityLabel={m().nextSentenceFull}
-            >
-              <Text class="font-mono text-[11px] text-white/90 whitespace-nowrap">
-                {m().nextSentence}
-              </Text>
-              <Icon name="chevron-right" size={13} color="#ffffff" />
-            </Button>
-
-            {/* Time Display */}
-            <View class="ml-1 flex-row items-center">
-              <Text class="font-mono text-xs tabular-nums text-white">
-                {formatSentenceTime(curSec() * 1000)}
-              </Text>
-              <Text class="font-mono text-xs text-white/60"> / </Text>
-              <Text class="font-mono text-xs tabular-nums text-white/75">
-                {formatSentenceTime(durSec() * 1000)}
-              </Text>
-            </View>
-          </View>
-
-          {/* Right: Rate, Mute, Mask */}
-          <View class="flex-row items-center gap-1.5 sm:gap-2">
-            {/* Playback Speed / Rate */}
-            <Button
-              onPress={props.onCycleRate}
-              class="h-8 items-center justify-center rounded-lg border border-white/15 bg-white/10 px-2 text-white transition hover:bg-white/20 active:scale-95"
-              accessibilityLabel={m().playbackSpeed}
-            >
-              <Text class="font-mono text-xs font-bold text-white">
-                {props.rate()}x
-              </Text>
-            </Button>
-
-            {/* Mute Toggle */}
-            <Button
-              onPress={props.onToggleMute}
-              class="h-8 w-8 items-center justify-center rounded-lg border border-white/15 bg-white/10 text-white transition hover:bg-white/20 active:scale-95"
-              accessibilityLabel={props.muted() ? m().unmute : m().mute}
-            >
-              <Icon
-                name={props.muted() ? "volume-x" : "volume"}
-                size={14}
-                color="#ffffff"
-              />
-            </Button>
-
-            {/* Subtitle Mask Quick Toggle */}
-            <Button
-              onPress={props.onToggleMask}
-              class={`h-8 flex-row items-center gap-1 rounded-lg border px-2 transition active:scale-95 ${
-                props.maskAll()
-                  ? "border-amber-400/60 bg-amber-400/20 text-amber-400"
-                  : "border-white/15 bg-white/10 text-white/80 hover:bg-white/20"
+            <Text
+              class={`text-xs ${
+                props.sentencePause() ? "text-foreground" : "text-muted-foreground"
               }`}
-              accessibilityLabel={m().toggleSubtitlesMask}
             >
-              <Icon
-                name={props.maskAll() ? "eye-off" : "eye"}
-                size={12}
-                color={props.maskAll() ? "#f59e0b" : "#ffffff"}
-              />
-              <Text
-                class={`hidden text-xs font-semibold sm:inline ${
-                  props.maskAll() ? "text-amber-400" : "text-white"
-                }`}
-              >
-                {props.maskAll() ? m().masked : m().captions}
-              </Text>
-            </Button>
-
-            {/* Video Subtitle Blocker Quick Toggle */}
-            <If when={props.onToggleBlocker}>
-              <Button
-                onPress={props.onToggleBlocker}
-                class={`h-8 flex-row items-center gap-1 rounded-lg border px-2 transition active:scale-95 ${
-                  props.blockerEnabled?.()
-                    ? "border-amber-400/60 bg-amber-400/20 text-amber-400"
-                    : "border-white/15 bg-white/10 text-white/80 hover:bg-white/20"
-                }`}
-                accessibilityLabel={m().toggleSubtitleBlocker}
-              >
-                <Icon
-                  name="subtitle-block"
-                  size={12}
-                  color={props.blockerEnabled?.() ? "#f59e0b" : "#ffffff"}
-                />
-                <Text
-                  class={`hidden text-xs font-semibold sm:inline ${
-                    props.blockerEnabled?.() ? "text-amber-400" : "text-white"
+              {m().sentencePause}
+            </Text>
+          </Button>
+          <IconButton
+            icon={props.maskAll() ? "eye-off" : "eye"}
+            label={m().toggleSubtitlesMask}
+            onPress={props.onToggleMask}
+            active={props.maskAll()}
+          />
+          <If when={Boolean(props.onToggleBlocker)}>
+            <IconButton
+              icon="subtitle-block"
+              label={m().toggleSubtitleBlocker}
+              onPress={() => props.onToggleBlocker?.()}
+              active={Boolean(props.blockerEnabled?.())}
+            />
+          </If>
+          <View class="ml-1 flex-row items-center rounded-md bg-muted p-0.5">
+            <Each of={lengths} key={(l) => l.mode}>
+              {(l) => (
+                <Button
+                  onPress={() => props.onChangeSentenceLength(l().mode)}
+                  class={`h-7 justify-center rounded px-2 ${
+                    props.sentenceLength() === l().mode ? "bg-background" : ""
                   }`}
+                  accessibilityLabel={l().desc()}
+                  selected={props.sentenceLength() === l().mode}
                 >
-                  {m().subtitleBlocker}
-                </Text>
-              </Button>
-            </If>
+                  <Text
+                    class={`text-xs ${
+                      props.sentenceLength() === l().mode
+                        ? "text-foreground"
+                        : "text-muted-foreground"
+                    }`}
+                  >
+                    {l().label()}
+                  </Text>
+                </Button>
+              )}
+            </Each>
           </View>
         </View>
       </View>

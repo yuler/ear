@@ -81,11 +81,11 @@ export function MediaErrorNotice(props: MediaErrorNoticeProps) {
   return (
     <View class="w-full">
       <If when={isGst()}>
-        <View class="gap-3 rounded-xl border border-amber-500/40 bg-amber-500/10 p-4 shadow-sm">
+        <View class="gap-3 rounded-lg border border-amber/40 bg-amber-soft p-4">
           {/* Header */}
           <View class="flex-row items-center justify-between gap-2">
             <View class="flex-row items-center gap-2">
-              <Icon name="sparkles" size={15} tone="foreground" />
+              <Icon name="sparkles" size={15} tone="amber" />
               <Text class="text-sm font-semibold text-foreground">
                 {m().gstreamerMissingTitle}
               </Text>
@@ -94,7 +94,7 @@ export function MediaErrorNotice(props: MediaErrorNoticeProps) {
             <If when={Boolean(props.onDismiss)}>
               <Button
                 onPress={props.onDismiss}
-                class="rounded-md p-1 hover:bg-amber-500/20 active:opacity-80"
+                class="rounded-md p-1 hover:bg-amber/20 active:opacity-80"
               >
                 <Icon name="x" size={14} tone="muted-foreground" />
               </Button>
@@ -107,14 +107,14 @@ export function MediaErrorNotice(props: MediaErrorNoticeProps) {
           </Text>
 
           {/* Primary Command Code Box */}
-          <View class="flex-col gap-2 rounded-lg border border-amber-500/30 bg-background/80 p-2.5 sm:flex-row sm:items-center sm:justify-between">
+          <View class="flex-col gap-2 rounded-lg border border-amber/30 bg-background p-2.5 sm:flex-row sm:items-center sm:justify-between">
             <Text class="select-text font-mono text-xs text-foreground">
               {DEFAULT_GSTREAMER_COMMAND}
             </Text>
 
             <Button
               onPress={() => handleCopy(DEFAULT_GSTREAMER_COMMAND)}
-              class="shrink-0 flex-row items-center gap-1.5 rounded-md bg-amber-500/20 px-2.5 py-1.5 hover:bg-amber-500/30 active:opacity-80"
+              class="shrink-0 flex-row items-center gap-1.5 rounded-md bg-amber/20 px-2.5 py-1.5 hover:bg-amber/30 active:opacity-80"
             >
               <Icon
                 name={copied() ? "check" : "clipboard"}
@@ -156,7 +156,7 @@ export function MediaErrorNotice(props: MediaErrorNoticeProps) {
               class="px-2 py-1.5 active:opacity-70"
             >
               <Text class="text-xs text-muted-foreground underline">
-                {showAllDistros() ? "收起其他发行版" : "查看其他发行版命令"}
+                {showAllDistros() ? m().hideOtherDistros : m().showOtherDistros}
               </Text>
             </Button>
           </View>
@@ -181,7 +181,7 @@ export function MediaErrorNotice(props: MediaErrorNoticeProps) {
 
       {/* General Non-GStreamer Error Notice */}
       <If when={!isGst()}>
-        <View class="gap-2 rounded-xl border border-destructive/40 bg-destructive/10 p-3.5">
+        <View class="gap-2 rounded-lg border border-destructive/40 bg-destructive/10 p-3">
           <View class="flex-row items-center justify-between gap-2">
             <Text class="text-xs text-destructive">{props.errorMsg()}</Text>
             <If when={Boolean(props.onDismiss)}>

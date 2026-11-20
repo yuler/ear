@@ -1,4 +1,3 @@
-import { PanResponder, ShaderEffect, shadersAvailable } from "nsh";
 import { expect, test } from "nsh/test";
 import {
   DEFAULT_BLOCKER_RECT,
@@ -6,27 +5,17 @@ import {
   normalizeSettings,
   resetBlockerRect,
   saveBlockerRect,
-  setBlockerBlur,
   setBlockerEnabled,
-  setBlockerMosaic,
-  setBlockerOpacity,
-  setBlockerStyle,
   type SubtitleBlockerRect,
 } from "../store";
 import { t } from "./i18n";
 import { SubtitleBlocker } from "./SubtitleBlocker";
 import {
+  BLOCKER_BACKDROP_FILTER,
   computeDeltaRect,
   computeDragRect,
-  createBlockerVisual,
-  createFeatherGradient,
   cursorForDrag,
-  drawMosaicCanvas,
   getPoint,
-  MOSAIC_DARK_SHADES,
-  MOSAIC_LIGHT_SHADES,
-  MOSAIC_PALETTE,
-  MOSAIC_SHADER,
   nudgeRect,
 } from "./subtitleBlockerLogic";
 
@@ -50,19 +39,11 @@ test("DEFAULT_BLOCKER_RECT provides bottom-centered default percentages", () => 
 test("normalizeSettings validates and normalizes subtitle blocker settings", () => {
   const defaults = normalizeSettings({});
   expect(defaults.subtitleBlockerEnabled).toBe(false);
-  expect(defaults.subtitleBlockerStyle).toBe("mosaic");
-  expect(defaults.subtitleBlockerOpacity).toBe(85);
-  expect(defaults.subtitleBlockerMosaic).toBe(16);
-  expect(defaults.subtitleBlockerBlur).toBe(28);
   expect(defaults.subtitleBlockerDefault).toEqual(DEFAULT_BLOCKER_RECT);
   expect(defaults.subtitleBlockerVideos).toEqual({});
 
   const custom = normalizeSettings({
     subtitleBlockerEnabled: true,
-    subtitleBlockerStyle: "solid",
-    subtitleBlockerOpacity: 60,
-    subtitleBlockerMosaic: 24,
-    subtitleBlockerBlur: 32,
     subtitleBlockerDefault: { x: 5, y: 80, width: 90, height: 15 },
     subtitleBlockerVideos: {
       vid123: { x: 12, y: 75, width: 76, height: 18 },
@@ -71,10 +52,6 @@ test("normalizeSettings validates and normalizes subtitle blocker settings", () 
   });
 
   expect(custom.subtitleBlockerEnabled).toBe(true);
-  expect(custom.subtitleBlockerStyle).toBe("solid");
-  expect(custom.subtitleBlockerOpacity).toBe(60);
-  expect(custom.subtitleBlockerMosaic).toBe(24);
-  expect(custom.subtitleBlockerBlur).toBe(32);
   expect(custom.subtitleBlockerDefault.width).toBe(90);
   expect(custom.subtitleBlockerVideos["vid123"]).toEqual({
     x: 12,
@@ -112,12 +89,9 @@ test("saveBlockerRect clamps coordinates within boundaries", () => {
   expect(clamped.height).toBe(2);
 });
 
-test("setBlockerOpacity and setBlockerBlur update settings correctly", () => {
+test("setBlockerEnabled keeps settings valid; style is a fixed blur", () => {
   setBlockerEnabled(true);
-  setBlockerStyle("mosaic");
-  setBlockerOpacity(90);
-  setBlockerBlur(60);
-  setBlockerMosaic(20);
+  expect(BLOCKER_BACKDROP_FILTER).toContain("blur(");
 
   const s = normalizeSettings({});
   expect(typeof s.subtitleBlockerEnabled).toBe("boolean");
@@ -134,17 +108,11 @@ test("i18n includes English and Chinese translations for subtitle blocker", () =
   expect(en.subtitleBlocker).toBe("Blocker");
   expect(en.toggleSubtitleBlocker).toContain("Toggle subtitle blocker");
   expect(en.resetBlocker).toBe("Reset position");
-  expect(en.blockerOpacity).toBe("Opacity");
-  expect(en.blockerBlur).toBe("Blur");
-  expect(en.blockerMosaic).toBe("Mosaic");
   expect(en.dragToMove).toBe("Drag to move");
 
   expect(zh.subtitleBlocker).toBe("拦截字幕条");
   expect(zh.toggleSubtitleBlocker).toContain("切换拦截字幕条");
   expect(zh.resetBlocker).toBe("重置位置");
-  expect(zh.blockerOpacity).toBe("不透明度");
-  expect(zh.blockerBlur).toBe("高斯虚化");
-  expect(zh.blockerMosaic).toBe("放大马赛克");
   expect(zh.dragToMove).toBe("拖动调整位置");
 });
 
@@ -242,15 +210,6 @@ test("nudgeRect shifts Y position up and down with bounds clamping", () => {
   expect(nudgeRect(botRect, "down", 5).y).toBe(88);
 });
 
-test("createFeatherGradient produces linear-gradient with vertical fade stops", () => {
-  const gradient = createFeatherGradient(20, 90);
-  expect(gradient).toContain("linear-gradient(to bottom");
-  expect(gradient).toContain("rgba(16, 16, 20, 0) 0%");
-  expect(gradient).toContain("rgba(16, 16, 20, 0.9) 20%");
-  expect(gradient).toContain("rgba(16, 16, 20, 0.9) 80%");
-  expect(gradient).toContain("rgba(16, 16, 20, 0) 100%");
-});
-
 test("cursorForDrag maps modes to appropriate cursor types", () => {
   expect(cursorForDrag(null)).toBe("default");
   expect(cursorForDrag("move")).toBe("grabbing");
@@ -262,22 +221,6 @@ test("cursorForDrag maps modes to appropriate cursor types", () => {
   expect(cursorForDrag("se")).toBe("nwse-resize");
   expect(cursorForDrag("ne")).toBe("nesw-resize");
   expect(cursorForDrag("sw")).toBe("nesw-resize");
-});
-
-test("createBlockerVisual generates unified enlarged mosaic + deep blur styles from intensity progress", () => {
-  const visualDefault = createBlockerVisual(85);
-  expect(visualDefault.backgroundImage).toContain("repeating-linear-gradient");
-  expect(visualDefault.backdropFilter).toContain("blur(");
-  expect(visualDefault.backgroundColor).toContain("rgba(12, 12, 18, 0.78)");
-
-  const visualLow = createBlockerVisual(10);
-  expect(visualLow.backgroundImage).toContain("repeating-linear-gradient");
-  expect(visualLow.backdropFilter).toContain("blur(24px)");
-  expect(visualLow.backgroundColor).toContain("rgba(12, 12, 18, 0.45)");
-
-  const visualMax = createBlockerVisual(100);
-  expect(visualMax.backdropFilter).toContain("blur(52px)");
-  expect(visualMax.backgroundColor).toContain("rgba(12, 12, 18, 0.84)");
 });
 
 test("computeDeltaRect calculates smooth displacement with bounding clamps", () => {
@@ -300,60 +243,9 @@ test("computeDeltaRect calculates smooth displacement with bounding clamps", () 
   expect(resizedN.height).toBe(22);
 });
 
-test("drawMosaicCanvas populates context with monochrome staggered mosaic tiles", () => {
-  const drawnRects: { x: number; y: number; w: number; h: number; color: string }[] = [];
-  let cleared = false;
-
-  const mockCtx = {
-    fillStyle: "",
-    clearRect: () => {
-      cleared = true;
-    },
-    fillRect: (x: number, y: number, w: number, h: number) => {
-      drawnRects.push({ x, y, w, h, color: mockCtx.fillStyle });
-    },
-  };
-
-  // Draw 80x20 mosaic at 80% intensity (tileSize ~19px)
-  drawMosaicCanvas(mockCtx, { width: 80, height: 20 }, 80);
-
-  expect(cleared).toBe(true);
-  expect(drawnRects.length).toBeGreaterThan(0);
-  // Verify colors are drawn as translucent rgba tiles
-  expect(drawnRects.every((r) => r.color.startsWith("rgba("))).toBe(true);
-  // Total covered width equals or exceeds canvas dimensions
-  const maxX = Math.max(...drawnRects.map((r) => r.x + r.w));
-  const maxY = Math.max(...drawnRects.map((r) => r.y + r.h));
-  expect(maxX).toBe(80);
-  expect(maxY).toBe(20);
-
-  // Verify palette colors are strictly monochrome (Black, White, Grey)
-  expect(MOSAIC_DARK_SHADES.length).toBeGreaterThan(0);
-  expect(MOSAIC_LIGHT_SHADES.length).toBeGreaterThan(0);
-  expect(MOSAIC_PALETTE.length).toBe(
-    MOSAIC_DARK_SHADES.length + MOSAIC_LIGHT_SHADES.length,
-  );
-
-  // i18n English string for holdToDrag
+test("i18n holdToDrag label", () => {
   expect(t("en").holdToDrag).toBe("Hold to drag");
   expect(t("zh").holdToDrag).toBe("Hold to drag");
-});
-
-test("ShaderEffect and shadersAvailable in nsh", () => {
-  expect(typeof ShaderEffect).toBe("function");
-  expect(typeof shadersAvailable).toBe("function");
-  const isAvailable = shadersAvailable();
-  expect(typeof isAvailable).toBe("boolean");
-
-  expect(typeof MOSAIC_SHADER).toBe("string");
-  expect(MOSAIC_SHADER).toContain("sample_backdrop");
-  expect(MOSAIC_SHADER).toContain("nsh.progress");
-
-  const elem = ShaderEffect({
-    source: MOSAIC_SHADER,
-    progress: 0.85,
-  });
-  expect(elem).toBeDefined();
 });
 
 test("Whole-area drag interaction and placeholder affordance", () => {

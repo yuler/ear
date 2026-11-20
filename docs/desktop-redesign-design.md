@@ -1,6 +1,6 @@
 # 桌面端重设计:设计与执行规划
 
-状态:设计已确认,待开始实施。按「执行规划」分 4 个 PR 推进,每个 PR 先发 draft,本地手动验证后再转为 ready。
+状态:设计已确认,已在同一个 PR 中实施,待本地手动验证。
 
 ## 目标
 
@@ -104,11 +104,10 @@
 
 ## 执行规划
 
-每个 PR 独立 worktree,先发 draft,本地手动验证后转 ready。
+全部改动放在一个 PR 里,先发 draft,本地手动验证后转 ready。实施时按文件归属分给 3 个并行的子任务:
 
-1. **清理死代码**:删除 BlindFlow、LoopDojo、SentencesView、SettingsPanel、MediaPlayer 及 `ear.tags` 存储。
-2. **导航与 Library 合并**:第 1–4 节。
-3. **精简设置页**:第 5 节。
-4. **窗口尺寸与播放页**:第 6–8 节。
+1. **清理死代码与设置**:删除 BlindFlow、LoopDojo、SentencesView、SettingsPanel、MediaPlayer 及 `ear.tags` 存储;第 5 节。
+2. **导航、Library、Discover 与窗口**:第 1–4 节、第 6 节。
+3. **播放页**:第 7 节。
 
-PR 2 和 PR 4 的描述附 800×560、1200×800、1600×700 三种窗口尺寸的截图。
+第 8 节由各子任务在自己负责的文件里完成。

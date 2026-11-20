@@ -43,7 +43,10 @@
       "amber": "#b4781f",
       "amber-soft": "#f8f0e2",
       "danger": "#b4473a",
-      "danger-soft": "#f6ecea"
+      "danger-soft": "#f6ecea",
+      "brand": "#2f7cf6",
+      "brand-foreground": "#ffffff",
+      "brand-soft": "#e8f0fe"
     },
     "dark": {
       "background": "#0a0a0a",
@@ -85,7 +88,10 @@
       "amber": "#e2a94b",
       "amber-soft": "#241d11",
       "danger": "#d0806f",
-      "danger-soft": "#241614"
+      "danger-soft": "#241614",
+      "brand": "#2f7cf6",
+      "brand-foreground": "#ffffff",
+      "brand-soft": "#13223a"
     }
   }
 }

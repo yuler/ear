@@ -1,6 +1,6 @@
 import { keymap } from "nsh";
 
-export type ShortcutCategoryKey = "global" | "list" | "player" | "blind";
+export type ShortcutCategoryKey = "global" | "list" | "player";
 
 export interface ShortcutItem {
   id: string;
@@ -43,18 +43,11 @@ export const SHORTCUT_CATEGORIES: ShortcutCategory[] = [
         keys: ["mod+1"],
       },
       {
-        id: "nav-videos",
+        id: "nav-library",
         keystroke: "mod+2",
-        label: "视频资料库",
-        description: "切换至已下载视频列表",
+        label: "媒体库",
+        description: "切换至已下载的视频与音频",
         keys: ["mod+2"],
-      },
-      {
-        id: "nav-audio",
-        keystroke: "mod+3",
-        label: "音频资料库",
-        description: "切换至已下载音频列表",
-        keys: ["mod+3"],
       },
       {
         id: "focus-omnibar",
@@ -95,7 +88,7 @@ export const SHORTCUT_CATEGORIES: ShortcutCategory[] = [
         id: "list-arrows",
         keystroke: "arrows",
         label: "光标移动",
-        description: "在资料库与发现页卡片间移动高亮焦点",
+        description: "在媒体库与发现页卡片间移动高亮焦点",
         keys: ["↑", "↓", "←", "→"],
       },
       {
@@ -116,7 +109,7 @@ export const SHORTCUT_CATEGORIES: ShortcutCategory[] = [
         id: "list-delete",
         keystroke: "delete",
         label: "删除条目",
-        description: "从本地资料库中移除该视频及字幕记录",
+        description: "确认后从媒体库移除该条目及本地文件",
         keys: ["Delete", "Backspace"],
       },
     ],
@@ -188,41 +181,6 @@ export const SHORTCUT_CATEGORIES: ShortcutCategory[] = [
         label: "分句切分",
         description: "切换字幕短句、中句或长句分词模式",
         keys: ["Alt+1", "Alt+2", "Alt+3"],
-      },
-    ],
-  },
-  {
-    key: "blind",
-    title: "盲听模式专属",
-    description: "无文本先听，快速分级测评",
-    shortcuts: [
-      {
-        id: "tag-pass",
-        keystroke: "1",
-        label: "通过 (Pass)",
-        description: "无压力瞬间秒懂，标记为通过",
-        keys: ["1"],
-      },
-      {
-        id: "tag-lag",
-        keystroke: "2",
-        label: "滞后 (Lag)",
-        description: "稍作大脑回忆后听懂，标记为滞后",
-        keys: ["2"],
-      },
-      {
-        id: "tag-blind",
-        keystroke: "3",
-        label: "盲区 (Blind)",
-        description: "未听懂，标记为盲区并入循环道场强化",
-        keys: ["3"],
-      },
-      {
-        id: "blind-reveal",
-        keystroke: "r",
-        label: "揭晓字幕",
-        description: "听完后揭开当前句文本对答案",
-        keys: ["R"],
       },
     ],
   },

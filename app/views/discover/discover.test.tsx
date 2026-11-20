@@ -12,7 +12,8 @@ import {
   toDiscoverItem,
   type RawDiscoverCliItem,
 } from "./source";
-import type { DiscoverFilterState, DiscoverItem } from "./types";
+import { levelsFor } from "./DiscoverFilters";
+import type { DiscoverItem } from "./types";
 
 const FIXTURE_RAW_ITEMS: RawDiscoverCliItem[] = [
   {
@@ -71,44 +72,27 @@ test("toDiscoverItem converts raw CLI item into full DiscoverItem contract", () 
   expect(jaItem.durationTier).toBe(5);
 });
 
-test("filterDiscoverItems filters by language, level, tier, tag, and search query", () => {
+test("filterDiscoverItems filters by language and level only", () => {
   const items: DiscoverItem[] = FIXTURE_RAW_ITEMS.map(toDiscoverItem);
 
-  const defaultFilters: DiscoverFilterState = {
-    language: "all",
-    level: "all",
-    durationTier: "all",
-    tag: null,
-    searchQuery: "",
-  };
+  const enAll = filterDiscoverItems(items, { language: "en", level: "all" });
+  expect(enAll.length).toBe(2);
 
-  // 1. Language filter
-  const enOnly = filterDiscoverItems(items, { ...defaultFilters, language: "en" });
-  expect(enOnly.length).toBe(2);
+  const jaAll = filterDiscoverItems(items, { language: "ja", level: "all" });
+  expect(jaAll.length).toBe(1);
+  expect(jaAll[0].videoId).toBe("3mxblcBZgqM");
 
-  const jaOnly = filterDiscoverItems(items, { ...defaultFilters, language: "ja" });
-  expect(jaOnly.length).toBe(1);
-  expect(jaOnly[0].videoId).toBe("3mxblcBZgqM");
+  const a2 = filterDiscoverItems(items, { language: "en", level: "A2" });
+  expect(a2.length).toBe(1);
+  expect(a2[0].videoId).toBe("reKgQh0E9kg");
 
-  // 2. Level filter
-  const a2Only = filterDiscoverItems(items, { ...defaultFilters, level: "A2" });
-  expect(a2Only.length).toBe(1);
-  expect(a2Only[0].videoId).toBe("reKgQh0E9kg");
+  // A level of the other scale matches nothing in this language.
+  expect(filterDiscoverItems(items, { language: "en", level: "N5" }).length).toBe(0);
+});
 
-  // 3. Duration tier filter
-  const tier30Only = filterDiscoverItems(items, { ...defaultFilters, durationTier: 30 });
-  expect(tier30Only.length).toBe(1);
-  expect(tier30Only[0].videoId).toBe("zmBWacJ6CQk");
-
-  // 4. Tag filter
-  const tagFilter = filterDiscoverItems(items, { ...defaultFilters, tag: "#DailyRoutine" });
-  expect(tagFilter.length).toBe(1);
-  expect(tagFilter[0].videoId).toBe("reKgQh0E9kg");
-
-  // 5. Search query
-  const searchAuthor = filterDiscoverItems(items, { ...defaultFilters, searchQuery: "Honey" });
-  expect(searchAuthor.length).toBe(1);
-  expect(searchAuthor[0].videoId).toBe("zmBWacJ6CQk");
+test("levelsFor shows CEFR for English and JLPT for Japanese", () => {
+  expect(levelsFor("en")).toEqual(["A1", "A2", "B1", "B2", "C1"]);
+  expect(levelsFor("ja")).toEqual(["N5", "N4", "N3", "N2", "N1"]);
 });
 
 test("fetchDiscoverItems invokes ear discover with mock spawn and parses result", async () => {

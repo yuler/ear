@@ -1,9 +1,12 @@
 import { signal } from "nsh";
 import { expect, test } from "nsh/test";
 import type { LibraryEntry } from "../library/types";
-import { normalizeSettings } from "../store";
-import type { MediaTab } from "../ui/TopBar";
 import { formatEntryDescription, isAudioEntry, LibraryView } from "./LibraryView";
+import {
+  completedEntries,
+  formatDuration,
+  subtitleIssue,
+} from "./libraryViewHelpers";
 
 function mockEntry(over: Partial<LibraryEntry> = {}): LibraryEntry {
   return {
@@ -56,20 +59,6 @@ test("isAudioEntry detects audio quality or audio-only path", () => {
   ).toBe(true);
 });
 
-test("normalizeSettings validates libraryLayout modes", () => {
-  expect(normalizeSettings({ libraryLayout: "post" }).libraryLayout).toBe(
-    "post",
-  );
-  expect(normalizeSettings({ libraryLayout: "grade" }).libraryLayout).toBe(
-    "grade",
-  );
-  expect(normalizeSettings({ libraryLayout: "list" }).libraryLayout).toBe(
-    "list",
-  );
-  // Default is "post"
-  expect(normalizeSettings({}).libraryLayout).toBe("post");
-});
-
 test("active download tasks calculate percent and Downbit telemetry accurately", () => {
   const halfDoneTask = {
     videoId: "test-vid-1",
@@ -112,15 +101,19 @@ test("download task completion animation: marks stage as done at 100% with ready
   expect(completedTask.percent).toBe(100);
 });
 
-test("library entries are ordered in reverse chronological order with newest prepended to first grid slot", () => {
-  const older = mockEntry({ videoId: "v1", updatedAt: 1000 });
-  const newer = mockEntry({ videoId: "v2", updatedAt: 2000 });
-  const newest = mockEntry({ videoId: "v3", updatedAt: 3000 });
+test("library grid mixes video and audio, newest added first", () => {
+  const older = mockEntry({ videoId: "v1", createdAt: 1000, updatedAt: 9000 });
+  const audio = mockEntry({
+    videoId: "a1",
+    quality: "Audio (M4A)",
+    videoPath: null,
+    audioPath: "/a1.m4a",
+    createdAt: 2000,
+  });
+  const newest = mockEntry({ videoId: "v3", createdAt: 3000, updatedAt: 3000 });
 
-  const list = [older, newer, newest].sort((a, b) => b.updatedAt - a.updatedAt);
-  expect(list[0].videoId).toBe("v3");
-  expect(list[1].videoId).toBe("v2");
-  expect(list[2].videoId).toBe("v1");
+  const list = completedEntries([older, audio, newest], []);
+  expect(list.map((e) => e.videoId)).toEqual(["v3", "a1", "v1"]);
 });
 
 test("active download task in paused stage retains progress for breakpoint resume", () => {
@@ -145,48 +138,60 @@ test("active download task in paused stage retains progress for breakpoint resum
   expect(pausedTask.downloadedBytes).toBe(64 * 1024 * 1024);
 });
 
-test("library entries filter excludes pending, downloading, paused and active downloads from completed grid", () => {
-  const readyEntry = mockEntry({ videoId: "ready1", state: "ready" });
-  const pendingEntry = mockEntry({ videoId: "pend1", state: "pending" });
-  const downloadingEntry = mockEntry({
-    videoId: "dl1",
-    state: "downloading",
-  });
-  const pausedEntry = mockEntry({ videoId: "pause1", state: "paused" });
-  const activeDuplicateEntry = mockEntry({
-    videoId: "active1",
-    state: "ready",
-  });
-
-  const activeIds = new Set(["active1"]);
+test("library grid leaves out pending, downloading, paused and active downloads", () => {
   const all = [
-    readyEntry,
-    pendingEntry,
-    downloadingEntry,
-    pausedEntry,
-    activeDuplicateEntry,
+    mockEntry({ videoId: "ready1", state: "ready" }),
+    mockEntry({ videoId: "pend1", state: "pending" }),
+    mockEntry({ videoId: "dl1", state: "downloading" }),
+    mockEntry({ videoId: "pause1", state: "paused" }),
+    mockEntry({ videoId: "active1", state: "ready" }),
   ];
-  const completedVideos = all.filter(
-    (e) =>
-      !activeIds.has(e.videoId) &&
-      e.state !== "pending" &&
-      e.state !== "downloading" &&
-      e.state !== "paused" &&
-      !isAudioEntry(e),
-  );
+  const downloads = [
+    {
+      videoId: "active1",
+      title: "Active",
+      thumbnailUrl: "",
+      qualityLabel: "720p MP4",
+      subtitleLabel: "",
+      subtitleIsAuto: false,
+      targetPath: "",
+      stage: "downloading" as const,
+      percent: 10,
+      downloadedBytes: 0,
+      totalBytes: 0,
+      speedBps: 0,
+      etaSeconds: null,
+    },
+  ];
+  const list = completedEntries(all, downloads);
+  expect(list.length).toBe(1);
+  expect(list[0].videoId).toBe("ready1");
+});
 
-  expect(completedVideos.length).toBe(1);
-  expect(completedVideos[0].videoId).toBe("ready1");
+test("subtitle status shows only when abnormal", () => {
+  expect(
+    subtitleIssue(mockEntry({ captionsPath: "/c.json", subtitleLabel: "English" })),
+  ).toBe(null);
+  expect(
+    subtitleIssue(
+      mockEntry({ captionsPath: "/c.json", subtitleLabel: "English", subtitleIsAuto: true }),
+    ),
+  ).toBe("auto");
+  expect(subtitleIssue(mockEntry({ captionsPath: null, subtitleLabel: null }))).toBe("none");
+});
+
+test("formatDuration hides unknown durations", () => {
+  expect(formatDuration(1645000)).toBe("27:25");
+  expect(formatDuration(3723000)).toBe("1:02:03");
+  expect(formatDuration(null)).toBe("");
 });
 
 test("LibraryView accepts disabled prop and safely renders empty and populated views", () => {
   const disabled = signal(true);
-  const tab = signal<MediaTab>("video");
   const entries = signal<LibraryEntry[]>([mockEntry({ videoId: "v1" })]);
 
   const view = LibraryView({
     disabled,
-    activeTab: tab,
     savedEntries: entries,
     onOpenEntry: () => {},
     onOpenFolder: () => {},
@@ -195,5 +200,3 @@ test("LibraryView accepts disabled prop and safely renders empty and populated v
 
   expect(view).toBeDefined();
 });
-
-

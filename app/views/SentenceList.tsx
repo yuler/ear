@@ -3,6 +3,7 @@ import { Icon } from "../ui/Icon";
 import { t, type EarLocale } from "../ui/i18n";
 import type { SentenceLengthMode } from "../youtube/captions";
 import type { Sentence } from "../youtube/types";
+import type { SubtitleTextSize } from "./playerLayout";
 import { SentenceRow } from "./SentenceRow";
 
 export type SentenceListProps = {
@@ -21,12 +22,10 @@ export type SentenceListProps = {
   rowRef: (index: number, node: ViewRef | null) => void;
   language?: () => EarLocale;
   showHeader?: boolean;
+  textSize?: () => SubtitleTextSize;
 };
 
-/**
- * Immersive subtitle roller wheel:
- * Smooth animated roll, top & bottom fade gradients, and centered active sentence focus.
- */
+/** Subtitle list: loading / empty states and one SentenceRow per sentence. */
 export function SentenceList(props: SentenceListProps) {
   const lang = () => props.language?.() ?? "zh";
   const m = () => t(lang());
@@ -45,7 +44,7 @@ export function SentenceList(props: SentenceListProps) {
 
       {/* Empty captions state */}
       <If when={!props.loading() && props.sentences().length === 0}>
-        <View class="items-center justify-center gap-2 rounded-2xl border border-border/60 bg-muted/20 p-10 text-center my-6">
+        <View class="my-6 items-center justify-center gap-2 rounded-lg border border-border p-8">
           <Icon name="subtitles" size={26} tone="muted-foreground" />
           <Text class="text-sm font-medium text-foreground">
             {m().noCaptions}
@@ -58,7 +57,7 @@ export function SentenceList(props: SentenceListProps) {
 
       {/* Sentences Roller Wheel */}
       <If when={props.sentences().length > 0}>
-        <View class="gap-1 py-4 sm:py-6">
+        <View class="gap-1 py-4">
           <Each of={props.sentences()} key={(s) => `${s.startMs}-${s.endMs}-${s.index}`}>
             {(item) => {
               return (
@@ -73,6 +72,7 @@ export function SentenceList(props: SentenceListProps) {
                     onListen={props.onListen}
                     language={props.language}
                     activeIndex={props.activeIndex}
+                    textSize={props.textSize}
                   />
                 </View>
               );

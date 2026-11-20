@@ -1,5 +1,5 @@
 import type { CaptionCue, Sentence } from "../youtube/types";
-import { clipEnded, msToSeconds } from "../player";
+import { clipEnded, msToSeconds, type PlaybackRate } from "../player";
 import {
   countWords,
   difficultyFromWpm,
@@ -7,7 +7,6 @@ import {
   mergeSentences,
   type SentenceLengthMode,
 } from "../youtube/captions";
-import { maskCaption } from "./blindFlowLogic";
 
 /** Format milliseconds into m:ss timestamp string (e.g. 1400 -> "0:01"). */
 export function formatSentenceTime(ms: number): string {
@@ -84,7 +83,7 @@ export function displaySentenceText(
   if (!isMasked || isRevealed) {
     return text;
   }
-  return maskCaption(text);
+  return text.replace(/\S/g, "\u2022");
 }
 
 /** Check whether a sentence is currently masked. */
@@ -255,4 +254,22 @@ export function evaluatePlaybackProgress(params: {
   }
 
   return { action: "none" };
+}
+
+/** Playback rates offered by the player, slowest first. */
+export const PLAYBACK_RATES: readonly PlaybackRate[] = [0.8, 1, 1.2, 1.5, 2];
+
+/** Next rate in the cycle (wraps around); unknown rates reset to 1. */
+export function cycleRate(current: PlaybackRate): PlaybackRate {
+  const i = PLAYBACK_RATES.indexOf(current);
+  if (i === -1) return 1;
+  return PLAYBACK_RATES[(i + 1) % PLAYBACK_RATES.length]!;
+}
+
+/** One step slower (-1) or faster (+1), clamped at the ends. */
+export function stepRate(current: PlaybackRate, dir: -1 | 1): PlaybackRate {
+  const i = PLAYBACK_RATES.indexOf(current);
+  if (i === -1) return 1;
+  const j = Math.max(0, Math.min(PLAYBACK_RATES.length - 1, i + dir));
+  return PLAYBACK_RATES[j]!;
 }

@@ -1,4 +1,4 @@
-import type { LibraryEntry } from "../library/types";
+import type { DownloadTaskProgress, LibraryEntry } from "../library/types";
 import { formatBytes } from "../youtube/parse";
 
 export function isAudioEntry(entry: LibraryEntry): boolean {
@@ -9,8 +9,8 @@ export function isAudioEntry(entry: LibraryEntry): boolean {
 }
 
 /**
- * Formats metadata line matching the user's screenshot:
- * "YouTube · 720p · 170 MB" or "SoundCloud · M4A · 4.4 MB"
+ * One meta line for a library card: "YouTube · 720p · 170 MB" or
+ * "SoundCloud · M4A · 4.4 MB".
  */
 export function formatEntryDescription(entry: LibraryEntry): string {
   const parts: string[] = [];
@@ -26,4 +26,43 @@ export function formatEntryDescription(entry: LibraryEntry): string {
     parts.push(formatBytes(entry.sizeBytes));
   }
   return parts.join(" · ");
+}
+
+/** "m:ss" / "h:mm:ss", or "" when the duration is unknown. */
+export function formatDuration(durationMs: number | null | undefined): string {
+  if (!durationMs || !Number.isFinite(durationMs) || durationMs <= 0) return "";
+  const total = Math.round(durationMs / 1000);
+  const h = Math.floor(total / 3600);
+  const m = Math.floor((total % 3600) / 60);
+  const s = String(total % 60).padStart(2, "0");
+  return h > 0 ? `${h}:${String(m).padStart(2, "0")}:${s}` : `${m}:${s}`;
+}
+
+/** Subtitle status worth showing on a card: only the abnormal cases. */
+export type SubtitleIssue = "auto" | "none" | null;
+
+export function subtitleIssue(entry: LibraryEntry): SubtitleIssue {
+  if (!entry.captionsPath && !entry.subtitleLabel) return "none";
+  if (entry.subtitleIsAuto) return "auto";
+  return null;
+}
+
+/**
+ * Finished entries for the grid: video and audio mixed, newest added first,
+ * without the ones still downloading (they show as download cards).
+ */
+export function completedEntries(
+  entries: readonly LibraryEntry[],
+  downloads: readonly DownloadTaskProgress[],
+): LibraryEntry[] {
+  const activeIds = new Set(downloads.map((d) => d.videoId));
+  return entries
+    .filter(
+      (e) =>
+        !activeIds.has(e.videoId) &&
+        e.state !== "pending" &&
+        e.state !== "downloading" &&
+        e.state !== "paused",
+    )
+    .sort((a, b) => b.createdAt - a.createdAt);
 }

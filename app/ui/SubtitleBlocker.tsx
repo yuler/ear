@@ -1,77 +1,23 @@
 // Sibling logic, pure math & geometry helpers: app/ui/subtitleBlockerLogic.ts
-import {
-  Canvas,
-  effect,
-  Image,
-  PanResponder,
-  ShaderEffect,
-  shadersAvailable,
-  signal,
-  Text,
-  View,
-  type ViewRef,
-} from "nsh";
-import { Button, Slider } from "nsh/base";
+import { effect, PanResponder, signal, Text, View, type ViewRef } from "nsh";
+import { Button } from "nsh/base";
 import {
   getBlockerRect,
-  getCachedSettings,
   resetBlockerRect,
   saveBlockerRect,
-  setBlockerOpacity,
   type EarLocale,
   type SubtitleBlockerRect,
 } from "../store";
 import { Icon } from "./Icon";
 import { t } from "./i18n";
 import {
+  BLOCKER_BACKDROP_FILTER,
   computeDeltaRect,
   cursorForDrag,
-  drawMosaicCanvas,
-  MOSAIC_SHADER,
   type DragMode,
 } from "./subtitleBlockerLogic";
 
 export type { DragMode } from "./subtitleBlockerLogic";
-
-function MiniSlider(props: {
-  value: () => number;
-  min: number;
-  max: number;
-  step?: number;
-  width?: number;
-  label: string;
-  unit?: string;
-  onChange: (val: number) => void;
-}) {
-  return (
-    <View class="flex-row items-center gap-1.5 select-none">
-      <Text class="font-mono text-[10px] text-white/70 select-none">
-        {props.label}
-      </Text>
-      <View style={{ width: props.width ?? 72 }} class="justify-center">
-        <Slider
-          value={props.value()}
-          min={props.min}
-          max={props.max}
-          step={props.step ?? 1}
-          onChange={(e) => {
-            if (typeof e.value === "number") {
-              props.onChange(e.value);
-            }
-          }}
-          trackClass="h-5 justify-center cursor-pointer select-none"
-          indicatorClass="h-1.5 w-full rounded-full bg-white/20 overflow-hidden"
-          rangeClass="h-full rounded-full bg-amber-400"
-          thumbClass="size-3.5 rounded-full border border-black/40 bg-amber-400 shadow-md transition-transform hover:scale-125"
-        />
-      </View>
-      <Text class="min-w-[26px] font-mono text-[10px] text-white/90 select-none tabular-nums">
-        {Math.round(props.value())}
-        {props.unit ?? ""}
-      </Text>
-    </View>
-  );
-}
 
 export function SubtitleBlocker(props: {
   videoId?: () => string | undefined;
@@ -83,9 +29,7 @@ export function SubtitleBlocker(props: {
   const lang = () => props.language?.() ?? "en";
   const m = () => t(lang());
 
-  const settings = getCachedSettings();
   const rect = signal<SubtitleBlockerRect>(getBlockerRect(videoId()));
-  const intensity = signal<number>(settings.subtitleBlockerOpacity ?? 80);
 
   const isHovered = signal(false);
   const dragMode = signal<DragMode | null>(null);
@@ -136,14 +80,6 @@ export function SubtitleBlocker(props: {
   const handleReset = () => {
     const defaultR = resetBlockerRect(videoId());
     rect.set({ ...defaultR });
-    intensity.set(80);
-    setBlockerOpacity(80);
-    handleMouseEnter();
-  };
-
-  const handleIntensityChange = (val: number) => {
-    intensity.set(val);
-    setBlockerOpacity(val);
     handleMouseEnter();
   };
 
@@ -206,7 +142,7 @@ export function SubtitleBlocker(props: {
   const seHandler = createPanHandler("se");
 
   const isNearTop = () => rect().y < 12;
-  const TOOLBAR_WIDTH = 260;
+  const TOOLBAR_WIDTH = 76;
   const getToolbarWidth = () =>
     Math.min(TOOLBAR_WIDTH, (rect().width / 100) * containerSize().width);
 
@@ -235,7 +171,7 @@ export function SubtitleBlocker(props: {
         <View
           class={`pointer-events-auto absolute items-center justify-center select-none transition-colors ${
             isHovered() || dragMode() !== null
-              ? `border-l border-r border-amber-400/80 ${
+              ? `border-l border-r border-amber/80 ${
                   isNearTop()
                     ? "border-t border-b-0 rounded-t-lg rounded-bl-lg rounded-br-none"
                     : "border-b border-t-0 rounded-b-lg rounded-tl-lg rounded-tr-none"
@@ -251,28 +187,11 @@ export function SubtitleBlocker(props: {
           onMouseEnter={handleMouseEnter}
           onMouseLeave={handleMouseLeave}
         >
-          {/* Visual Background Layer: Real-time dynamic video pixelated mosaic */}
-          <If when={shadersAvailable()}>
-            <View class="pointer-events-none absolute inset-0 rounded-lg overflow-hidden backdrop-blur-xl bg-black/20">
-              <ShaderEffect
-                class="h-full w-full"
-                progress={intensity() / 100}
-                source={MOSAIC_SHADER}
-              >
-                <View class="h-full w-full" />
-              </ShaderEffect>
-            </View>
-          </If>
-          <If when={!shadersAvailable()}>
-            <View class="pointer-events-none absolute inset-0 rounded-lg overflow-hidden backdrop-blur-xl bg-black/20">
-              <Canvas
-                class="h-full w-full"
-                draw={(cx, size) => {
-                  drawMosaicCanvas(cx, size, intensity());
-                }}
-              />
-            </View>
-          </If>
+          {/* Fixed blur style: blurs the video behind the box. */}
+          <View
+            class="pointer-events-none absolute inset-0 overflow-hidden rounded-lg bg-black/30"
+            style={{ backdropFilter: BLOCKER_BACKDROP_FILTER }}
+          />
 
           {/* Draggable Surface Layer: 按住整个区域均可平滑拖放 (Whole-area Drag & Drop) */}
           <View
@@ -280,7 +199,7 @@ export function SubtitleBlocker(props: {
             style={{
               cursor: dragMode() === "move" ? "grabbing" : "grab",
             }}
-            accessibilityLabel="Hold anywhere to drag blocker"
+            accessibilityLabel={m().holdToDrag}
             {...moveHandler.panHandlers}
           />
 
@@ -291,19 +210,19 @@ export function SubtitleBlocker(props: {
               <View
                 class={`pointer-events-none flex-row items-center gap-1.5 rounded-full px-3 py-1 select-none backdrop-blur-sm transition-all ${
                   dragMode() === "move"
-                    ? "border border-amber-400/90 bg-neutral-900/95 text-amber-300 shadow-lg scale-105"
+                    ? "border border-amber/90 bg-black/80 text-amber shadow-lg scale-105"
                     : "border border-white/20 bg-black/40 text-white/75"
                 }`}
               >
                 <Icon
                   name="move"
                   size={12}
-                  color={dragMode() === "move" ? "#f59e0b" : "#cbd5e1"}
+                  tone={dragMode() === "move" ? "amber" : "faint"}
                 />
                 <Text
                   class={`font-mono text-[11px] select-none tracking-wide ${
                     dragMode() === "move"
-                      ? "font-semibold text-amber-300"
+                      ? "font-semibold text-amber"
                       : "text-white/75"
                   }`}
                 >
@@ -317,13 +236,13 @@ export function SubtitleBlocker(props: {
             {/* Blocker border segment: stops right at the toolbar junction, leaving the seam 100% line-free */}
             <If when={!isNearTop()}>
               <View
-                class="pointer-events-none absolute top-0 left-0 border-t border-amber-400/80 rounded-tl-lg"
+                class="pointer-events-none absolute top-0 left-0 border-t border-amber/80 rounded-tl-lg"
                 style={{ right: getToolbarWidth() }}
               />
             </If>
             <If when={isNearTop()}>
               <View
-                class="pointer-events-none absolute bottom-0 left-0 border-b border-amber-400/80 rounded-bl-lg"
+                class="pointer-events-none absolute bottom-0 left-0 border-b border-amber/80 rounded-bl-lg"
                 style={{ right: getToolbarWidth() }}
               />
             </If>
@@ -332,8 +251,8 @@ export function SubtitleBlocker(props: {
             <View
               class={`pointer-events-auto absolute flex-row items-center gap-2 px-3 py-1.5 backdrop-blur-md z-40 select-none ${
                 isNearTop()
-                  ? "rounded-b-xl rounded-t-none border-l border-r border-b border-amber-400/80 border-t-0 bg-gradient-to-b from-neutral-900/90 via-neutral-900/94 to-neutral-950/98"
-                  : "rounded-t-xl rounded-b-none border-l border-r border-t border-amber-400/80 border-b-0 bg-gradient-to-b from-neutral-800/90 via-neutral-900/94 to-neutral-950/98"
+                  ? "rounded-b-xl rounded-t-none border-l border-r border-b border-amber/80 border-t-0 bg-black/80"
+                  : "rounded-t-xl rounded-b-none border-l border-r border-t border-amber/80 border-b-0 bg-black/80"
               }`}
               style={{
                 right: 0,
@@ -348,27 +267,13 @@ export function SubtitleBlocker(props: {
               onMouseEnter={handleMouseEnter}
               onMouseLeave={handleMouseLeave}
             >
-              {/* Unified Intensity Progress Slider */}
-              <MiniSlider
-                value={intensity}
-                min={10}
-                max={100}
-                step={5}
-                width={72}
-                unit="%"
-                label={m().blockerIntensity}
-                onChange={handleIntensityChange}
-              />
-
-              <View class="h-3 w-px bg-white/20" />
-
               {/* Reset to Default Position */}
               <Button
                 onPress={handleReset}
                 class="rounded-md border border-white/15 bg-white/5 px-1.5 py-0.5 hover:bg-white/10 active:scale-95"
                 accessibilityLabel={m().resetBlocker}
               >
-                <Icon name="repeat" size={11} color="#94a3b8" />
+                <Icon name="repeat" size={11} tone="faint" />
               </Button>
 
               {/* Close Button */}
@@ -376,9 +281,9 @@ export function SubtitleBlocker(props: {
                 <Button
                   onPress={props.onToggleEnabled}
                   class="rounded-md border border-white/15 bg-white/5 px-1.5 py-0.5 hover:bg-white/10 active:scale-95"
-                  accessibilityLabel="Close blocker"
+                  accessibilityLabel={m().toggleSubtitleBlocker}
                 >
-                  <Icon name="x" size={11} color="#94a3b8" />
+                  <Icon name="x" size={11} tone="faint" />
                 </Button>
               </If>
             </View>
@@ -394,7 +299,7 @@ export function SubtitleBlocker(props: {
               }
               {...nHandler.panHandlers}
             >
-              <View class="h-1.5 w-14 rounded-full bg-amber-400 border border-black/50 group-hover:h-2 group-hover:scale-110 transition-all shadow-md" />
+              <View class="h-1.5 w-14 rounded-full bg-amber border border-black/50 group-hover:h-2 group-hover:scale-110 transition-all shadow-md" />
             </View>
 
             {/* Bottom Handle: ↕ (Avoids toolbar at bottom-right by clearing getToolbarWidth()) */}
@@ -407,7 +312,7 @@ export function SubtitleBlocker(props: {
               }
               {...sHandler.panHandlers}
             >
-              <View class="h-1.5 w-14 rounded-full bg-amber-400 border border-black/50 group-hover:h-2 group-hover:scale-110 transition-all shadow-md" />
+              <View class="h-1.5 w-14 rounded-full bg-amber border border-black/50 group-hover:h-2 group-hover:scale-110 transition-all shadow-md" />
             </View>
 
             {/* Left Handle: ↔ (Wide hit zone for effortless horizontal stretching) */}
@@ -416,7 +321,7 @@ export function SubtitleBlocker(props: {
               style={{ left: -10, top: 12, bottom: 12, width: 20, cursor: "ew-resize" }}
               {...wHandler.panHandlers}
             >
-              <View class="w-1.5 h-12 rounded-full bg-amber-400 border border-black/50 group-hover:w-2 group-hover:scale-110 transition-all shadow-md" />
+              <View class="w-1.5 h-12 rounded-full bg-amber border border-black/50 group-hover:w-2 group-hover:scale-110 transition-all shadow-md" />
             </View>
 
             {/* Right Handle: ↔ (Wide hit zone for effortless horizontal stretching) */}
@@ -425,7 +330,7 @@ export function SubtitleBlocker(props: {
               style={{ right: -10, top: 12, bottom: 12, width: 20, cursor: "ew-resize" }}
               {...eHandler.panHandlers}
             >
-              <View class="w-1.5 h-12 rounded-full bg-amber-400 border border-black/50 group-hover:w-2 group-hover:scale-110 transition-all shadow-md" />
+              <View class="w-1.5 h-12 rounded-full bg-amber border border-black/50 group-hover:w-2 group-hover:scale-110 transition-all shadow-md" />
             </View>
 
             {/* Four Corners: ⤡, ⤢ */}
@@ -435,7 +340,7 @@ export function SubtitleBlocker(props: {
               style={{ top: -10, left: -10, width: 22, height: 22, cursor: "nwse-resize" }}
               {...nwHandler.panHandlers}
             >
-              <View class="size-3.5 rounded-full bg-amber-400 border border-black/50 group-hover:scale-125 transition-transform shadow-md" />
+              <View class="size-3.5 rounded-full bg-amber border border-black/50 group-hover:scale-125 transition-transform shadow-md" />
             </View>
 
             {/* Top-Right: Only shown when toolbar is at bottom, so it never collides with toolbar */}
@@ -445,7 +350,7 @@ export function SubtitleBlocker(props: {
                 style={{ top: -10, right: -10, width: 22, height: 22, cursor: "nesw-resize" }}
                 {...neHandler.panHandlers}
               >
-                <View class="size-3.5 rounded-full bg-amber-400 border border-black/50 group-hover:scale-125 transition-transform shadow-md" />
+                <View class="size-3.5 rounded-full bg-amber border border-black/50 group-hover:scale-125 transition-transform shadow-md" />
               </View>
             </If>
 
@@ -455,7 +360,7 @@ export function SubtitleBlocker(props: {
               style={{ bottom: -10, left: -10, width: 22, height: 22, cursor: "nesw-resize" }}
               {...swHandler.panHandlers}
             >
-              <View class="size-3.5 rounded-full bg-amber-400 border border-black/50 group-hover:scale-125 transition-transform shadow-md" />
+              <View class="size-3.5 rounded-full bg-amber border border-black/50 group-hover:scale-125 transition-transform shadow-md" />
             </View>
 
             {/* Bottom-Right: Only shown when toolbar is at top, so it never collides with toolbar */}
@@ -465,7 +370,7 @@ export function SubtitleBlocker(props: {
                 style={{ bottom: -10, right: -10, width: 22, height: 22, cursor: "nwse-resize" }}
                 {...seHandler.panHandlers}
               >
-                <View class="size-3.5 rounded-full bg-amber-400 border border-black/50 group-hover:scale-125 transition-transform shadow-md" />
+                <View class="size-3.5 rounded-full bg-amber border border-black/50 group-hover:scale-125 transition-transform shadow-md" />
               </View>
             </If>
           </If>

@@ -60,42 +60,11 @@ export function filterDiscoverItems(
   items: DiscoverItem[],
   f: DiscoverFilterState,
 ): DiscoverItem[] {
-  const query = f.searchQuery.trim().toLowerCase();
-
-  return items.filter((item) => {
-    // 1. Language filter
-    if (f.language !== "all" && item.language !== f.language) {
-      return false;
-    }
-
-    // 2. Level filter
-    if (f.level !== "all" && item.level !== f.level) {
-      return false;
-    }
-
-    // 3. Duration tier filter
-    if (f.durationTier !== "all" && item.durationTier !== f.durationTier) {
-      return false;
-    }
-
-    // 4. Tag filter
-    if (f.tag !== null && !item.tags.includes(f.tag)) {
-      return false;
-    }
-
-    // 5. Search query
-    if (query) {
-      const titleMatch = item.title.toLowerCase().includes(query);
-      const authorMatch = (item.author ?? "").toLowerCase().includes(query);
-      const tagMatch = item.tags.some((t) => t.toLowerCase().includes(query));
-      const descMatch = (item.description ?? "").toLowerCase().includes(query);
-      if (!titleMatch && !authorMatch && !tagMatch && !descMatch) {
-        return false;
-      }
-    }
-
-    return true;
-  });
+  return items.filter(
+    (item) =>
+      item.language === f.language &&
+      (f.level === "all" || item.level === f.level),
+  );
 }
 
 export async function fetchDiscoverItems(options?: {

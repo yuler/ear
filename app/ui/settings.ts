@@ -6,7 +6,6 @@ import {
   type EarLocale,
   type EarSettings,
   type SentenceLengthMode,
-  type SubtitleSize,
 } from "../store";
 
 export type { EarLocale, SentenceLengthMode };
@@ -27,11 +26,4 @@ export async function initSettings(): Promise<EarSettings> {
   settings.set(loaded);
   setColorScheme(loaded.appearance);
   return loaded;
-}
-
-/** Caption text classes for the current-sentence focal text. */
-export function subtitleClass(size: SubtitleSize): string {
-  if (size === "sm") return "text-lg leading-relaxed";
-  if (size === "lg") return "text-3xl leading-snug";
-  return "text-2xl leading-relaxed";
 }

@@ -1,11 +1,8 @@
-import { Text, View, type TransformStep, type ViewStyle } from "nsh";
-import { t, type EarLocale } from "../ui/i18n";
+import { signal, Text, View, type ViewStyle } from "nsh";
+import type { EarLocale } from "../ui/i18n";
 import type { Sentence } from "../youtube/types";
-import {
-  displaySentenceText,
-  formatTimeRange,
-  isSentenceMasked,
-} from "./sentencePlayer";
+import type { SubtitleTextSize } from "./playerLayout";
+import { displaySentenceText, formatTimeRange } from "./sentencePlayer";
 
 export type SentenceRowProps = {
   sentence: () => Sentence;
@@ -17,6 +14,14 @@ export type SentenceRowProps = {
   onListen: (sentence: Sentence) => void;
   language?: () => EarLocale;
   activeIndex?: () => number;
+  /** Picked from the subtitle column width (see subtitleTextSize). */
+  textSize?: () => SubtitleTextSize;
+};
+
+const TEXT_SIZE_CLASS: Record<SubtitleTextSize, string> = {
+  sm: "text-base",
+  md: "text-lg",
+  lg: "text-xl",
 };
 
 /**
@@ -140,97 +145,48 @@ export function getSentence3DStyle(diff: number): ViewStyle {
 }
 
 /**
- * 3D Rolling Subtitle Item:
- * Pure typography with zero button clutter.
- * Preceding sentences tilt back in 3D perspective; upcoming sentences roll in smoothly below.
+ * Subtitle row: only the sentence text. The active row is highlighted;
+ * the time range shows on hover. Pressing plays the sentence, and when
+ * captions are masked pressing the text also reveals it.
  */
 export function SentenceRow(props: SentenceRowProps) {
   const s = () => props.sentence();
   const active = () => props.isActive();
-  const masked = () => isSentenceMasked(props.isMaskAll(), props.isRevealed());
+  const hovered = signal(false);
   const displayText = () =>
     displaySentenceText(s().text, props.isMaskAll(), props.isRevealed());
-  const lang = () => props.language?.() ?? "en";
-  const m = () => t(lang());
-
   const diff = () =>
     props.activeIndex != null ? s().index - props.activeIndex() : active() ? 0 : 1;
-
-  const style3D = () => getSentence3DStyle(diff());
-
-  const handleRowPress = () => {
-    props.onListen(s());
-  };
+  const sizeClass = () => TEXT_SIZE_CLASS[props.textSize?.() ?? "md"];
 
   const handleTextPress = () => {
-    if (props.isMaskAll()) {
-      props.onToggleReveal(s().index);
-    }
+    if (props.isMaskAll()) props.onToggleReveal(s().index);
     props.onListen(s());
   };
 
   return (
     <View
-      onPress={handleRowPress}
-      style={style3D()}
-      class={`group relative flex-row items-center justify-between gap-3 rounded-2xl transition cursor-pointer select-text ${
-        active()
-          ? "border border-primary/35 bg-primary/10 dark:bg-white/10 px-4 py-3 shadow-md ring-1 ring-primary/20"
-          : "border border-transparent bg-transparent px-3 py-2 hover:bg-muted/30"
+      onPress={() => props.onListen(s())}
+      onMouseEnter={() => hovered.set(true)}
+      onMouseLeave={() => hovered.set(false)}
+      style={getSentence3DStyle(diff())}
+      class={`cursor-pointer rounded-lg px-4 py-2.5 ${
+        active() ? "bg-accent" : "hover:bg-muted/40"
       }`}
     >
-      {/* Index badge + Subtitle text + Timestamp */}
-      <View class="min-w-0 flex-1 flex-row items-center gap-3">
-        {/* Index indicator */}
-        <View
-          class={`h-6 min-w-[28px] items-center justify-center rounded-md px-1 transition ${
-            active()
-              ? "bg-primary text-primary-foreground shadow-2xs"
-              : "bg-muted/70 text-muted-foreground group-hover:bg-muted"
+      <View onPress={handleTextPress} selectable class="select-text">
+        <Text
+          class={`select-text leading-relaxed ${sizeClass()} ${
+            active() ? "font-medium text-foreground" : "text-muted-foreground"
           }`}
         >
-          <Text
-            class={`font-mono text-xs font-semibold ${
-              active() ? "text-primary-foreground" : "text-muted-foreground"
-            }`}
-          >
-            {s().index + 1}
-          </Text>
-        </View>
-
-        {/* Subtitle text container */}
-        <View
-          onPress={handleTextPress}
-          selectable
-          class="min-w-0 flex-1 flex-col justify-center gap-1 select-text"
-        >
-          <Text
-            class={`select-text transition leading-relaxed ${
-              active()
-                ? "text-base sm:text-lg font-bold text-foreground drop-shadow-xs"
-                : "text-sm sm:text-base font-normal text-muted-foreground"
-            }`}
-          >
-            {displayText()}
-          </Text>
-
-          {/* Subtitle metadata (timestamp & difficulty) */}
-          <View class="flex-row items-center gap-2 select-text">
-            <Text class="select-text font-mono text-[11px] tabular-nums text-muted-foreground">
-              {formatTimeRange(s().startMs, s().endMs)}
-            </Text>
-            <If when={Boolean(s().difficulty)}>
-              <Text class="select-text font-mono text-[10px] text-muted-foreground">
-                {s().difficulty}
-              </Text>
-            </If>
-            <If when={masked()}>
-              <Text class="font-mono text-[10px] font-medium text-amber-500">
-                {m().maskedBadge}
-              </Text>
-            </If>
-          </View>
-        </View>
+          {displayText()}
+        </Text>
+      </View>
+      <View style={{ opacity: hovered() ? 1 : 0 }} class="pt-1">
+        <Text class="font-mono text-xs tabular-nums text-muted-foreground">
+          {formatTimeRange(s().startMs, s().endMs)}
+        </Text>
       </View>
     </View>
   );

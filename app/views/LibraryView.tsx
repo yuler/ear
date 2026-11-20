@@ -1,27 +1,45 @@
 import { effect, keymap, signal, Text, View } from "nsh";
+import { AlertDialog } from "nsh/base";
+import { Menu } from "nsh/desktop";
 import type { DownloadTaskProgress, LibraryEntry } from "../library/types";
-import { ActiveDownloadRow } from "../ui/ActiveDownloadRow";
+import { ActiveDownloadCard } from "../ui/ActiveDownloadRow";
 import { Icon } from "../ui/Icon";
-import { settings } from "../ui/settings";
-import type { MediaTab } from "../ui/TopBar";
+import { shellT } from "../ui/shellI18n";
+import { LibraryCard, POSTER_GRID_STYLE } from "./LibraryCards";
 import {
-  LibraryGradeCard,
-  LibraryListRow,
-  LibraryPostCard,
-} from "./LibraryCards";
-import { formatEntryDescription, isAudioEntry } from "./libraryViewHelpers";
+  completedEntries,
+  formatEntryDescription,
+  isAudioEntry,
+} from "./libraryViewHelpers";
 import type { ViewTransitionRect } from "./viewTransition";
 
 export { formatEntryDescription, isAudioEntry };
 
+/** Asks before deleting; resolves true when the user confirmed. */
+export async function confirmDelete(entry: LibraryEntry): Promise<boolean> {
+  const t = shellT();
+  try {
+    const res = await AlertDialog.show({
+      title: t.deleteTitle,
+      description: t.deleteDescription(entry.title),
+      actions: [
+        { id: "cancel", label: t.cancel, role: "cancel" },
+        { id: "delete", label: t.delete, role: "destructive" },
+      ],
+      closeOnEscape: true,
+    });
+    return res.action === "delete";
+  } catch {
+    return false;
+  }
+}
+
 /**
- * Library view:
- * Displays active downloads at the very front as horizontal bars (横条),
- * followed by saved videos/audio in the standard responsive grid style.
+ * Library: one responsive poster grid, downloads in progress first, then
+ * finished video and audio entries mixed, newest first.
  */
 export function LibraryView(props: {
   disabled?: () => boolean;
-  activeTab: () => MediaTab;
   savedEntries: () => LibraryEntry[];
   activeDownloads?: () => DownloadTaskProgress[];
   onOpenEntry: (entry: LibraryEntry, originRect?: ViewTransitionRect | null) => void;
@@ -31,40 +49,15 @@ export function LibraryView(props: {
   onResumeDownload?: (videoId: string) => void;
   onCancelDownload?: (videoId: string) => void;
 }) {
-  const currentEntries = () => {
-    const isAudio = props.activeTab() === "audio";
-    const activeIds = new Set(
-      (props.activeDownloads?.() ?? []).map((d) => d.videoId),
-    );
-    return props.savedEntries().filter(
-      (e) =>
-        !activeIds.has(e.videoId) &&
-        e.state !== "pending" &&
-        e.state !== "downloading" &&
-        e.state !== "paused" &&
-        (isAudio ? isAudioEntry(e) : !isAudioEntry(e)),
-    );
-  };
-
-  const currentDownloads = (): DownloadTaskProgress[] => {
-    const all = props.activeDownloads?.() ?? [];
-    const isAudio = props.activeTab() === "audio";
-    return all.filter((d) => {
-      const isAud =
-        d.qualityLabel.toLowerCase().includes("audio") ||
-        d.qualityLabel.toLowerCase().includes("m4a");
-      return isAudio ? isAud : !isAud;
-    });
-  };
-
-  const totalVisibleCount = () =>
-    currentEntries().length + currentDownloads().length;
+  const downloads = () => props.activeDownloads?.() ?? [];
+  const entries = () => completedEntries(props.savedEntries(), downloads());
+  const isEmpty = () => entries().length === 0 && downloads().length === 0;
 
   const focusedIndex = signal<number>(-1);
 
-  // Reset or clamp cursor when visible entries list changes (e.g. deletion, tab switch, filter)
+  // Clamp the keyboard cursor when the list shrinks (deletion, refresh).
   effect(() => {
-    const len = currentEntries().length;
+    const len = entries().length;
     const cur = focusedIndex();
     if (len === 0) {
       if (cur !== -1) focusedIndex.set(-1);
@@ -73,189 +66,107 @@ export function LibraryView(props: {
     }
   });
 
+  const requestDelete = async (entry: LibraryEntry) => {
+    if (!props.onDeleteEntry) return;
+    if (await confirmDelete(entry)) props.onDeleteEntry(entry);
+  };
+
+  const openMenu = (entry: LibraryEntry, at?: { x: number; y: number }) => {
+    const t = shellT();
+    void Menu.popup(
+      [
+        { label: t.openFolder, onSelect: () => props.onOpenFolder(entry) },
+        props.onDeleteEntry ? { type: "separator" } : null,
+        props.onDeleteEntry
+          ? { label: t.delete, onSelect: () => void requestDelete(entry) }
+          : null,
+      ],
+      at,
+    );
+  };
+
+  /** The focused entry, after clamping; null on an empty list. */
+  const focused = (): LibraryEntry | null => {
+    const list = entries();
+    if (list.length === 0) return null;
+    let cur = focusedIndex();
+    if (cur >= list.length) {
+      cur = list.length - 1;
+      focusedIndex.set(cur);
+    }
+    return cur >= 0 ? list[cur] : null;
+  };
+
+  const move = (step: 1 | -1) => {
+    if (props.disabled?.()) return;
+    const len = entries().length;
+    if (len === 0) {
+      if (focusedIndex() !== -1) focusedIndex.set(-1);
+      return;
+    }
+    const cur = Math.min(focusedIndex(), len - 1);
+    if (cur < 0) {
+      focusedIndex.set(step === 1 ? 0 : len - 1);
+    } else {
+      focusedIndex.set((cur + step + len) % len);
+    }
+  };
+
+  const withFocused = (fn: (entry: LibraryEntry) => void) => () => {
+    if (props.disabled?.()) return;
+    const entry = focused();
+    if (entry) fn(entry);
+  };
+
   keymap.bind(
     {
-      down: () => {
-        if (props.disabled?.()) return;
-        const list = currentEntries();
-        if (list.length === 0) {
-          if (focusedIndex() !== -1) focusedIndex.set(-1);
-          return;
-        }
-        let cur = focusedIndex();
-        if (cur >= list.length) cur = list.length - 1;
-        focusedIndex.set(cur < 0 ? 0 : (cur + 1) % list.length);
-      },
-      up: () => {
-        if (props.disabled?.()) return;
-        const list = currentEntries();
-        if (list.length === 0) {
-          if (focusedIndex() !== -1) focusedIndex.set(-1);
-          return;
-        }
-        let cur = focusedIndex();
-        if (cur >= list.length) cur = list.length - 1;
-        focusedIndex.set(cur <= 0 ? list.length - 1 : cur - 1);
-      },
-      right: () => {
-        if (props.disabled?.()) return;
-        const list = currentEntries();
-        if (list.length === 0) {
-          if (focusedIndex() !== -1) focusedIndex.set(-1);
-          return;
-        }
-        let cur = focusedIndex();
-        if (cur >= list.length) cur = list.length - 1;
-        focusedIndex.set(cur < 0 ? 0 : (cur + 1) % list.length);
-      },
-      left: () => {
-        if (props.disabled?.()) return;
-        const list = currentEntries();
-        if (list.length === 0) {
-          if (focusedIndex() !== -1) focusedIndex.set(-1);
-          return;
-        }
-        let cur = focusedIndex();
-        if (cur >= list.length) cur = list.length - 1;
-        focusedIndex.set(cur <= 0 ? list.length - 1 : cur - 1);
-      },
-      enter: () => {
-        if (props.disabled?.()) return;
-        const list = currentEntries();
-        if (list.length === 0) return;
-        let cur = focusedIndex();
-        if (cur >= list.length) {
-          cur = list.length - 1;
-          focusedIndex.set(cur);
-        }
-        if (cur >= 0 && cur < list.length) {
-          props.onOpenEntry(list[cur]);
-        }
-      },
-      o: () => {
-        if (props.disabled?.()) return;
-        const list = currentEntries();
-        if (list.length === 0) return;
-        let cur = focusedIndex();
-        if (cur >= list.length) {
-          cur = list.length - 1;
-          focusedIndex.set(cur);
-        }
-        if (cur >= 0 && cur < list.length) {
-          props.onOpenFolder(list[cur]);
-        }
-      },
-      delete: () => {
-        if (props.disabled?.()) return;
-        const list = currentEntries();
-        if (list.length === 0) return;
-        let cur = focusedIndex();
-        if (cur >= list.length) {
-          cur = list.length - 1;
-          focusedIndex.set(cur);
-        }
-        if (cur >= 0 && cur < list.length) {
-          props.onDeleteEntry?.(list[cur]);
-        }
-      },
-      backspace: () => {
-        if (props.disabled?.()) return;
-        const list = currentEntries();
-        if (list.length === 0) return;
-        let cur = focusedIndex();
-        if (cur >= list.length) {
-          cur = list.length - 1;
-          focusedIndex.set(cur);
-        }
-        if (cur >= 0 && cur < list.length) {
-          props.onDeleteEntry?.(list[cur]);
-        }
-      },
+      down: () => move(1),
+      right: () => move(1),
+      up: () => move(-1),
+      left: () => move(-1),
+      enter: withFocused((e) => props.onOpenEntry(e)),
+      o: withFocused((e) => props.onOpenFolder(e)),
+      delete: withFocused((e) => void requestDelete(e)),
+      backspace: withFocused((e) => void requestDelete(e)),
     },
     { when: "notEditing" },
   );
 
   return (
-    <View class="gap-4">
-      <If when={totalVisibleCount() > 0}>
-        <View class="gap-3">
-          {/* 1. Active Downloads: Always placed at the very front as horizontal bars (横条) */}
-          <If when={currentDownloads().length > 0}>
-            <View class="gap-2.5">
-              <Each of={currentDownloads()} key={(t) => t.videoId}>
-                {(getTask) => (
-                  <ActiveDownloadRow
-                    task={getTask}
-                    onPause={props.onPauseDownload}
-                    onResume={props.onResumeDownload}
-                    onCancel={props.onCancelDownload}
-                  />
-                )}
-              </Each>
-            </View>
-          </If>
-
-          {/* 2. Finished library entries in standard responsive grid/grade style */}
-          <If when={currentEntries().length > 0}>
-            <View
-              class={
-                settings().libraryLayout === "grade"
-                  ? "flex-row flex-wrap gap-3.5 pt-1"
-                  : settings().libraryLayout === "list"
-                    ? "flex-col gap-1 pt-1"
-                    : "flex-row flex-wrap gap-5 pt-1"
-              }
-            >
-              <Each of={currentEntries()} key={(entry) => entry.videoId}>
-                {(entry, index) => {
-                  const mode = () => settings().libraryLayout;
-                  const isSelected = () => focusedIndex() === index();
-                  return (
-                    <>
-                      <If when={mode() === "grade"}>
-                        <LibraryGradeCard
-                          entry={entry()}
-                          onOpenEntry={props.onOpenEntry}
-                          onOpenFolder={props.onOpenFolder}
-                          onDeleteEntry={props.onDeleteEntry}
-                          selected={isSelected()}
-                        />
-                      </If>
-                      <If when={mode() === "list"}>
-                        <LibraryListRow
-                          entry={entry()}
-                          onOpenEntry={props.onOpenEntry}
-                          onOpenFolder={props.onOpenFolder}
-                          onDeleteEntry={props.onDeleteEntry}
-                          selected={isSelected()}
-                        />
-                      </If>
-                      <If when={mode() !== "grade" && mode() !== "list"}>
-                        <LibraryPostCard
-                          entry={entry()}
-                          onOpenEntry={props.onOpenEntry}
-                          onOpenFolder={props.onOpenFolder}
-                          onDeleteEntry={props.onDeleteEntry}
-                          selected={isSelected()}
-                        />
-                      </If>
-                    </>
-                  );
-                }}
-              </Each>
-            </View>
-          </If>
+    <View>
+      <If when={!isEmpty()}>
+        <View style={POSTER_GRID_STYLE}>
+          <Each of={downloads()} key={(t) => t.videoId}>
+            {(getTask) => (
+              <ActiveDownloadCard
+                task={getTask}
+                onPause={props.onPauseDownload}
+                onResume={props.onResumeDownload}
+                onCancel={props.onCancelDownload}
+              />
+            )}
+          </Each>
+          <Each of={entries()} key={(entry) => entry.videoId}>
+            {(entry, index) => (
+              <LibraryCard
+                entry={entry()}
+                selected={focusedIndex() === index()}
+                onOpen={props.onOpenEntry}
+                onMenu={openMenu}
+              />
+            )}
+          </Each>
         </View>
       </If>
 
-      {/* Empty State */}
-      <If when={totalVisibleCount() === 0}>
-        <View class="items-center justify-center gap-2 py-12">
+      <If when={isEmpty()}>
+        <View class="items-center justify-center gap-2 py-16">
           <Icon name="download" size={24} tone="muted-foreground" />
-          <Text class="text-center text-sm text-muted-foreground">
-            {props.activeTab() === "video"
-              ? "暂无下载视频。在上方粘贴 YouTube 链接即可开始下载。"
-              : "暂无下载音频。解析链接后选择 Audio 格式下载。"}
+          <Text class="text-center text-sm font-medium text-foreground">
+            {shellT().libraryEmpty}
+          </Text>
+          <Text class="text-center text-xs text-muted-foreground">
+            {shellT().libraryEmptyHint}
           </Text>
         </View>
       </If>
