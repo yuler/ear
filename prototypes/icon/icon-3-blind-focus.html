@@ -1,0 +1,252 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Ear · Icon 03 · Pure Aperture / 隐幕声场</title>
+<link rel="icon" id="fav">
+<style>
+:root,.t-light{--ground:#fff;--surface:#fafafa;--border:#e4e4e7;--ink:#0a0a0a;--muted:#71717a;--fade:#a1a1aa;--accent:#2563eb;--grid:rgba(37,99,235,.16);--key:rgba(37,99,235,.5)}
+[data-theme=dark],.t-dark{--ground:#09090b;--surface:#141414;--border:#262626;--ink:#fafafa;--muted:#a1a1aa;--fade:#71717a;--accent:#2f7cf6;--grid:rgba(47,124,246,.2);--key:rgba(47,124,246,.6)}
+:root{--ease:cubic-bezier(.16,1,.3,1);--font:-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Roboto,"PingFang SC",sans-serif;--mono:ui-monospace,SFMono-Regular,Menlo,monospace}
+*{box-sizing:border-box;margin:0}
+html{background:var(--ground);color:var(--ink);font:14px/1.6 var(--font);transition:background .4s var(--ease),color .4s var(--ease)}
+.t-light,.t-dark{background:var(--ground);color:var(--ink)}
+.mk{display:block;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;color:var(--ink)}
+.i{stroke:currentColor}.a{stroke:var(--accent)}.m{stroke:var(--fade)}
+header{position:sticky;top:0;z-index:5;display:flex;align-items:center;justify-content:space-between;gap:16px;padding:14px 28px;background:color-mix(in srgb,var(--ground) 82%,transparent);backdrop-filter:blur(14px);border-bottom:1px solid var(--border)}
+.brand{display:flex;align-items:center;gap:10px;font-weight:600;letter-spacing:-.01em}
+nav{display:flex;gap:4px;padding:3px;border:1px solid var(--border);border-radius:999px;background:var(--surface)}
+nav a,.seg button{color:var(--muted);text-decoration:none;font:500 12px var(--font);padding:5px 12px;border-radius:999px;border:0;background:none;cursor:pointer;transition:all .25s var(--ease)}
+nav a:hover,.seg button:hover{color:var(--ink)}
+nav a.on,.seg button.on{background:var(--ground);color:var(--ink);box-shadow:0 0 0 1px var(--border),0 1px 2px rgba(0,0,0,.06)}
+.btn{display:inline-flex;align-items:center;gap:8px;font:500 12px var(--font);color:var(--ink);background:var(--surface);border:1px solid var(--border);border-radius:999px;padding:6px 12px;cursor:pointer}
+.btn:hover{border-color:var(--muted)}
+main{max-width:1080px;margin:0 auto;padding:0 28px 96px}
+section{padding:72px 0 0}
+.eyebrow{font:500 11px var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+h1{font-size:44px;line-height:1.08;letter-spacing:-.035em;font-weight:600;margin:14px 0 10px}
+h2{font-size:20px;letter-spacing:-.02em;font-weight:600;margin:6px 0 4px}
+p.lead{color:var(--muted);max-width:420px}
+.cn{font-size:17px;color:var(--ink);margin-bottom:14px}
+.hero{display:grid;grid-template-columns:1fr auto;gap:48px;align-items:center;padding-top:80px}
+.stagebox{display:flex;flex-direction:column;align-items:center;gap:20px}
+.stage{position:relative;width:340px;height:340px;border:1px solid var(--border);border-radius:28px;background:var(--surface);display:grid;place-items:center;overflow:hidden}
+.stage .mk{width:240px;height:240px;overflow:visible}
+.grid{position:absolute;inset:0;margin:auto;width:240px;height:240px;opacity:0;transition:opacity .5s var(--ease);pointer-events:none;overflow:visible}
+.show-grid .grid{opacity:1}
+.grid line,.grid rect{stroke:var(--grid);stroke-width:.03;fill:none}
+.grid .k{stroke:var(--key);stroke-width:.045;stroke-dasharray:.25 .2;fill:none}
+.grid text{font:.6px var(--mono);fill:var(--key)}
+.ctrl{display:flex;gap:10px;align-items:center}
+.seg{display:flex;gap:2px;padding:3px;border:1px solid var(--border);border-radius:999px;background:var(--surface)}
+.state{font:11px var(--mono);color:var(--muted);height:16px}
+/* motion */
+.mk path{transform-box:view-box;transform-origin:50% 50%}.mk .m{transform-box:fill-box;transform-origin:center}
+.rip{opacity:0}
+.is-breathe .o{animation:br-o 5.2s ease-in-out infinite}
+.is-breathe .n{animation:br-n 5.2s ease-in-out infinite}
+.is-breathe .a{animation:br-a 5.2s ease-in-out infinite}
+@keyframes br-o{50%{transform:scale(1.035);opacity:.82}}
+@keyframes br-n{50%{transform:scale(.93)}}
+@keyframes br-a{50%{opacity:.45}}
+.is-focus .m{opacity:0;transform:translateX(5px);transition:all .9s var(--ease)}
+.is-focus .a{stroke-width:2.6;transition:stroke-width .6s var(--ease)}
+.is-focus .n{transform:scale(.9);transition:transform .9s var(--ease)}
+.is-focus .rip{stroke:var(--accent);animation:rip 2.8s var(--ease) infinite}
+.is-focus .rip+.rip{animation-delay:1.4s}
+@keyframes rip{0%{transform:scale(.5);opacity:.7;stroke-width:1.6}100%{transform:scale(1.3);opacity:0;stroke-width:.4}}
+.is-reveal .o,.is-reveal .n{stroke-dasharray:1;stroke-dashoffset:1;animation:draw 1.6s var(--ease) forwards}
+.is-reveal .o{animation-delay:.55s}.is-reveal .n{animation-delay:.8s}
+.is-reveal .a{opacity:0;animation:pop .9s var(--ease) 1.35s forwards}
+.is-reveal .m{animation:part 1.8s var(--ease) both}
+@keyframes draw{to{stroke-dashoffset:0}}
+@keyframes pop{0%{opacity:0;transform:scale(0)}100%{opacity:1;transform:scale(1)}}
+@keyframes part{0%{transform:translate(-5.25px,-.75px) scaleX(2.2);stroke:var(--ink)}35%{transform:translate(-5.25px,-.75px) scaleX(2.2);stroke:var(--ink)}100%{transform:none}}
+/* split */
+.split{display:grid;grid-template-columns:1fr 1fr;border:1px solid var(--border);border-radius:20px;overflow:hidden;margin-top:24px}
+.split>div{padding:36px;display:grid;grid-template-columns:auto 1fr;gap:32px;align-items:center}
+.split .t-dark{border-left:1px solid var(--border)}
+.side{border:1px solid var(--border);border-radius:12px;background:var(--surface);padding:10px;font-size:12px}
+.side .row{display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:7px;color:var(--muted)}
+.side .row.hd{color:var(--ink);font-weight:600}.side .row.on{background:var(--ground);color:var(--ink);box-shadow:0 0 0 1px var(--border)}
+.dot{width:6px;height:6px;border-radius:2px;background:var(--border)}
+.tag{font:11px var(--mono);color:var(--muted);margin-top:10px}
+.sq{display:grid;place-items:center;border-radius:22.5%;background:var(--ground);box-shadow:0 0 0 1px var(--border),0 8px 24px -10px rgba(0,0,0,.25)}
+.t-dark .sq,[data-theme=dark] .sq{background:linear-gradient(180deg,#18181b,#0a0a0a)}
+/* scale */
+.scales{display:flex;align-items:flex-end;gap:56px;margin-top:24px;padding:40px;border:1px solid var(--border);border-radius:20px;background:var(--surface);flex-wrap:wrap}
+.scales figure{display:flex;flex-direction:column;align-items:center;gap:14px}
+figcaption{font:11px var(--mono);color:var(--muted);text-align:center}
+.tab{display:flex;align-items:center;gap:6px;padding:6px 10px;border:1px solid var(--border);border-radius:8px 8px 0 0;background:var(--ground);font-size:12px}
+/* anatomy */
+.anat{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-top:24px}
+.anat div{border:1px solid var(--border);border-radius:14px;padding:16px;background:var(--surface)}
+.anat b{display:block;font-weight:600;font-size:13px}.anat span{color:var(--muted);font-size:12px}
+.anat code{font:11px var(--mono);color:var(--accent)}
+/* code */
+.codebox{position:relative;margin-top:24px;border:1px solid var(--border);border-radius:16px;background:var(--surface);overflow:hidden}
+.codebox .btn{position:absolute;top:12px;right:12px}
+pre{padding:56px 22px 22px;font:12px/1.7 var(--mono);color:var(--muted);overflow:auto;white-space:pre}
+footer{margin-top:72px;font:11px var(--mono);color:var(--muted)}
+@media (max-width:860px){.hero,.split,.split>div{grid-template-columns:1fr}.anat{grid-template-columns:1fr 1fr}.split .t-dark{border-left:0;border-top:1px solid var(--border)}nav{display:none}}
+@media (prefers-reduced-motion:reduce){.mk *{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="ear" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <path class="i" d="M12 21a9 9 0 1 1 9-9"/>
+    <path class="i" d="M12 16.5a4.5 4.5 0 1 1 4.5-4.5"/>
+    <path class="a" d="M12 12h.01"/>
+    <path class="m" d="M15.5 19.5h3.5"/>
+  </symbol>
+</svg>
+
+<header>
+  <div class="brand"><svg class="mk" width="22" height="22"><use href="#ear"/></svg>Ear</div>
+  <nav>
+    <a href="./icon-1-acoustic-ear.html">01 · Acoustic Ear</a>
+    <a href="./icon-2-loop-wave.html">02 · Loop Wave</a>
+    <a href="./icon-3-blind-focus.html" class="on">03 · Pure Aperture</a>
+  </nav>
+  <button class="btn" id="theme"><span id="themeLbl">Dark</span></button>
+</header>
+
+<main>
+  <div class="hero">
+    <div>
+      <div class="eyebrow">Concept 03 · Pure Aperture / 隐幕声场</div>
+      <h1>Subtitles off.<br>Ears open.</h1>
+      <p class="cn">关掉字幕，真正听懂英语原声</p>
+      <p class="lead">Two concentric arcs share one open quadrant — an aperture that lets sound in. A single focal point sits at the centre of attention, while the last subtitle line quietly slips out through the gap. Four strokes, one idea: stop reading, start hearing.</p>
+    </div>
+    <div class="stagebox">
+      <div class="stage is-breathe" id="stage">
+        <svg class="mk" viewBox="0 0 24 24" id="hero">
+          <path class="rip" d="M12 21a9 9 0 1 1 9-9"/>
+          <path class="rip" d="M12 21a9 9 0 1 1 9-9"/>
+          <path class="i o" pathLength="1" d="M12 21a9 9 0 1 1 9-9"/>
+          <path class="i n" pathLength="1" d="M12 16.5a4.5 4.5 0 1 1 4.5-4.5"/>
+          <path class="a" d="M12 12h.01"/>
+          <path class="m" d="M15.5 19.5h3.5"/>
+        </svg>
+        <svg class="grid" viewBox="0 0 24 24" id="grid"></svg>
+      </div>
+      <div class="ctrl">
+        <div class="seg" id="states">
+          <button data-s="breathe" class="on">Breathe</button>
+          <button data-s="focus">Focus</button>
+          <button data-s="reveal">Reveal</button>
+          <button data-s="static">Static</button>
+        </div>
+        <button class="btn" id="gridBtn">Grid</button>
+      </div>
+      <div class="state" id="stateLbl">Idle · 5.2s breath, rings in counter-phase</div>
+    </div>
+  </div>
+
+  <section>
+    <div class="eyebrow">01 · Light / Dark</div>
+    <h2>One geometry, two grounds</h2>
+    <p class="lead">Ink strokes follow <code>currentColor</code>; the focal point carries the accent; the parting subtitle sits one step quieter.</p>
+    <div class="split">
+      <div class="t-light">
+        <div><div class="sq" style="width:112px;height:112px"><svg class="mk" width="64" height="64"><use href="#ear"/></svg></div><div class="tag">#ffffff · #0a0a0a · #2563eb</div></div>
+        <div class="side"><div class="row hd"><svg class="mk" width="18" height="18"><use href="#ear"/></svg>Ear</div><div class="row on"><i class="dot"></i>Listen</div><div class="row"><i class="dot"></i>Library</div><div class="row"><i class="dot"></i>Loops</div></div>
+      </div>
+      <div class="t-dark">
+        <div><div class="sq" style="width:112px;height:112px"><svg class="mk" width="64" height="64"><use href="#ear"/></svg></div><div class="tag">#09090b · #fafafa · #2f7cf6</div></div>
+        <div class="side"><div class="row hd"><svg class="mk" width="18" height="18"><use href="#ear"/></svg>Ear</div><div class="row on"><i class="dot"></i>Listen</div><div class="row"><i class="dot"></i>Library</div><div class="row"><i class="dot"></i>Loops</div></div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="eyebrow">02 · Optical scale</div>
+    <h2>From favicon to stage</h2>
+    <p class="lead">Stroke 2 on a 24 grid keeps a 2.5-unit air gap between every element, so the aperture stays open even at 16px.</p>
+    <div class="scales">
+      <figure><div class="tab"><svg class="mk" width="16" height="16"><use href="#ear"/></svg>Ear — Listen</div><figcaption>16px · favicon</figcaption></figure>
+      <figure><svg class="mk" width="24" height="24"><use href="#ear"/></svg><figcaption>24px · sidebar</figcaption></figure>
+      <figure><div class="sq" style="width:64px;height:64px"><svg class="mk" width="38" height="38"><use href="#ear"/></svg></div><figcaption>64px · app squircle</figcaption></figure>
+      <figure><svg class="mk" width="160" height="160"><use href="#ear"/></svg><figcaption>160px · stage</figcaption></figure>
+    </div>
+  </section>
+
+  <section>
+    <div class="eyebrow">03 · Anatomy</div>
+    <h2>Four primitives</h2>
+    <div class="anat">
+      <div><b>Outer aperture</b><span>270° arc, r 9. The open quadrant faces down-right, toward speech.</span><br><code>a9 9 0 1 1 9-9</code></div>
+      <div><b>Inner resonance</b><span>Concentric 270° arc, r 4.5 — the ear tuning in.</span><br><code>a4.5 4.5 0 1 1 4.5-4.5</code></div>
+      <div><b>Focal point</b><span>A round-capped dot in accent. Attention, not text.</span><br><code>M12 12h.01</code></div>
+      <div><b>Parting subtitle</b><span>A muted dash leaving through the gap. Subtitles, off.</span><br><code>M15.5 19.5h3.5</code></div>
+    </div>
+  </section>
+
+  <section>
+    <div class="eyebrow">04 · Adaptive SVG</div>
+    <h2>Standalone, self-theming</h2>
+    <p class="lead">Embedded <code>prefers-color-scheme</code> styles — drop in as favicon, app asset or inline mark. This page's favicon uses it.</p>
+    <div class="codebox"><button class="btn" id="copy">Copy SVG</button><pre id="code"></pre></div>
+  </section>
+
+  <footer>dev.yuler.ear · icon prototype 03 · Pure Aperture</footer>
+</main>
+
+<script>
+const SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+  <style>
+    .i{stroke:#0a0a0a}.a{stroke:#2563eb}.m{stroke:#a1a1aa}
+    @media (prefers-color-scheme:dark){.i{stroke:#fafafa}.a{stroke:#2f7cf6}.m{stroke:#71717a}}
+  </style>
+  <path class="i" d="M12 21a9 9 0 1 1 9-9"/>
+  <path class="i" d="M12 16.5a4.5 4.5 0 1 1 4.5-4.5"/>
+  <path class="a" d="M12 12h.01"/>
+  <path class="m" d="M15.5 19.5h3.5"/>
+</svg>`;
+const $ = id => document.getElementById(id), root = document.documentElement;
+$('code').textContent = SVG;
+$('fav').href = 'data:image/svg+xml,' + encodeURIComponent(SVG);
+
+// theme
+const setTheme = t => { root.dataset.theme = t; $('themeLbl').textContent = t === 'dark' ? 'Light' : 'Dark'; };
+setTheme(matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+$('theme').onclick = () => setTheme(root.dataset.theme === 'dark' ? 'light' : 'dark');
+
+// states
+const labels = {
+  breathe: 'Idle · 5.2s breath, rings in counter-phase',
+  focus: 'Active · subtitle dissolves, resonance ripples out',
+  reveal: 'Draw-in · subtitle parts, arcs trace, point lands',
+  static: 'Static · the resting mark'
+};
+const stage = $('stage');
+$('states').onclick = e => {
+  const s = e.target.dataset.s; if (!s) return;
+  [...$('states').children].forEach(b => b.classList.toggle('on', b === e.target));
+  const grid = stage.classList.contains('show-grid');
+  stage.className = 'stage'; void stage.offsetWidth;
+  stage.classList.add('is-' + s); if (grid) stage.classList.add('show-grid');
+  $('stateLbl').textContent = labels[s];
+};
+
+// construction grid
+let g = '<rect x="0" y="0" width="24" height="24"/>';
+for (let i = 1; i < 24; i++) g += `<line x1="${i}" y1="0" x2="${i}" y2="24"/><line x1="0" y1="${i}" x2="24" y2="${i}"/>`;
+g += '<rect class="k" x="2" y="2" width="20" height="20"/><circle class="k" cx="12" cy="12" r="9"/><circle class="k" cx="12" cy="12" r="4.5"/>'
+  + '<line class="k" x1="12" y1="0" x2="12" y2="24"/><line class="k" x1="0" y1="12" x2="24" y2="12"/><line class="k" x1="12" y1="12" x2="22" y2="22"/>'
+  + '<text x="21.3" y="1.2">24</text><text x="12.4" y="2.8">r9</text><text x="12.4" y="7.2">r4.5</text><text x="18.6" y="21.6">45°</text>';
+$('grid').innerHTML = g;
+$('gridBtn').onclick = () => { stage.classList.toggle('show-grid'); $('gridBtn').classList.toggle('on'); };
+
+// copy
+$('copy').onclick = async () => {
+  try { await navigator.clipboard.writeText(SVG); }
+  catch { const t = document.createElement('textarea'); t.value = SVG; document.body.append(t); t.select(); document.execCommand('copy'); t.remove(); }
+  $('copy').textContent = 'Copied'; setTimeout(() => $('copy').textContent = 'Copy SVG', 1400);
+};
+</script>
+</body>
+</html>

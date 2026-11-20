@@ -1,0 +1,236 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Ear — Icon 1 · Acoustic Ear</title>
+<link id="fav" rel="icon" type="image/svg+xml" href="">
+<style>
+:root,.t-light{--ground:#fff;--surface:#fafafa;--well:#f4f4f5;--border:#e4e4e7;--ink:#0a0a0a;--muted:#71717a;--accent:#2563eb}
+[data-theme=dark],.t-dark{--ground:#0a0a0a;--surface:#141414;--well:#1c1c1c;--border:#262626;--ink:#fafafa;--muted:#a1a1aa;--accent:#2f7cf6}
+*{box-sizing:border-box;margin:0}
+body{font:14px/1.55 -apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Roboto,"PingFang SC",sans-serif;background:var(--ground);color:var(--ink);-webkit-font-smoothing:antialiased;transition:background .3s,color .3s}
+.mono,code,pre{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+.wrap{max-width:1080px;margin:0 auto;padding:0 32px}
+nav{position:sticky;top:0;z-index:9;border-bottom:1px solid var(--border);background:color-mix(in srgb,var(--ground) 82%,transparent);backdrop-filter:blur(12px)}
+nav .wrap{display:flex;align-items:center;height:56px;gap:16px}
+.brand{display:flex;align-items:center;gap:8px;font-weight:600;letter-spacing:-.01em}
+.seg{display:flex;gap:2px;padding:3px;border:1px solid var(--border);border-radius:999px;background:var(--surface)}
+.seg a,.seg button{all:unset;cursor:pointer;padding:3px 12px;border-radius:999px;font-size:12.5px;color:var(--muted);transition:color .18s,background .18s}
+.seg .on{background:var(--ground);color:var(--ink);box-shadow:0 0 0 1px var(--border),0 1px 2px rgba(0,0,0,.06)}
+.pills{margin:0 auto}
+section{padding:56px 0;border-bottom:1px solid var(--border)}
+.lbl{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin-bottom:20px}
+h1{font-size:40px;line-height:1.1;letter-spacing:-.03em;font-weight:600}
+h1 span{color:var(--muted);font-weight:400}
+p.lead{color:var(--muted);margin:14px 0 28px;max-width:400px}
+.hero{display:grid;grid-template-columns:1fr 440px;gap:48px;align-items:center}
+.ctrl{display:flex;flex-direction:column;gap:12px;align-items:flex-start}
+.stage{position:relative;aspect-ratio:1;display:grid;place-items:center;border:1px solid var(--border);border-radius:16px;background:var(--surface);cursor:pointer}
+.tag{position:absolute;font-size:10.5px;color:var(--muted)}
+.tl{top:14px;left:16px}.tr{top:14px;right:16px}.bl{bottom:14px;left:16px}.br{bottom:14px;right:16px}
+dl{display:grid;grid-template-columns:auto 1fr;gap:4px 16px;margin-top:28px;font-size:12.5px}
+dt{color:var(--muted)}
+.split{display:grid;grid-template-columns:1fr 1fr;border:1px solid var(--border);border-radius:16px;overflow:hidden}
+.card{background:var(--ground);color:var(--ink);padding:40px;display:flex;flex-direction:column;gap:32px;align-items:center}
+.card .sub{display:flex;gap:28px;align-items:center}
+.lock{display:flex;align-items:center;gap:10px;font-size:22px;font-weight:600;letter-spacing:-.02em}
+.lock small{display:block;font-size:11.5px;font-weight:400;letter-spacing:0;color:var(--muted)}
+.scale{display:grid;grid-template-columns:1.25fr 1fr 1fr 1fr;gap:16px}
+.cell{border:1px solid var(--border);border-radius:12px;background:var(--surface);padding:20px;display:flex;flex-direction:column;gap:16px;min-height:240px}
+.cell .body{flex:1;display:grid;place-items:center}
+.cell h3{font-size:12px;font-weight:500;color:var(--muted)}
+.tabs{width:100%;background:var(--well);border-radius:8px 8px 0 0;padding:8px 8px 0;display:flex;gap:2px}
+.tab{display:flex;align-items:center;gap:7px;padding:7px 10px;font-size:12px;border-radius:7px 7px 0 0;color:var(--muted);min-width:0;white-space:nowrap;overflow:hidden}
+.tab.on{background:var(--ground);color:var(--ink)}
+.tab i{width:14px;height:14px;border-radius:50%;background:var(--border);flex:none}
+.pix{display:flex;gap:12px;align-items:end;font-size:10.5px;color:var(--muted)}
+.pix canvas{width:64px;height:64px;image-rendering:pixelated;border:1px solid var(--border);border-radius:4px;background:var(--ground)}
+.side{width:100%;background:var(--ground);border:1px solid var(--border);border-radius:8px;padding:10px;font-size:12.5px}
+.side .lock{font-size:14px;gap:8px;padding:2px 4px 10px}
+.side div:not(.lock){padding:5px 6px;border-radius:5px;color:var(--muted)}
+.side .act{background:var(--well);color:var(--ink)!important}
+.tiles{display:flex;gap:10px}
+.sq{width:64px;height:64px;border-radius:15px;display:grid;place-items:center;box-shadow:inset 0 0 0 1px rgba(127,127,127,.18),0 2px 6px -2px rgba(0,0,0,.18)}
+.sq.l{background:#fff;color:#0a0a0a;--accent:#2563eb}.sq.d{background:#141414;color:#fafafa;--accent:#2f7cf6}.sq.a{background:#2563eb;color:#fff;--accent:rgba(255,255,255,.62)}
+details{border:1px solid var(--border);border-radius:12px;background:var(--surface)}
+summary{cursor:pointer;padding:16px 20px;font-weight:500;list-style:none;display:flex;justify-content:space-between}
+summary::after{content:"+";color:var(--muted)}details[open] summary::after{content:"–"}
+.code{border-top:1px solid var(--border);padding:16px 20px}
+.code .bar{display:flex;justify-content:space-between;margin-bottom:12px}
+pre{font-size:12px;line-height:1.6;overflow:auto;padding:16px;background:var(--ground);border:1px solid var(--border);border-radius:8px;color:var(--muted)}
+footer{padding:32px 0 64px;color:var(--muted);font-size:12px}
+/* ---- mark ---- */
+.mark{overflow:visible;display:block}
+.mark .w,.mark .g{stroke:var(--accent)}
+.mark.mono .w{stroke:currentColor}
+.mark .w,.mark .g{transform-box:view-box;transform-origin:13.5px 9.5px}
+.mark .g{opacity:0}
+.mark .grid{display:none}
+.show-grid .mark .grid{display:inline}
+.grid *{vector-effect:non-scaling-stroke;stroke-width:1}
+.grid .gl{stroke:var(--border)}
+.grid .gk{stroke:var(--accent);opacity:.45;stroke-dasharray:3 3}
+.grid .gc{stroke:var(--accent);opacity:.3}
+.grid .gs{stroke:var(--muted);opacity:.35;stroke-dasharray:1 3}
+.mark[data-state=idle] .w{animation:breathe 4.8s cubic-bezier(.45,0,.55,1) infinite}
+.mark[data-state=listen] .w{opacity:.16;transition:opacity .6s}
+.mark[data-state=listen] .g{animation:converge 2.4s linear infinite}
+.mark[data-state=listen] .g:nth-child(2){animation-delay:-.8s}
+.mark[data-state=listen] .g:nth-child(3){animation-delay:-1.6s}
+.mark[data-state=replay] .p{stroke-dasharray:1 2;animation:drawLoop 3.6s cubic-bezier(.22,1,.36,1) infinite}
+.mark.replay path.p{stroke-dasharray:1 2;animation:draw 1.2s cubic-bezier(.22,1,.36,1) both;opacity:1}
+.mark.replay path.g{animation:none}
+.mark .p.h{animation-delay:.12s!important}.mark .p.a{animation-delay:.34s!important}
+@keyframes breathe{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.38;transform:scale(.965)}}
+@keyframes converge{0%{opacity:0;transform:scale(1.45);stroke-width:1.2}30%{opacity:.95}100%{opacity:0;transform:scale(.66);stroke-width:2.6}}
+@keyframes draw{0%{stroke-dashoffset:1;opacity:0}6%{opacity:1}100%{stroke-dashoffset:0}}
+@keyframes drawLoop{0%{stroke-dashoffset:1;opacity:0}4%{opacity:1}38%,86%{stroke-dashoffset:0;opacity:1}100%{stroke-dashoffset:0;opacity:0}}
+@media (prefers-reduced-motion:reduce){.mark *{animation:none!important}}
+@media (max-width:900px){.hero,.split{grid-template-columns:1fr}.scale{grid-template-columns:1fr 1fr}}
+</style>
+</head>
+<body>
+<nav><div class="wrap">
+  <div class="brand"><i data-mark data-size="20"></i>Ear</div>
+  <div class="seg pills">
+    <a class="on" href="./icon-1-acoustic-ear.html">1 · Acoustic Ear</a>
+    <a href="./icon-2-loop-wave.html">2 · Loop Wave</a>
+    <a href="./icon-3-blind-focus.html">3 · Blind Focus</a>
+  </div>
+  <div class="seg" id="theme"><button data-t="light">Light</button><button data-t="dark">Dark</button></div>
+</div></nav>
+
+<main class="wrap">
+<section class="hero">
+  <div>
+    <div class="lbl mono">Prototype 01 — Concept</div>
+    <h1>Acoustic Ear<br><span>声学耳廓</span></h1>
+    <p class="lead">One continuous helix, an echoing inner curl, and a single incoming wavefront — three concentric strokes converging on the ear canal. 关掉字幕，真正听懂英语原声。</p>
+    <div class="ctrl">
+      <div class="seg" id="state">
+        <button data-s="idle">Idle</button><button data-s="listen">Listening</button><button data-s="replay">Replay</button><button data-s="static">Static</button>
+      </div>
+      <div class="seg"><button id="gridBtn">Show Grid</button></div>
+    </div>
+    <dl class="mono">
+      <dt>Grid</dt><dd>24 × 24 · live area 14 × 15.7</dd>
+      <dt>Stroke</dt><dd>1.5 display · 1.75 UI · 2.0 favicon · round cap/join</dd>
+      <dt>Focus</dt><dd>(13.5, 9.5) — ear canal</dd>
+      <dt>Radii</dt><dd>2.5 / 5.5 / 8.5 — constant 3u rhythm</dd>
+      <dt>Motion</dt><dd>cubic-bezier(0.22, 1, 0.36, 1) · linear wave travel</dd>
+    </dl>
+  </div>
+  <div class="stage" id="stage" title="Click to replay">
+    <span class="tag tl mono">240 px</span><span class="tag tr mono" id="stTag">idle</span>
+    <span class="tag bl mono">dev.yuler.ear</span><span class="tag br mono">hover · replay</span>
+    <i data-mark data-size="240" data-sw="1.5" data-live data-grid></i>
+  </div>
+</section>
+
+<section>
+  <div class="lbl mono">02 — Light / Dark</div>
+  <div class="split">
+    <div class="card t-light">
+      <i data-mark data-size="128" data-sw="1.5" data-live data-grid></i>
+      <div class="sub"><div class="lock"><i data-mark data-size="28"></i><div>Ear<small>Subtitles off. Train your ears.</small></div></div></div>
+    </div>
+    <div class="card t-dark">
+      <i data-mark data-size="128" data-sw="1.5" data-live data-grid></i>
+      <div class="sub"><div class="lock"><i data-mark data-size="28"></i><div>Ear<small>Subtitles off. Train your ears.</small></div></div></div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="lbl mono">03 — Optical scale test</div>
+  <div class="scale">
+    <div class="cell"><h3>16 px · browser tab</h3>
+      <div class="body" style="gap:16px">
+        <div style="width:100%"><div class="tabs"><div class="tab on"><i data-mark data-size="16" data-sw="2"></i>Ear — 关掉字幕</div><div class="tab"><i></i>Inbox</div></div><div style="height:6px;background:var(--ground)"></div></div>
+        <div class="pix"><div><canvas id="c16" width="16" height="16"></canvas><div>1× raster</div></div><div><canvas id="c32" width="32" height="32"></canvas><div>2× raster</div></div></div>
+      </div>
+    </div>
+    <div class="cell"><h3>24 px · app sidebar</h3>
+      <div class="body"><div class="side">
+        <div class="lock"><i data-mark data-size="24"></i>Ear</div>
+        <div class="act">Listen</div><div>Library</div><div>Review</div><div>Settings</div>
+      </div></div>
+    </div>
+    <div class="cell"><h3>64 px · app icon</h3>
+      <div class="body"><div class="tiles" style="flex-direction:column">
+        <div class="sq l"><i data-mark data-size="40"></i></div>
+        <div class="sq d"><i data-mark data-size="40"></i></div>
+        <div class="sq a"><i data-mark data-size="40"></i></div>
+      </div></div>
+    </div>
+    <div class="cell"><h3>160 px · stage</h3>
+      <div class="body"><i data-mark data-size="160" data-sw="1.5" data-live data-grid></i></div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="lbl mono">04 — Standalone SVG</div>
+  <details>
+    <summary>Copy the mark</summary>
+    <div class="code">
+      <div class="bar"><div class="seg" id="codeTabs"><button data-c="fav">favicon.svg · adaptive</button><button data-c="inline">inline · currentColor</button></div><div class="seg"><button id="copy">Copy</button></div></div>
+      <pre><code id="code"></code></pre>
+    </div>
+  </details>
+</section>
+</main>
+<footer class="wrap mono">Ear · Icon prototype 1 / 3 · Acoustic Ear</footer>
+
+<script>
+const P={
+  w:"M6.14 5.25A8.5 8.5 0 0 0 6.14 13.75",
+  h:"M8 9.5a5.5 5.5 0 0 1 11 0c0 3.2-2.2 4.4-3.2 5.8c-.8 1.12-.7 2.23-1.4 3.2a3 3 0 0 1-5.2-.6",
+  a:"M11 9.5a2.5 2.5 0 0 1 5 0c0 1.6-1.1 2.4-2.5 3"
+};
+let lines="";for(let i=0;i<=24;i++)lines+=`M${i} 0V24M0 ${i}H24`;
+const GRID=`<g class="grid"><path class="gl" d="${lines}"/><rect class="gs" x="2" y="2" width="20" height="20" rx="1"/><path class="gs" d="M12 0V24M0 12H24"/><path class="gc" d="M13.5 0V24M0 9.5H24"/>${[2.5,5.5,8.5].map(r=>`<circle class="gk" cx="13.5" cy="9.5" r="${r}"/>`).join("")}<circle class="gk" cx="11.97" cy="16.74" r="3"/></g>`;
+const svg=({size=24,sw=1.75,live,grid})=>`<svg class="mark${live?" live":""}" ${live?'data-state="idle"':""} viewBox="0 0 24 24" width="${size}" height="${size}" fill="none" stroke="currentColor" stroke-width="${sw}" stroke-linecap="round" stroke-linejoin="round" role="img" aria-label="Ear">${grid?GRID:""}${live?`<g>${'<path class="g" d="'+P.w+'"/>'.repeat(3)}</g>`:""}<path class="p w" pathLength="1" d="${P.w}"/><path class="p h" pathLength="1" d="${P.h}"/><path class="p a" pathLength="1" d="${P.a}"/></svg>`;
+document.querySelectorAll("[data-mark]").forEach(el=>{el.outerHTML=svg({size:+el.dataset.size,sw:+(el.dataset.sw||1.75),live:"live" in el.dataset,grid:"grid" in el.dataset})});
+
+// standalone sources
+const head=sw=>`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke-width="${sw}" stroke-linecap="round" stroke-linejoin="round">`;
+const SRC={
+  fav:`${head(2)}
+  <style>
+    .e{stroke:#0a0a0a}.w{stroke:#2563eb}
+    @media (prefers-color-scheme:dark){.e{stroke:#fafafa}.w{stroke:#2f7cf6}}
+  </style>
+  <path class="w" d="${P.w}"/>
+  <path class="e" d="${P.h}"/>
+  <path class="e" d="${P.a}"/>
+</svg>`,
+  inline:`<!-- inherits text color; wave picks up --ear-accent if set -->
+<svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" role="img" aria-label="Ear">
+  <path d="${P.w}" style="stroke:var(--ear-accent,currentColor)"/>
+  <path d="${P.h}"/>
+  <path d="${P.a}"/>
+</svg>`};
+document.getElementById("fav").href="data:image/svg+xml,"+encodeURIComponent(SRC.fav);
+const seg=(id,attr,fn)=>{const r=document.getElementById(id);r.addEventListener("click",e=>{const b=e.target.closest("button");if(b)pick(b.dataset[attr])});function pick(v){r.querySelectorAll("button").forEach(b=>b.classList.toggle("on",b.dataset[attr]===v));fn(v)}return pick};
+let code="fav";
+const pickCode=seg("codeTabs","c",v=>{code=v;document.getElementById("code").textContent=SRC[v]});pickCode("fav");
+document.getElementById("copy").onclick=e=>{navigator.clipboard?.writeText(SRC[code]);e.target.textContent="Copied";setTimeout(()=>e.target.textContent="Copy",1400)};
+
+// state
+const lives=[...document.querySelectorAll("svg.live")];
+const pickState=seg("state","s",s=>{lives.forEach(m=>{m.classList.remove("replay");m.dataset.state=s});document.getElementById("stTag").textContent=s});pickState("idle");
+function replay(m){if(m.dataset.state==="replay")return;m.classList.remove("replay");void m.getBoundingClientRect();m.classList.add("replay");clearTimeout(m._t);m._t=setTimeout(()=>m.classList.remove("replay"),1700)}
+lives.forEach(m=>m.addEventListener("pointerenter",()=>replay(m)));
+document.getElementById("stage").onclick=e=>replay(e.currentTarget.querySelector("svg"));
+const gb=document.getElementById("gridBtn");gb.onclick=()=>gb.classList.toggle("on",document.body.classList.toggle("show-grid"));
+
+// theme + pixel raster test
+function raster(){const cs=getComputedStyle(document.documentElement),ink=cs.getPropertyValue("--ink").trim(),acc=cs.getPropertyValue("--accent").trim();
+  [["c16",16],["c32",32]].forEach(([id,n])=>{const s=head(2).replace("<svg",`<svg width="${n}" height="${n}"`)+`<path stroke="${acc}" d="${P.w}"/><path stroke="${ink}" d="${P.h}"/><path stroke="${ink}" d="${P.a}"/></svg>`;
+    const img=new Image();img.onload=()=>{const c=document.getElementById(id).getContext("2d");c.clearRect(0,0,n,n);c.drawImage(img,0,0,n,n)};img.src="data:image/svg+xml,"+encodeURIComponent(s)})}
+seg("theme","t",t=>{document.documentElement.dataset.theme=t;raster()})(matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light");
+</script>
+</body>
+</html>

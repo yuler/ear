@@ -15,9 +15,14 @@ on:
         description: 'Release tag override (e.g. v0.0.2)'
         required: false
         default: ''
+      full_update:
+        description: 'Force a full app update (omit OTA from the manifest)'
+        type: boolean
+        default: false
 
 permissions:
   contents: write
+  actions: read
 
 concurrency:
   group: release-main
@@ -33,6 +38,7 @@ jobs:
       build: ${{ steps.vars.outputs.build }}
       release_title: ${{ steps.vars.outputs.release_title }}
       changelog: ${{ steps.vars.outputs.changelog }}
+      release_mode: ${{ steps.vars.outputs.release_mode }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -44,14 +50,21 @@ jobs:
 
       - name: Resolve Version & Metadata
         id: vars
+        env:
+          FORCE_FULL_UPDATE: ${{ inputs.full_update || false }}
+          GH_TOKEN: ${{ github.token }}
         shell: bash
         run: |
+          LATEST_TAG=$(git for-each-ref --sort=-version:refname --count=1 --format='%(refname:short)' 'refs/tags/v*')
+          RELEASE_BASELINE=$(bash scripts/release-baseline.sh)
+          RELEASE_MODE=$(bash scripts/release-mode.sh "$RELEASE_BASELINE" HEAD "$FORCE_FULL_UPDATE")
+          echo "release_mode=$RELEASE_MODE" >> "$GITHUB_OUTPUT"
+
           OVERRIDE_TAG="${{ github.event.inputs.tag }}"
           if [ -n "$OVERRIDE_TAG" ]; then
             TAG="$OVERRIDE_TAG"
             VERSION="${TAG#v}"
           else
-            LATEST_TAG=$(git tag --sort=-v:refname -l "v*" 2>/dev/null | head -n 1 || true)
             if [ -z "$LATEST_TAG" ]; then
               VERSION="0.0.1"
             else
@@ -80,6 +93,9 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Release policy regressions
+        run: bash scripts/release.test.sh
 
       - name: Setup Rust toolchain
         uses: dtolnay/rust-toolchain@stable
@@ -247,14 +263,6 @@ jobs:
             chmod 600 keys/update.secret
           fi
 
-          BUILD_NUM="${{ needs.prepare.outputs.build }}"
-          PKG_NAME="dev.yuler.ear-${BUILD_NUM}.nshpkg"
-
-          if [ -f keys/release.secret ] && [ -f keys/release.cert ]; then
-            echo "Publishing signed OTA package $PKG_NAME..."
-            nsh publish --key keys/release.secret --cert keys/release.cert --build "$BUILD_NUM" -o "dist/$PKG_NAME" app/
-          fi
-
           # Also keep raw bytecode bundle for fallback
           nsh package --target linux app/
           cp .nsh/out/Ear/nsh/bundle.nshc dist/bundle.nshc
@@ -268,21 +276,7 @@ jobs:
           printf "### What's Changed\n**%s**\n\n%s\n\n---\n- **Commit**: [\`%s\`](https://github.com/${{ github.repository }}/commit/%s)\n- **Author**: %s\n" \
             "${COMMIT_SUBJECT}" "${COMMIT_BODY}" "${SHORT_SHA}" "${COMMIT_SHA}" "${AUTHOR}" > dist/release_notes.md
 
-          KEY_ARG=""
-          if [ -f keys/update.secret ]; then
-            KEY_ARG="--key keys/update.secret"
-          else
-            echo "::warning::keys/update.secret is missing; removing updater from app/nsh.json for unsigned fallback manifest"
-            jq 'del(.updater)' app/nsh.json > app/nsh.json.tmp && mv app/nsh.json.tmp app/nsh.json
-          fi
-
-          PKG_ARG=""
-          if [ -f "dist/$PKG_NAME" ]; then
-            PKG_ARG="--package dist/$PKG_NAME"
-          fi
-
-          echo "Running nsh update-manifest..."
-          nsh update-manifest dist/Ear-*.tar.gz dist/Ear-*.zip $PKG_ARG $KEY_ARG --entry app/ --notes dist/release_notes.md -o dist/
+          bash scripts/release-manifest.sh "${{ needs.prepare.outputs.release_mode }}" "${{ needs.prepare.outputs.build }}"
 
           # Also run checksums
           cd dist

@@ -38,18 +38,19 @@ Ear 桌面客户端通过 `nsh/updater` 做自动更新。本文说明 OTA（`.n
 
 ## 3. 发版策略
 
-当前 `release.yml` 每次合入都会同时产出三端安装包 + `.nshpkg` + 签名 `latest.json`。日常 TSX 迭代这样没问题；**壳层变更**必须改策略。
+`release.yml` always builds the three platform archives. It now selects OTA or full delivery before generating the signed manifest; see [Release delivery modes](./release-modes.md).
 
 | 类型 | 何时用 | Manifest | 用户看到 |
 | :--- | :----- | :------- | :------- |
 | **增量**（默认） | 只改 TSX/UI | 带 `--package`（安装包可仍上传作备份） | 增量热更 → 重启 |
 | **全量** | icon、name、capabilities、Rust、升 runtime | **不要**把 `.nshpkg` 写进 manifest | 全量更新 → 安装并重启 / 下载安装包 |
 
-全量触发方式（择一即可，尚未全部落地）：
+Implemented full-update controls:
 
-- Commit / PR 标记（如 `[full-update]` 或 label）
-- `workflow_dispatch` 手动选全量
-- CI 检测路径：`icon.png`、`nsh.json` 的 `icon` / `capabilities` / `updater`、Rust crate 等
+- Automatic detection compares all changes since the last successful `release.yml` workflow on main (not merely a pushed tag or a partially published Release): `app/icon.*`, `app/nsh.json`, `cli/**`, `mise.toml`, `scripts/linux-launcher.sh`, and `.github/workflows/release.yml` require full delivery.
+- `workflow_dispatch` with `full_update: true` forces full delivery for other shell-affecting changes. `false` keeps automatic selection; it does not force OTA.
+- Full delivery skips OTA publication, never passes `--package`, and verifies that the generated manifest has no `package` field before publication. UI-only releases retain signed OTA when signing material is available.
+- Commit markers and PR labels are not implemented controls.
 
 ---
 

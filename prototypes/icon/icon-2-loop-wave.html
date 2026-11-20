@@ -1,0 +1,233 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Ear · Icon 2 — Loop Resonance</title>
+<link rel="icon" id="fav" type="image/svg+xml">
+<style>
+:root{--font:-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Roboto,"PingFang SC",sans-serif;--mono:ui-monospace,SFMono-Regular,Menlo,monospace;--ease:cubic-bezier(.16,1,.3,1);--io:cubic-bezier(.45,0,.55,1)}
+[data-theme=light],.light{--bg:#fff;--sf:#fafafa;--bd:#e4e4e7;--ink:#0a0a0a;--mu:#71717a;--acc:#2563eb;--soft:rgba(37,99,235,.08)}
+[data-theme=dark],.dark{--bg:#0a0a0a;--sf:#141414;--bd:#262626;--ink:#fafafa;--mu:#a1a1aa;--acc:#2f7cf6;--soft:rgba(47,124,246,.12)}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font:14px/1.5 var(--font);background:var(--bg);color:var(--ink);-webkit-font-smoothing:antialiased;transition:background .3s,color .3s}
+.light,.dark{background:var(--bg);color:var(--ink)}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
+header{position:sticky;top:0;z-index:5;display:flex;align-items:center;gap:16px;padding:12px 24px;border-bottom:1px solid var(--bd);background:color-mix(in srgb,var(--bg) 82%,transparent);backdrop-filter:blur(12px)}
+.brand{display:flex;align-items:center;gap:8px;font-weight:600;letter-spacing:-.01em}
+.brand .mark{width:20px;height:20px}
+nav{display:flex;gap:4px;margin:0 auto;padding:3px;border:1px solid var(--bd);border-radius:99px;background:var(--sf)}
+nav a{padding:4px 12px;border-radius:99px;color:var(--mu);text-decoration:none;font-size:12.5px;transition:color .2s,background .2s}
+nav a:hover{color:var(--ink)}
+nav a[aria-current]{background:var(--bg);color:var(--ink);box-shadow:0 0 0 1px var(--bd),0 1px 2px rgba(0,0,0,.06)}
+.icon-btn{width:32px;height:32px;display:grid;place-items:center;border:1px solid var(--bd);border-radius:8px;color:var(--mu)}
+.icon-btn:hover{color:var(--ink)}
+main{max-width:1080px;margin:0 auto;padding:40px 24px 96px;display:grid;gap:56px}
+h2{font-size:12px;font-weight:500;letter-spacing:.08em;text-transform:uppercase;color:var(--mu);margin-bottom:14px}
+.card{border:1px solid var(--bd);border-radius:16px;background:var(--sf);overflow:hidden}
+.stage{position:relative;display:grid;place-items:center;gap:28px;padding:72px 24px 40px;background:radial-gradient(60% 60% at 50% 40%,var(--soft),transparent 70%),radial-gradient(circle,var(--bd) 1px,transparent 1.2px) 0 0/20px 20px,var(--sf)}
+.stage .mark{width:240px;height:240px}
+.lockup{text-align:center}
+.lockup b{display:block;font-size:28px;font-weight:600;letter-spacing:-.03em}
+.lockup span{color:var(--mu);font-size:13px}
+.bar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:center;padding:14px;border-top:1px solid var(--bd);background:var(--bg)}
+.seg{display:flex;padding:3px;border:1px solid var(--bd);border-radius:10px;background:var(--sf)}
+.seg button{padding:5px 12px;border-radius:7px;font-size:12.5px;color:var(--mu);transition:all .2s var(--ease)}
+.seg button[aria-pressed=true]{background:var(--bg);color:var(--ink);box-shadow:0 0 0 1px var(--bd),0 1px 2px rgba(0,0,0,.08)}
+.chip{padding:6px 12px;border:1px solid var(--bd);border-radius:10px;font-size:12.5px;color:var(--mu)}
+.chip[aria-pressed=true]{color:var(--acc);border-color:var(--acc);background:var(--soft)}
+#replay{display:none}.m-trace #replay{display:block}
+.split{display:grid;grid-template-columns:1fr 1fr}
+.split>div{display:grid;place-items:center;gap:18px;padding:48px 16px 28px}
+.split .mark{width:160px;height:160px}
+.meta{font:11.5px var(--mono);color:var(--mu);text-align:center}
+.meta i{display:inline-block;width:8px;height:8px;border-radius:2px;margin:0 4px 0 10px;vertical-align:0;box-shadow:0 0 0 1px var(--bd)}
+.rows{display:grid;gap:12px}
+.row{display:grid;grid-template-columns:1.3fr 1fr .8fr 1.2fr;border:1px solid var(--bd);border-radius:16px;overflow:hidden}
+.cell{display:grid;place-items:center;align-content:center;gap:14px;min-height:220px;padding:20px;border-left:1px solid var(--bd)}
+.cell:first-child{border-left:0}
+.tab{display:flex;align-items:center;gap:8px;width:200px;padding:7px 10px;border:1px solid var(--bd);border-radius:8px 8px 0 0;border-bottom:0;background:var(--sf);font-size:12px}
+.tab .x{margin-left:auto;color:var(--mu)}
+.s16{width:16px;height:16px;flex:none}.s24{width:24px;height:24px;flex:none}
+.side{width:150px;padding:6px;border:1px solid var(--bd);border-radius:10px;background:var(--sf);font-size:12.5px}
+.side div{display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:6px;color:var(--mu)}
+.side div:first-child{color:var(--ink);font-weight:600;background:var(--bg);box-shadow:0 0 0 1px var(--bd)}
+.side u{width:24px;height:4px;border-radius:2px;background:var(--bd);text-decoration:none}
+.tile{width:64px;height:64px;border-radius:15px;display:grid;place-items:center;background:#fff;box-shadow:0 0 0 1px #e4e4e7,0 6px 16px -6px rgba(0,0,0,.18)}
+.dark .tile{background:linear-gradient(160deg,#1c1c20,#0a0a0a);box-shadow:0 0 0 1px #262626,0 8px 20px -6px #000}
+.tile .mark{width:38px;height:38px}
+.cell>.s160{width:160px;height:160px}
+.cap{font:11px var(--mono);color:var(--mu)}
+.spec{display:grid;grid-template-columns:repeat(4,1fr)}
+.spec div{padding:16px 18px;border-left:1px solid var(--bd)}.spec div:first-child{border-left:0}
+.spec b{display:block;font:500 13px var(--mono)}.spec span{font-size:12px;color:var(--mu)}
+.code-head{display:flex;align-items:center;gap:10px;padding:10px;border-bottom:1px solid var(--bd);background:var(--bg)}
+.code-head .chip{margin-left:auto}
+pre{padding:18px 20px;font:12px/1.7 var(--mono);overflow:auto;color:var(--ink)}
+footer{color:var(--mu);font-size:12px;text-align:center}
+/* mark */
+.mark{display:block;overflow:visible}
+.mark .ink{stroke:var(--ink)}
+.mark .acc,.mark .flow{stroke:var(--acc)}
+.mark .flow,.mark .ghost{opacity:0;stroke:var(--acc)}
+.arc,.ghost{transform-box:view-box;transform-origin:11px 12px}
+.grid{display:none;fill:none}.show-grid .grid{display:block}
+.grid *{vector-effect:non-scaling-stroke;stroke-width:1px}
+.gl{stroke:var(--acc);opacity:.13}.gk{stroke:var(--acc);opacity:.6}
+/* modes */
+.m-ambient .live .flow{opacity:1;stroke-dasharray:14 140;animation:flow 3.2s var(--io) infinite}
+.m-ambient .live .arc{animation:res 3.2s var(--io) infinite}
+.m-ambient .live .g1{animation:rip 3.2s ease-out infinite}
+@keyframes flow{from{stroke-dashoffset:16}to{stroke-dashoffset:-102}}
+@keyframes res{0%,64%{opacity:.4;transform:scale(1)}88%{opacity:1;transform:scale(1.04)}100%{opacity:.4;transform:scale(1)}}
+@keyframes rip{0%,80%{opacity:0;transform:scale(1)}85%{opacity:.45}100%{opacity:0;transform:scale(1.3)}}
+.m-pulse .live .arc{animation:beat 1.6s var(--io) infinite}
+.m-pulse .live .ghost{animation:rip2 3.2s cubic-bezier(.2,.6,.3,1) infinite}
+.m-pulse .live .g2{animation-delay:1.6s}
+.m-pulse .live .e{animation:breath 3.2s var(--io) infinite}
+@keyframes beat{0%,100%{transform:scale(1);opacity:.8}50%{transform:scale(1.05);opacity:1}}
+@keyframes rip2{0%{opacity:.5;transform:scale(1)}100%{opacity:0;transform:scale(1.45)}}
+@keyframes breath{50%{opacity:.8}}
+.m-trace .live .e,.m-trace .live .arc{stroke-dasharray:100 102;stroke-dashoffset:101;animation:draw 1.5s var(--ease) forwards}
+.m-trace .live .arc{animation-duration:.8s;animation-delay:1.05s}
+@keyframes draw{to{stroke-dashoffset:0}}
+@media (max-width:820px){.row{grid-template-columns:1fr 1fr}.cell:nth-child(3){border-left:0}.cell{border-top:1px solid var(--bd)}.spec{grid-template-columns:1fr 1fr}nav{display:none}}
+</style>
+</head>
+<body class="m-ambient">
+<header>
+  <div class="brand" data-mark></div>
+  <nav>
+    <a href="./icon-1-acoustic-ear.html">01 Acoustic Ear</a>
+    <a href="./icon-2-loop-wave.html" aria-current="page">02 Loop Resonance</a>
+    <a href="./icon-3-blind-focus.html">03 Blind Focus</a>
+  </nav>
+  <button class="icon-btn" id="theme" title="Toggle light / dark" aria-label="Toggle theme">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4.5"/><path d="M12 2.5v2M12 19.5v2M2.5 12h2M19.5 12h2M5.3 5.3l1.4 1.4M17.3 17.3l1.4 1.4M5.3 18.7l1.4-1.4M17.3 6.7l1.4-1.4"/></svg>
+  </button>
+</header>
+
+<main>
+  <section>
+    <h2>Concept 02 · Loop Resonance / 回环声波</h2>
+    <div class="card">
+      <div class="stage">
+        <div id="hero"></div>
+        <div class="lockup"><b>Ear</b><span>关掉字幕，真正听懂英语原声 · Blind Flow → Loop Dojo</span></div>
+      </div>
+      <div class="bar">
+        <div class="seg" id="modes">
+          <button data-m="ambient" aria-pressed="true">Ambient Loop</button>
+          <button data-m="pulse" aria-pressed="false">Pulse</button>
+          <button data-m="trace" aria-pressed="false">Trace Draw</button>
+          <button data-m="static" aria-pressed="false">Static</button>
+        </div>
+        <button class="chip" id="grid" aria-pressed="false">Grid</button>
+        <button class="chip" id="replay">↻ Replay</button>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Light / Dark</h2>
+    <div class="card split">
+      <div class="light"><div data-mark="live grid"></div><p class="meta">LIGHT<i style="background:#0a0a0a"></i>#0a0a0a<i style="background:#2563eb"></i>#2563eb</p></div>
+      <div class="dark"><div data-mark="live grid"></div><p class="meta">DARK<i style="background:#fafafa"></i>#fafafa<i style="background:#2f7cf6"></i>#2f7cf6</p></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Optical scale test</h2>
+    <div class="rows" id="rows"></div>
+  </section>
+
+  <section>
+    <h2>Construction</h2>
+    <div class="card spec">
+      <div><b>24 × 24 · 2px</b><span>viewBox · stroke, round caps &amp; joins</span></div>
+      <div><b>e · r6 @ (11,12)</b><span>Diameter bar + 315° counter-sweep: the letter, the helix, the loop.</span></div>
+      <div><b>resonance · r10</b><span>Concentric ±35° arc — the sound returning to the ear.</span></div>
+      <div><b>gap 2u · 45° exit</b><span>Opening aligned to the resonance; holds 1.3px at 16px.</span></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Standalone adaptive SVG</h2>
+    <div class="card">
+      <div class="code-head">
+        <div class="seg" id="tabs">
+          <button data-t="adaptive" aria-pressed="true">prefers-color-scheme</button>
+          <button data-t="current" aria-pressed="false">currentColor</button>
+        </div>
+        <button class="chip" id="copy">Copy SVG</button>
+      </div>
+      <pre id="code"></pre>
+    </div>
+  </section>
+
+  <footer>dev.yuler.ear · Icon prototype 2 of 3</footer>
+</main>
+
+<script>
+const E='M5 12H17A6 6 0 1 0 15.24 16.24',A='M19.19 6.26A10 10 0 0 1 19.19 17.74';
+let gl='';for(let i=1;i<24;i++)gl+=`M${i} 0V24M0 ${i}H24`;
+const GRID=`<g class="grid"><path class="gl" d="${gl}"/><g class="gk"><rect x="1" y="1" width="22" height="22"/><circle cx="11" cy="12" r="6"/><circle cx="11" cy="12" r="10"/><path d="M11 0V24M0 12H24M11 12L19.19 6.26M11 12L19.19 17.74M11 12L15.24 16.24"/></g></g>`;
+function mark(o='',cls=''){
+  const live=o.includes('live');
+  return `<svg class="mark ${cls} ${live?'live':''}" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${o.includes('grid')?GRID:''}<path class="ink e" pathLength="100" d="${E}"/>${live?`<path class="flow" pathLength="100" d="${E}"/><path class="ghost g1" d="${A}"/><path class="ghost g2" d="${A}"/>`:''}<path class="acc arc" pathLength="100" d="${A}"/></svg>`;
+}
+document.getElementById('hero').innerHTML=mark('live grid');
+document.querySelectorAll('[data-mark]').forEach(el=>{el.innerHTML=mark(el.dataset.mark)+(el.classList.contains('brand')?'Ear':'')});
+
+document.getElementById('rows').innerHTML=['light','dark'].map(t=>`<div class="row ${t}">
+  <div class="cell"><div class="tab">${mark('','s16')}<span>Ear — Loop Dojo</span><span class="x">×</span></div><span class="cap">16 · favicon</span></div>
+  <div class="cell"><div class="side"><div>${mark('','s24')}Ear</div><div><u></u>Blind Flow</div><div><u></u>Loop Dojo</div></div><span class="cap">24 · sidebar</span></div>
+  <div class="cell"><div class="tile">${mark()}</div><span class="cap">64 · app tile</span></div>
+  <div class="cell">${mark('grid','s160')}<span class="cap">160 · stage</span></div>
+</div>`).join('');
+
+const CODE={
+adaptive:`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+  <style>
+    .e{stroke:#0a0a0a}.r{stroke:#2563eb}
+    @media (prefers-color-scheme:dark){.e{stroke:#fafafa}.r{stroke:#2f7cf6}}
+  </style>
+  <path class="e" d="${E}"/>
+  <path class="r" d="${A}"/>
+</svg>`,
+current:`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+  <path d="${E}"/>
+  <path d="${A}" style="stroke:var(--accent,currentColor)"/>
+</svg>`};
+document.getElementById('fav').href='data:image/svg+xml,'+encodeURIComponent(CODE.adaptive);
+
+const root=document.documentElement,body=document.body,$=id=>document.getElementById(id);
+const setTheme=t=>{root.dataset.theme=t;try{localStorage.setItem('ear-theme',t)}catch(e){}};
+let saved=null;try{saved=localStorage.getItem('ear-theme')}catch(e){}
+setTheme(saved||(matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'));
+$('theme').onclick=()=>setTheme(root.dataset.theme==='dark'?'light':'dark');
+
+function press(group,btn){group.querySelectorAll('button').forEach(b=>b.setAttribute('aria-pressed',b===btn))}
+function setMode(m){
+  body.className=body.className.replace(/\bm-\w+/,'').trim();
+  void body.offsetWidth; // restart trace draw
+  body.classList.add('m-'+m);
+  press($('modes'),$('modes').querySelector(`[data-m=${m}]`));
+}
+$('modes').onclick=e=>{const b=e.target.closest('button');if(b)setMode(b.dataset.m)};
+$('replay').onclick=()=>setMode('trace');
+if(matchMedia('(prefers-reduced-motion: reduce)').matches)setMode('static');
+
+$('grid').onclick=e=>{const on=body.classList.toggle('show-grid');e.currentTarget.setAttribute('aria-pressed',on)};
+
+let tab='adaptive';
+const showCode=()=>{$('code').textContent=CODE[tab]};showCode();
+$('tabs').onclick=e=>{const b=e.target.closest('button');if(!b)return;tab=b.dataset.t;press($('tabs'),b);showCode()};
+$('copy').onclick=async e=>{
+  const btn=e.currentTarget;
+  try{await navigator.clipboard.writeText(CODE[tab])}catch(_){const r=document.createRange();r.selectNodeContents($('code'));getSelection().removeAllRanges();getSelection().addRange(r);document.execCommand('copy')}
+  btn.textContent='Copied ✓';setTimeout(()=>btn.textContent='Copy SVG',1400);
+};
+</script>
+</body>
+</html>
