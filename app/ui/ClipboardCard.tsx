@@ -1,16 +1,36 @@
-import { Text, View } from "nsh";
-import { Button, Select } from "nsh/base";
-import { availableQualityIds } from "../appPreview";
+import { createMotion, effect, Image, LayoutAnimation, Text, View } from "nsh";
+import { Button } from "nsh/base";
+import { QUALITY_IDS } from "../appPreview";
 import type { ClipboardVideoPreview } from "../clipboard";
 import {
+  captionTrackBadge,
   captionTrackId,
   cleanCaptionTrackName,
   formatBytes,
   isAutoCaptionTrack,
 } from "../youtube/parse";
-import type { CaptionTrack } from "../youtube/types";
+import type { CaptionTrack, VideoQualityOption } from "../youtube/types";
 import { Icon } from "./Icon";
 import { shellT } from "./shellI18n";
+
+const FALLBACK_QUALITIES: readonly VideoQualityOption[] = [
+  { id: "360p", label: "360p", mode: "video", height: 360, mimeType: "video/mp4", ext: "mp4" },
+  { id: "720p", label: "720p", mode: "video", height: 720, mimeType: "video/mp4", ext: "mp4" },
+  { id: "1080p", label: "1080p", mode: "video", height: 1080, mimeType: "video/mp4", ext: "mp4" },
+  { id: "audio", label: "Audio (M4A)", mode: "audio", height: null, mimeType: "audio/mp4", ext: "m4a" },
+];
+
+const FALLBACK_TRACKS: readonly CaptionTrack[] = [
+  { trackId: "en:manual", languageCode: "en", name: "English", baseUrl: "", isAuto: false },
+  {
+    trackId: "en:asr",
+    languageCode: "en",
+    name: "English (auto-generated)",
+    baseUrl: "",
+    kind: "asr",
+    isAuto: true,
+  },
+];
 
 /** "English (manual)" / "English (auto)". */
 export function trackTitle(track: CaptionTrack): string {
@@ -18,35 +38,14 @@ export function trackTitle(track: CaptionTrack): string {
   return `${cleanCaptionTrackName(track)} (${isAutoCaptionTrack(track) ? t.auto : t.manual})`;
 }
 
-function qualityTitle(preview: ClipboardVideoPreview, id: string): string {
-  const base = id === "audio" ? shellT().audioOnly : id;
-  const size = formatBytes(preview.qualities?.find((q) => q.id === id)?.sizeBytes);
-  return size ? `${base} · ${size}` : base;
-}
-
-function SelectTrigger(props: { label: string; disabled?: boolean }) {
-  return (
-    <View
-      class={`h-8 min-w-0 flex-row items-center gap-1.5 rounded-md border border-line bg-well px-2.5 ${
-        props.disabled ? "opacity-60" : "hover:bg-accent"
-      }`}
-    >
-      <Text class="min-w-0 flex-1 truncate text-xs text-foreground">
-        {props.label}
-      </Text>
-      <Text class="text-[10px] text-muted-foreground">▾</Text>
-    </View>
-  );
-}
-
 /**
- * The parsed link's card, shown under the link field: a quality dropdown
- * (audio only included), a subtitle dropdown collapsed to one line, and
- * Download.
+ * Downbit-style omnibar dropdown card: video summary with poster & Download
+ * action, followed by selectable Quality and Subtitle pill rows.
  */
 export function ClipboardCard(props: {
   preview: () => ClipboardVideoPreview;
   parsing: () => boolean;
+  parseMessage?: () => string;
   selectedQualityId: () => string;
   onSelectQuality: (qualityId: string) => void;
   selectedTrackId: () => string | null;
@@ -54,92 +53,276 @@ export function ClipboardCard(props: {
   onDownload: (preview: ClipboardVideoPreview) => void;
   onDismiss: () => void;
 }) {
-  const tracks = (): CaptionTrack[] => props.preview().captionTracks ?? [];
-  const busy = () => props.parsing() || !props.preview().isParsed;
+  const dropdownMotion = createMotion({
+    enter: "fadeInDown",
+    duration: 180,
+  });
 
-  const qualityItems = () =>
-    availableQualityIds(props.preview()).map((id) => ({
-      value: id,
-      title: qualityTitle(props.preview(), id),
-    }));
+  effect(() => {
+    const _parsed = props.preview().isParsed;
+    const _parsing = props.parsing();
+    try {
+      LayoutAnimation.easeInEaseOut();
+    } catch {
+      // ignore on test host
+    }
+  });
 
-  const trackItems = () =>
-    tracks().map((track) => ({
-      value: captionTrackId(track),
-      title: trackTitle(track),
-    }));
+  const qualities = (): readonly VideoQualityOption[] => {
+    const list = props.preview().qualities ?? [];
+    const allowed = new Set<string>(QUALITY_IDS);
+    const filtered = list.filter((q) => allowed.has(q.id));
+    return filtered.length > 0 ? filtered : FALLBACK_QUALITIES;
+  };
 
-  const trackLabel = () => {
-    const t = shellT();
-    if (busy()) return t.subtitlesLabel("…");
-    const id = props.selectedTrackId();
-    const track = tracks().find((x) => captionTrackId(x) === id);
-    return t.subtitlesLabel(track ? trackTitle(track) : t.noSubtitles);
+  const tracks = (): readonly CaptionTrack[] => {
+    const list = props.preview().captionTracks;
+    return list && list.length > 0 ? list : FALLBACK_TRACKS;
+  };
+
+  const manualTrackCount = () =>
+    tracks().filter((t) => !isAutoCaptionTrack(t)).length;
+  const ccTrackCount = () =>
+    tracks().filter((t) => isAutoCaptionTrack(t)).length;
+
+  const isBusy = () => props.parsing();
+  const isParsing = () => props.parsing() || !props.preview().isParsed;
+
+  const sourceLabel = () => {
+    const src = props.preview().source;
+    if (src === "clipboard") return "From your clipboard";
+    if (src === "discover") return "From Discover";
+    return "Detected YouTube link";
   };
 
   return (
-    <View class="w-full gap-2.5 p-3">
-      <View class="flex-row items-center gap-2">
-        <If when={busy()}>
-          <Icon name="loader" size={12} tone="muted-foreground" class="animate-spin" />
-        </If>
-        <Text class="min-w-0 flex-1 truncate text-xs text-muted-foreground">
-          {busy() && props.preview().source !== "discover"
-            ? shellT().parsing
-            : props.preview().title}
-        </Text>
+    <View style={dropdownMotion.style} class="w-full gap-3.5 px-4 pt-3 pb-4">
+      {/* 1. Top status header: source + videoId + CLI parse indicator */}
+      <View class="flex-row items-center justify-between gap-2">
+        <View class="min-w-0 flex-1 flex-row flex-wrap items-center gap-2">
+          <Icon
+            name={isBusy() ? "loader" : props.preview().source === "discover" ? "compass" : "clipboard"}
+            size={13}
+            tone={isBusy() ? "amber" : "muted-foreground"}
+            class={isBusy() ? "animate-spin" : ""}
+          />
+          <Text class="text-xs font-medium text-muted-foreground">
+            {sourceLabel()}
+          </Text>
+          <View selectable class="rounded bg-well px-1.5 py-0.5 select-text">
+            <Text class="select-text font-mono text-[11px] text-dim">
+              {props.preview().videoId}
+            </Text>
+          </View>
+
+          <If when={isBusy()}>
+            <View class="flex-row items-center gap-1.5 rounded-md border border-line bg-well/90 px-2 py-0.5">
+              <Text class="font-mono text-xs font-bold text-[#2f7cf6]">❯</Text>
+              <Text class="font-mono text-[11px] text-muted-foreground">
+                ear parse: {props.parseMessage?.() || "fetching metadata…"}
+              </Text>
+            </View>
+          </If>
+        </View>
+
         <Button
           onPress={props.onDismiss}
-          class="h-6 w-6 items-center justify-center rounded-md active:bg-accent"
+          class="h-6 w-6 shrink-0 items-center justify-center rounded-md hover:bg-well active:bg-accent"
           accessibilityLabel={shellT().dismiss}
         >
-          <Icon name="x" size={12} tone="muted-foreground" />
+          <Icon name="x" size={14} tone="muted-foreground" />
         </Button>
       </View>
 
-      <View class="flex-row items-center gap-2">
-        <View class="w-[132px] shrink-0">
-          <Select
-            items={qualityItems()}
-            value={props.selectedQualityId()}
-            onChange={(e) => {
-              if (e.value) props.onSelectQuality(e.value);
-            }}
-            accessibilityLabel={shellT().quality}
-            trigger={
-              <SelectTrigger
-                label={qualityTitle(props.preview(), props.selectedQualityId())}
-              />
-            }
+      {/* 2. Video summary row: Thumbnail + Title/Channel + Download button */}
+      <View class="flex-col gap-3.5 sm:flex-row sm:items-center">
+        <View class="relative h-[88px] w-full shrink-0 overflow-hidden rounded-lg border border-line bg-well sm:w-[156px]">
+          <Image
+            src={props.preview().thumbnailUrl}
+            class="h-full w-full object-cover"
           />
+          <View class="absolute right-1.5 bottom-1.5 rounded bg-black/80 px-1.5 py-0.5">
+            <Text class="font-mono text-[11px] font-medium tabular-nums text-white">
+              {props.preview().durationLabel}
+            </Text>
+          </View>
         </View>
-        <View class="min-w-0 flex-1">
-          <Select
-            items={trackItems()}
-            value={props.selectedTrackId()}
-            disabled={busy() || tracks().length === 0}
-            onChange={(e) => {
-              if (e.value) props.onSelectTrack(e.value);
-            }}
-            accessibilityLabel={shellT().subtitles}
-            trigger={
-              <SelectTrigger
-                label={trackLabel()}
-                disabled={busy() || tracks().length === 0}
-              />
-            }
-          />
-        </View>
-        <Button
-          onPress={() => props.onDownload(props.preview())}
-          class="h-8 shrink-0 flex-row items-center gap-1.5 rounded-md bg-brand px-3 active:opacity-90"
-          accessibilityLabel={shellT().download}
-        >
-          <Icon name="download" size={13} tone="brand-foreground" />
-          <Text class="text-xs font-semibold text-brand-foreground">
-            {shellT().download}
+
+        <View selectable class="min-w-0 flex-1 gap-1 select-text">
+          <Text class="select-text line-clamp-2 text-sm font-semibold leading-snug text-foreground">
+            {props.preview().title}
           </Text>
-        </Button>
+          <Text class="select-text text-xs text-muted-foreground">
+            {props.preview().channel}
+          </Text>
+          <View class="flex-row flex-wrap items-center gap-1.5 pt-0.5">
+            <View class="rounded bg-well px-2 py-0.5">
+              <Text class="font-mono text-[10px] text-muted-foreground">
+                {props.selectedQualityId() === "audio"
+                  ? "M4A Audio"
+                  : `${props.selectedQualityId()} MP4`}
+              </Text>
+            </View>
+            <If when={!isParsing()}>
+              <View class="rounded bg-well px-2 py-0.5">
+                <Text class="font-mono text-[10px] text-muted-foreground">
+                  人工字幕 {manualTrackCount()} · CC 机翻 {ccTrackCount()}
+                </Text>
+              </View>
+            </If>
+            <If when={isParsing()}>
+              <View class="flex-row items-center gap-1 rounded bg-well px-2 py-0.5">
+                <Icon name="loader" size={10} tone="primary" class="animate-spin" />
+                <Text class="font-mono text-[10px] text-muted-foreground">
+                  字幕解析中…
+                </Text>
+              </View>
+            </If>
+          </View>
+        </View>
+
+        <View class="shrink-0 items-end justify-center gap-1.5 sm:pl-2">
+          <Button
+            onPress={() => props.onDownload(props.preview())}
+            class="flex-row items-center gap-1.5 rounded-lg bg-[#2f7cf6] px-4 py-2.5 shadow-[0_0_14px_rgba(47,124,246,0.4)] ring-2 ring-[#2f7cf6]/60 transition active:opacity-90"
+            accessibilityLabel={shellT().download}
+          >
+            <Icon name="download" size={14} color="#ffffff" />
+            <Text class="text-sm font-semibold text-white">
+              {shellT().download}
+            </Text>
+          </Button>
+          <View class="flex-row items-center gap-1">
+            <View class="rounded border border-line bg-well px-1 py-0.5 shadow-xs">
+              <Text class="font-mono text-[10px] font-semibold text-foreground">↵</Text>
+            </View>
+            <Text class="font-mono text-[11px] text-dim">Return ↵ to download</Text>
+          </View>
+        </View>
+      </View>
+
+      {/* 3. Resolution / Quality selector + Subtitle selector */}
+      <View class="gap-2.5 border-t border-line pt-2.5">
+        {/* Quality Row */}
+        <View class="flex-col gap-1.5 sm:flex-row sm:items-center">
+          <Text class="w-20 shrink-0 font-mono text-[11px] uppercase tracking-wider text-dim">
+            {shellT().quality}
+          </Text>
+          <If when={isParsing()}>
+            <View class="flex-row flex-wrap items-center gap-2">
+              <View class="flex-row items-center gap-1.5">
+                <View class="h-6 w-14 animate-pulse rounded-md border border-line bg-well/70" />
+                <View class="h-6 w-14 animate-pulse rounded-md border border-line bg-well/70" />
+                <View class="h-6 w-14 animate-pulse rounded-md border border-line bg-well/70" />
+                <View class="h-6 w-18 animate-pulse rounded-md border border-line bg-well/70" />
+              </View>
+              <View class="flex-row items-center gap-1 pl-1">
+                <Icon name="loader" size={12} tone="primary" class="animate-spin" />
+                <Text class="font-mono text-[11px] text-muted-foreground">
+                  {props.parseMessage?.() || "解析清晰度…"}
+                </Text>
+              </View>
+            </View>
+          </If>
+          <If when={!isParsing()}>
+            <View class="flex-row flex-wrap items-center gap-1.5">
+              {qualities().map((q) => {
+                const selected = () => props.selectedQualityId() === q.id;
+                const sizeStr = formatBytes(q.sizeBytes);
+                return (
+                  <Button
+                    onPress={() => props.onSelectQuality(q.id)}
+                    class={`flex-row items-center gap-1.5 rounded-md border px-2.5 py-1 transition ${
+                      selected()
+                        ? "border-[#2f7cf6] bg-[#2f7cf6]/15"
+                        : "border-line bg-well hover:bg-accent active:bg-accent"
+                    }`}
+                  >
+                    <Text
+                      class={`font-mono text-xs ${
+                        selected()
+                          ? "font-semibold text-foreground"
+                          : "text-muted-foreground"
+                      }`}
+                    >
+                      {q.label}
+                    </Text>
+                    <If when={Boolean(sizeStr)}>
+                      <Text class="font-mono text-[10px] text-dim">{sizeStr}</Text>
+                    </If>
+                  </Button>
+                );
+              })}
+            </View>
+          </If>
+        </View>
+
+        {/* Subtitles Row */}
+        <View class="flex-col gap-1.5 sm:flex-row sm:items-start">
+          <View class="w-20 shrink-0 pt-1">
+            <Text class="font-mono text-[11px] uppercase tracking-wider text-dim">
+              {shellT().subtitles}
+            </Text>
+          </View>
+          <If when={isParsing()}>
+            <View class="flex-row flex-wrap items-center gap-2 pt-0.5">
+              <View class="flex-row items-center gap-1.5">
+                <View class="h-6 w-20 animate-pulse rounded-md border border-line bg-well/70" />
+                <View class="h-6 w-24 animate-pulse rounded-md border border-line bg-well/70" />
+                <View class="h-6 w-20 animate-pulse rounded-md border border-line bg-well/70" />
+              </View>
+              <View class="flex-row items-center gap-1 pl-1">
+                <Icon name="loader" size={12} tone="primary" class="animate-spin" />
+                <Text class="font-mono text-[11px] text-muted-foreground">
+                  提取字幕轨…
+                </Text>
+              </View>
+            </View>
+          </If>
+          <If when={!isParsing()}>
+            <View class="flex-1 flex-row flex-wrap items-center gap-1.5">
+              {tracks().map((track) => {
+                const id = captionTrackId(track);
+                const badge = captionTrackBadge(track);
+                const selected = () => props.selectedTrackId() === id;
+                const isManual = badge.kind === "manual";
+                return (
+                  <Button
+                    onPress={() => props.onSelectTrack(id)}
+                    class={`flex-row items-center gap-1.5 rounded-md border px-2.5 py-1 transition ${
+                      selected()
+                        ? "border-[#2f7cf6] bg-[#2f7cf6]/15"
+                        : "border-line bg-well hover:bg-accent active:bg-accent"
+                    }`}
+                  >
+                    <Text
+                      class={`text-xs ${
+                        selected()
+                          ? "font-semibold text-foreground"
+                          : "text-muted-foreground"
+                      }`}
+                    >
+                      {cleanCaptionTrackName(track)}
+                    </Text>
+                    <View
+                      class={`rounded px-1.5 py-0.5 ${
+                        isManual ? "bg-ready-soft" : "bg-amber-soft"
+                      }`}
+                    >
+                      <Text
+                        class={`font-mono text-[10px] font-semibold ${
+                          isManual ? "text-ready" : "text-amber"
+                        }`}
+                      >
+                        {badge.shortLabel}
+                      </Text>
+                    </View>
+                  </Button>
+                );
+              })}
+            </View>
+          </If>
+        </View>
       </View>
     </View>
   );

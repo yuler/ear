@@ -2,6 +2,7 @@ import { signal, type Signal } from "nsh";
 import {
   buildVideoPreview,
   fetchVideoPreviewMeta,
+  formatDurationMs,
   isLinkText,
   readSystemClipboard,
   type ClipboardVideoPreview,
@@ -70,6 +71,7 @@ export function createPreviewController(url: Signal<string>) {
   const seededPreview = signal<ClipboardVideoPreview | null>(null);
   const metaMap = signal<Record<string, ClipboardVideoPreview>>({});
   const parsingMap = signal<Record<string, boolean>>({});
+  const parseMessageMap = signal<Record<string, string>>({});
   const qualityMap = signal<Record<string, string>>({});
   const trackMap = signal<Record<string, string>>({});
   const dismissedVideoId = signal<string | null>(null);
@@ -87,11 +89,15 @@ export function createPreviewController(url: Signal<string>) {
     if (metaMap()[vid] || fetching.has(vid)) return;
     fetching.add(vid);
     setKey(parsingMap, vid, true);
-    void fetchVideoPreviewMeta(preview, hostFetch)
+    setKey(parseMessageMap, vid, "fetching metadata…");
+    void fetchVideoPreviewMeta(preview, hostFetch, (ev) => {
+      if (ev.message) setKey(parseMessageMap, vid, ev.message);
+    })
       .then((enriched) => setKey(metaMap, vid, enriched))
       .finally(() => {
         fetching.delete(vid);
         setKey(parsingMap, vid, undefined);
+        setKey(parseMessageMap, vid, undefined);
       });
   };
 
@@ -138,6 +144,11 @@ export function createPreviewController(url: Signal<string>) {
     return cur ? Boolean(parsingMap()[cur.videoId]) : false;
   };
 
+  const parseMessage = () => {
+    const cur = active();
+    return cur ? (parseMessageMap()[cur.videoId] ?? "") : "";
+  };
+
   const qualityId = (): string => {
     const cur = active();
     if (!cur) return defaultQualityId(QUALITY_IDS);
@@ -174,15 +185,18 @@ export function createPreviewController(url: Signal<string>) {
     url: string;
     title: string;
     thumbnailUrl: string;
+    durationMs?: number | null;
+    author?: string | null;
     language?: string | null;
   }) => {
     dismissedVideoId.set(null);
+    const author = item.author?.trim();
     seededPreview.set({
       rawUrl: item.url,
       videoId: item.videoId,
       title: item.title,
-      channel: "YouTube",
-      durationLabel: "CC",
+      channel: author ? `YouTube · ${author}` : "YouTube",
+      durationLabel: formatDurationMs(item.durationMs ?? null),
       thumbnailUrl: item.thumbnailUrl,
       source: "discover",
       language: item.language ?? null,
@@ -197,6 +211,7 @@ export function createPreviewController(url: Signal<string>) {
   return {
     active,
     isParsing,
+    parseMessage,
     qualityId,
     trackId,
     checkClipboard,

@@ -35,6 +35,7 @@ export function TopBar(props: {
   showClipboardButton: () => boolean;
   preview: () => ClipboardVideoPreview | null;
   parsing: () => boolean;
+  parseMessage?: () => string;
   selectedQualityId: () => string;
   onSelectQuality: (qualityId: string) => void;
   selectedTrackId: () => string | null;
@@ -137,13 +138,13 @@ export function TopBar(props: {
           <Popover
             open={Boolean(props.preview())}
             placement="bottom"
-            align="start"
+            align="center"
             offset={6}
             closeOnPressOutside={false}
             onOpenChange={(e) => {
               if (!e.open && e.reason === "cancel") props.onDismissPreview();
             }}
-            popupClass="w-[480px] rounded-lg border border-line bg-popover shadow-xl"
+            popupClass="w-[360px] sm:w-[660px] rounded-xl border border-line bg-popover shadow-2xl"
             trigger={field}
           >
             <If when={props.preview()}>
@@ -151,6 +152,7 @@ export function TopBar(props: {
                 <ClipboardCard
                   preview={getPreview}
                   parsing={props.parsing}
+                  parseMessage={props.parseMessage}
                   selectedQualityId={props.selectedQualityId}
                   onSelectQuality={props.onSelectQuality}
                   selectedTrackId={props.selectedTrackId}

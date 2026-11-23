@@ -267,6 +267,7 @@ function App() {
         showClipboardButton={() => !settings().clipboardAuto && url().length === 0}
         preview={preview.active}
         parsing={preview.isParsing}
+        parseMessage={preview.parseMessage}
         selectedQualityId={preview.qualityId}
         onSelectQuality={preview.selectQuality}
         selectedTrackId={preview.trackId}
@@ -275,29 +276,30 @@ function App() {
         onDismissPreview={preview.dismiss}
       />
 
-      <Scroll class="flex-1">
-        <View class="mx-auto w-full max-w-[1440px] p-4">
-          <If when={activePage() === "library"}>
-            <LibraryView
-              disabled={isBackgroundDisabled}
-              savedEntries={savedEntries}
-              activeDownloads={downloads.list}
-              searchQuery={searchQuery}
-              onClearSearch={() => url.set("")}
-              discoverItems={discoverItems}
-              onSelectDiscoverItem={(item, rect) =>
-                void selectDiscoverItem(item, rect)
-              }
-              onOpenDiscover={() => selectPage("discover")}
-              onOpenEntry={(entry, rect) => void openEntry(entry, rect)}
-              onOpenFolder={(entry) => void revealEntry(entry)}
-              onDeleteEntry={(entry) => void deleteLibraryEntry(entry)}
-              onPauseDownload={downloads.pause}
-              onResumeDownload={(vid) => void downloads.resume(vid)}
-              onCancelDownload={(vid) => void downloads.cancel(vid)}
-            />
-          </If>
-          <If when={activePage() === "discover"}>
+      <If when={activePage() === "library"}>
+        <LibraryView
+          disabled={isBackgroundDisabled}
+          savedEntries={savedEntries}
+          activeDownloads={downloads.list}
+          searchQuery={searchQuery}
+          onClearSearch={() => url.set("")}
+          discoverItems={discoverItems}
+          onSelectDiscoverItem={(item, rect) =>
+            void selectDiscoverItem(item, rect)
+          }
+          onOpenDiscover={() => selectPage("discover")}
+          onOpenEntry={(entry, rect) => void openEntry(entry, rect)}
+          onOpenFolder={(entry) => void revealEntry(entry)}
+          onDeleteEntry={(entry) => void deleteLibraryEntry(entry)}
+          onPauseDownload={downloads.pause}
+          onResumeDownload={(vid) => void downloads.resume(vid)}
+          onCancelDownload={(vid) => void downloads.cancel(vid)}
+        />
+      </If>
+
+      <If when={activePage() === "discover"}>
+        <Scroll class="min-h-0 flex-1">
+          <View class="mx-auto w-full max-w-[1440px] p-4">
             <DiscoverView
               disabled={isBackgroundDisabled}
               onSelectItem={(item, rect) => void selectDiscoverItem(item, rect)}
@@ -306,9 +308,9 @@ function App() {
               searchQuery={searchQuery}
               onClearSearch={() => url.set("")}
             />
-          </If>
-        </View>
-      </Scroll>
+          </View>
+        </Scroll>
+      </If>
 
       <ToastHost />
 

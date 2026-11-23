@@ -43,17 +43,17 @@ test("starts on Library under the search bar, with a weak Discover entry below a
   expect(app.shows("label:Back to Library")).toBe(false);
 });
 
-test("a clipboard link pops a card with quality, one subtitle line and Download, which closes it", async () => {
+test("a clipboard link pops a card with quality, subtitle options and Download, which closes it", async () => {
   const app = await open("./App.tsx", {
     clipboard: "https://www.youtube.com/watch?v=b-6XR0rflJw",
   });
-  await app.waitUntil(() => has(app.texts(), "Subtitles:"));
+  await app.waitUntil(() => app.texts().some((t) => t.toLowerCase().includes("subtitles")));
   expect(has(app.texts(), "360p")).toBe(true);
   expect(has(app.texts(), "480p")).toBe(false);
   expect(app.shows("label:Download")).toBe(true);
 
   await app.press("label:Download");
-  await app.waitUntil(() => !has(app.texts(), "Subtitles:"));
+  await app.waitUntil(() => app.texts().every((t) => !t.toLowerCase().includes("subtitles")));
 });
 
 test("Settings opens as a modal over Library, stacks Shortcuts modal, and Escape closes layer by layer", async () => {

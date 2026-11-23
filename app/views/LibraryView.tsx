@@ -1,4 +1,4 @@
-import { effect, keymap, signal, Text, View } from "nsh";
+import { effect, keymap, Scroll, signal, Text, View } from "nsh";
 import { AlertDialog, Button } from "nsh/base";
 import { Menu } from "nsh/desktop";
 import type { DownloadTaskProgress, LibraryEntry } from "../library/types";
@@ -168,120 +168,145 @@ export function LibraryView(props: {
     { when: "notEditing" },
   );
 
-  return (
-    <View class="gap-3 pb-8">
-      <If when={!isEmpty() || isSearching()}>
-        <View class="flex-row items-center justify-between px-1">
+  const discoverSection = (
+    <If when={showDiscoverSection()}>
+      <View class="shrink-0 gap-3 border-t border-line/60 pt-5">
+        <View class="flex-row items-center justify-between gap-2 px-1">
           <View class="flex-row items-center gap-2">
-            <Text class="text-sm font-semibold text-foreground">
-              {shellT().library}
+            <Icon name="compass" size={14} tone="muted-foreground" />
+            <Text class="text-xs font-semibold text-muted-foreground">
+              {shellT().discover}
             </Text>
-            <Text class="font-mono text-xs tabular-nums text-dim">
-              {isSearching()
-                ? `${visibleCount()} / ${totalCount()}`
-                : `${totalCount()}`}
+            <Text class="hidden text-xs text-dim sm:flex">
+              · {shellT().discoverSectionHint}
             </Text>
           </View>
+          <Button
+            onPress={() => props.onOpenDiscover?.()}
+            class="flex-row items-center gap-1 rounded-md px-2 py-1 transition hover:bg-well active:bg-accent"
+            accessibilityLabel={shellT().browseDiscover}
+          >
+            <Text class="text-xs font-medium text-muted-foreground">
+              {shellT().browseDiscover}
+            </Text>
+            <Icon name="chevron-right" size={12} tone="muted-foreground" />
+          </Button>
         </View>
-      </If>
 
+        <If when={discoverPreview().length > 0 && Boolean(props.onSelectDiscoverItem)}>
+          <View style={POSTER_GRID_STYLE}>
+            {discoverPreview().map((item) => (
+              <DiscoverCard
+                item={item}
+                onPress={(it, rect) => props.onSelectDiscoverItem?.(it, rect)}
+                isDownloaded={() => downloadedIds().has(item.videoId)}
+                download={() => downloadFor(item.videoId)}
+              />
+            ))}
+          </View>
+        </If>
+      </View>
+    </If>
+  );
+
+  return (
+    <View class="min-h-0 flex-1 flex-col">
       <If when={visibleCount() > 0}>
-        <View style={POSTER_GRID_STYLE}>
-          <Each of={downloads()} key={(t) => t.videoId}>
-            {(getTask) => (
-              <ActiveDownloadCard
-                task={getTask}
-                onPause={props.onPauseDownload}
-                onResume={props.onResumeDownload}
-                onCancel={props.onCancelDownload}
-              />
-            )}
-          </Each>
-          <Each of={entries()} key={(entry) => entry.videoId}>
-            {(entry, index) => (
-              <LibraryCard
-                entry={entry()}
-                selected={focusedIndex() === index()}
-                onOpen={props.onOpenEntry}
-                onMenu={openMenu}
-              />
-            )}
-          </Each>
-        </View>
-      </If>
-
-      <If when={isSearchEmpty()}>
-        <View class="items-center justify-center gap-2.5 py-16">
-          <Icon name="search" size={22} tone="muted-foreground" />
-          <Text class="text-center text-sm font-medium text-foreground">
-            {shellT().librarySearchEmpty(query())}
-          </Text>
-          <If when={Boolean(props.onClearSearch)}>
-            <Button
-              onPress={() => props.onClearSearch?.()}
-              class="mt-1 rounded-md border border-line px-3 py-1.5 transition hover:bg-well active:bg-accent"
-              accessibilityLabel={shellT().clearSearch}
-            >
-              <Text class="text-xs font-medium text-foreground">
-                {shellT().clearSearch}
-              </Text>
-            </Button>
-          </If>
-        </View>
-      </If>
-
-      <If when={isEmpty() && !isSearching()}>
-        <View class="items-center justify-center gap-2 py-10">
-          <Icon name="download" size={24} tone="muted-foreground" />
-          <Text class="text-center text-sm font-medium text-foreground">
-            {shellT().libraryEmpty}
-          </Text>
-          <Text class="text-center text-xs text-muted-foreground">
-            {shellT().libraryEmptyHint}
-          </Text>
-        </View>
-      </If>
-
-      <If when={showDiscoverSection()}>
-        <View
-          class={`gap-3 border-t border-line/60 pt-5 ${
-            isEmpty() ? "mt-2" : "mt-6"
-          }`}
-        >
-          <View class="flex-row items-center justify-between gap-2 px-1">
-            <View class="flex-row items-center gap-2">
-              <Icon name="compass" size={14} tone="muted-foreground" />
-              <Text class="text-xs font-semibold text-muted-foreground">
-                {shellT().discover}
-              </Text>
-              <Text class="hidden text-xs text-dim sm:flex">
-                · {shellT().discoverSectionHint}
-              </Text>
+        <Scroll class="min-h-0 flex-1">
+          <View class="mx-auto w-full max-w-[1440px] flex-col gap-3 p-4 pb-8">
+            <View class="flex-row items-center justify-between px-1">
+              <View class="flex-row items-center gap-2">
+                <Text class="text-sm font-semibold text-foreground">
+                  {shellT().library}
+                </Text>
+                <Text class="font-mono text-xs tabular-nums text-dim">
+                  {isSearching()
+                    ? `${visibleCount()} / ${totalCount()}`
+                    : `${totalCount()}`}
+                </Text>
+              </View>
             </View>
-            <Button
-              onPress={() => props.onOpenDiscover?.()}
-              class="flex-row items-center gap-1 rounded-md px-2 py-1 transition hover:bg-well active:bg-accent"
-              accessibilityLabel={shellT().browseDiscover}
-            >
-              <Text class="text-xs font-medium text-muted-foreground">
-                {shellT().browseDiscover}
-              </Text>
-              <Icon name="chevron-right" size={12} tone="muted-foreground" />
-            </Button>
+
+            <View style={POSTER_GRID_STYLE}>
+              <Each of={downloads()} key={(t) => t.videoId}>
+                {(getTask) => (
+                  <ActiveDownloadCard
+                    task={getTask}
+                    onPause={props.onPauseDownload}
+                    onResume={props.onResumeDownload}
+                    onCancel={props.onCancelDownload}
+                  />
+                )}
+              </Each>
+              <Each of={entries()} key={(entry) => entry.videoId}>
+                {(entry, index) => (
+                  <LibraryCard
+                    entry={entry()}
+                    selected={focusedIndex() === index()}
+                    onOpen={props.onOpenEntry}
+                    onMenu={openMenu}
+                  />
+                )}
+              </Each>
+            </View>
+
+            <If when={showDiscoverSection()}>
+              <View class="mt-6">{discoverSection}</View>
+            </If>
+          </View>
+        </Scroll>
+      </If>
+
+      <If when={visibleCount() === 0}>
+        <View class="mx-auto min-h-0 w-full max-w-[1440px] flex-1 flex-col px-4 pt-4 pb-5">
+          <If when={isSearching()}>
+            <View class="shrink-0 flex-row items-center justify-between px-1">
+              <View class="flex-row items-center gap-2">
+                <Text class="text-sm font-semibold text-foreground">
+                  {shellT().library}
+                </Text>
+                <Text class="font-mono text-xs tabular-nums text-dim">
+                  {`0 / ${totalCount()}`}
+                </Text>
+              </View>
+            </View>
+          </If>
+
+          <View class="flex-1 items-center justify-center">
+            <If when={isSearchEmpty()}>
+              <View class="items-center justify-center gap-2.5">
+                <Icon name="search" size={22} tone="muted-foreground" />
+                <Text class="text-center text-sm font-medium text-foreground">
+                  {shellT().librarySearchEmpty(query())}
+                </Text>
+                <If when={Boolean(props.onClearSearch)}>
+                  <Button
+                    onPress={() => props.onClearSearch?.()}
+                    class="mt-1 rounded-md border border-line px-3 py-1.5 transition hover:bg-well active:bg-accent"
+                    accessibilityLabel={shellT().clearSearch}
+                  >
+                    <Text class="text-xs font-medium text-foreground">
+                      {shellT().clearSearch}
+                    </Text>
+                  </Button>
+                </If>
+              </View>
+            </If>
+
+            <If when={isEmpty() && !isSearching()}>
+              <View class="items-center justify-center gap-2">
+                <Icon name="download" size={24} tone="muted-foreground" />
+                <Text class="text-center text-sm font-medium text-foreground">
+                  {shellT().libraryEmpty}
+                </Text>
+                <Text class="text-center text-xs text-muted-foreground">
+                  {shellT().libraryEmptyHint}
+                </Text>
+              </View>
+            </If>
           </View>
 
-          <If when={discoverPreview().length > 0 && Boolean(props.onSelectDiscoverItem)}>
-            <View style={POSTER_GRID_STYLE}>
-              {discoverPreview().map((item) => (
-                <DiscoverCard
-                  item={item}
-                  onPress={(it, rect) => props.onSelectDiscoverItem?.(it, rect)}
-                  isDownloaded={() => downloadedIds().has(item.videoId)}
-                  download={() => downloadFor(item.videoId)}
-                />
-              ))}
-            </View>
-          </If>
+          {discoverSection}
         </View>
       </If>
     </View>
