@@ -13,6 +13,7 @@ import {
   type ViewRef,
 } from "nsh";
 import { windowState } from "nsh/desktop";
+import { Button } from "nsh/base";
 import type { LibraryEntry } from "../library/types";
 import { Icon } from "../ui/Icon";
 import { t } from "../ui/i18n";
@@ -160,6 +161,7 @@ export function VideoDetailView(props: VideoDetailViewProps) {
         ref={(node) => ctl.setVideoNode(node)}
         src={props.src()}
         paused={ctl.paused()}
+        muted={ctl.muted()}
         rate={ctl.rate()}
         volume={ctl.volume()}
         controls={false}
@@ -181,6 +183,18 @@ export function VideoDetailView(props: VideoDetailViewProps) {
           class="pointer-events-none absolute inset-0 h-full w-full object-contain"
         />
       </If>
+      {/* Click video surface to play/pause; sits below SubtitleBlocker (z-10) */}
+      <Button
+        onPress={ctl.togglePlay}
+        class="absolute inset-0 items-center justify-center cursor-pointer"
+        accessibilityLabel={ctl.paused() ? m().play : m().pause}
+      >
+        <If when={ctl.paused()}>
+          <View class="h-14 w-14 items-center justify-center rounded-full border border-white/30 bg-black/65 shadow-xl backdrop-blur-sm transition hover:scale-105 active:scale-95">
+            <Icon name="play" size={22} color="#ffffff" />
+          </View>
+        </If>
+      </Button>
       <If when={!audioOnly()}>
         <SubtitleBlocker
           videoId={() => entry().videoId}
@@ -206,6 +220,8 @@ export function VideoDetailView(props: VideoDetailViewProps) {
         onNextSentence={ctl.nextSentence}
         rate={ctl.rate}
         onCycleRate={ctl.cycleRate}
+        muted={ctl.muted}
+        onToggleMute={ctl.toggleMute}
         sentencePause={ctl.sentencePause}
         onToggleSentencePause={ctl.toggleSentencePause}
         maskAll={ctl.maskAll}

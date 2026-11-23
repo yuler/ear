@@ -20,6 +20,8 @@ export type VideoPlayerControlsProps = {
   onNextSentence: () => void;
   rate: () => PlaybackRate;
   onCycleRate: () => void;
+  muted?: () => boolean;
+  onToggleMute?: () => void;
   sentencePause: () => boolean;
   onToggleSentencePause: () => void;
   maskAll: () => boolean;
@@ -32,14 +34,14 @@ export type VideoPlayerControlsProps = {
   language: () => EarLocale;
 };
 
-const BTN = "h-8 min-w-8 flex-row items-center justify-center gap-1.5 rounded-md px-2";
+const BTN =
+  "h-8 min-w-7 flex-row items-center justify-center gap-1 rounded-lg px-1.5 transition active:scale-95";
 
-function toggleClass(on: boolean): string {
-  return `${BTN} border ${
-    on
-      ? "border-ring bg-accent"
-      : "border-transparent hover:bg-accent"
-  }`;
+function toggleClass(on: boolean, tone: "neutral" | "brand" | "amber" = "neutral"): string {
+  if (!on) return `${BTN} border border-transparent hover:bg-well`;
+  if (tone === "amber") return `${BTN} border border-amber/50 bg-amber-soft`;
+  if (tone === "brand") return `${BTN} border border-brand/50 bg-brand-soft`;
+  return `${BTN} border border-line bg-well`;
 }
 
 function IconButton(props: {
@@ -47,24 +49,27 @@ function IconButton(props: {
   label: string;
   onPress: () => void;
   active?: boolean;
+  tone?: "neutral" | "brand" | "amber";
 }) {
+  const iconTone = () => {
+    if (!props.active) return "muted-foreground" as const;
+    if (props.tone === "amber") return "amber" as const;
+    if (props.tone === "brand") return "brand" as const;
+    return "foreground" as const;
+  };
   return (
     <Button
       onPress={props.onPress}
-      class={toggleClass(Boolean(props.active))}
+      class={toggleClass(Boolean(props.active), props.tone)}
       accessibilityLabel={props.label}
       tooltip={<Text class="text-xs">{props.label}</Text>}
     >
-      <Icon
-        name={props.icon}
-        size={15}
-        tone={props.active ? "foreground" : "muted-foreground"}
-      />
+      <Icon name={props.icon} size={15} tone={iconTone()} />
     </Button>
   );
 }
 
-/** Seekable progress track with sentence ticks. */
+/** Seekable progress track with sentence ticks and hover feedback. */
 function SeekBar(props: VideoPlayerControlsProps) {
   let trackWidth = 0;
   const dur = () => Math.max(0.1, props.durationSec());
@@ -86,23 +91,23 @@ function SeekBar(props: VideoPlayerControlsProps) {
             props.onSeek(Math.max(0, Math.min(1, x / trackWidth)) * dur());
           }
         }}
-        class="h-4 flex-1 cursor-pointer justify-center"
+        class="group relative h-4 flex-1 cursor-pointer justify-center"
         accessibilityLabel={t(props.language()).seekProgress}
       >
-        <View class="relative h-1 w-full overflow-hidden rounded-full bg-muted">
-          <View style={{ width: `${percent()}%` }} class="h-full bg-foreground" />
+        <View class="relative h-1 w-full overflow-hidden rounded-full bg-muted transition-all group-hover:h-1.5">
+          <View style={{ width: `${percent()}%` }} class="h-full bg-brand" />
           <Each of={props.sentences()} key={(s) => `${s.startMs}-${s.endMs}-${s.index}`}>
             {(s) => (
               <View
                 style={{ left: `${(s().startMs / 1000 / dur()) * 100}%` }}
-                class="pointer-events-none absolute inset-y-0 w-px bg-background/60"
+                class="pointer-events-none absolute inset-y-0 w-px bg-background/70"
               />
             )}
           </Each>
         </View>
         <View
           style={{ left: `${percent()}%` }}
-          class="pointer-events-none absolute -ml-1.5 h-3 w-3 rounded-full bg-foreground"
+          class="pointer-events-none absolute -ml-1.5 h-3 w-3 rounded-full border border-black/20 bg-foreground shadow-sm transition-transform group-hover:scale-125"
         />
       </View>
       <Text class="font-mono text-xs tabular-nums text-muted-foreground">
@@ -114,7 +119,7 @@ function SeekBar(props: VideoPlayerControlsProps) {
 
 /**
  * Fixed control bar directly under the video: progress on top,
- * playback and sentence controls below. No overlay, no auto-hide.
+ * playback and sentence controls below.
  */
 export function VideoPlayerControls(props: VideoPlayerControlsProps) {
   const m = () => t(props.language());
@@ -140,13 +145,13 @@ export function VideoPlayerControls(props: VideoPlayerControlsProps) {
           />
           <Button
             onPress={props.onTogglePlay}
-            class={`${BTN} w-9 bg-primary`}
+            class={`${BTN} w-9 bg-brand hover:opacity-90`}
             accessibilityLabel={props.paused() ? m().play : m().pause}
           >
             <Icon
               name={props.paused() ? "play" : "pause"}
               size={15}
-              tone="primary-foreground"
+              tone="brand-foreground"
             />
           </Button>
           <IconButton
@@ -161,49 +166,94 @@ export function VideoPlayerControls(props: VideoPlayerControlsProps) {
           />
           <Button
             onPress={props.onCycleRate}
-            class={`${toggleClass(props.rate() !== 1)} w-12`}
+            class={`${toggleClass(props.rate() !== 1, "brand")} w-11`}
             accessibilityLabel={m().playbackSpeed}
+            tooltip={<Text class="text-xs">{m().playbackSpeed}</Text>}
           >
-            <Text class="font-mono text-xs text-foreground">{props.rate()}x</Text>
+            <Text
+              class={`font-mono text-xs font-medium ${
+                props.rate() !== 1 ? "text-brand" : "text-foreground"
+              }`}
+            >
+              {props.rate()}x
+            </Text>
           </Button>
+          <If when={Boolean(props.onToggleMute)}>
+            <IconButton
+              icon={props.muted?.() ? "volume-x" : "volume"}
+              label={props.muted?.() ? m().unmute : m().mute}
+              onPress={() => props.onToggleMute?.()}
+              active={Boolean(props.muted?.())}
+              tone="amber"
+            />
+          </If>
         </View>
 
         <View class="flex-row items-center gap-1">
           <Button
             onPress={props.onToggleSentencePause}
-            class={toggleClass(props.sentencePause())}
+            class={toggleClass(props.sentencePause(), "brand")}
             accessibilityLabel={m().sentencePauseToggle}
             selected={props.sentencePause()}
           >
             <Text
-              class={`text-xs ${
-                props.sentencePause() ? "text-foreground" : "text-muted-foreground"
+              class={`text-xs font-medium ${
+                props.sentencePause() ? "text-brand" : "text-muted-foreground"
               }`}
             >
               {m().sentencePause}
             </Text>
           </Button>
-          <IconButton
-            icon={props.maskAll() ? "eye-off" : "eye"}
-            label={m().toggleSubtitlesMask}
+
+          <Button
             onPress={props.onToggleMask}
-            active={props.maskAll()}
-          />
-          <If when={Boolean(props.onToggleBlocker)}>
-            <IconButton
-              icon="subtitle-block"
-              label={m().toggleSubtitleBlocker}
-              onPress={() => props.onToggleBlocker?.()}
-              active={Boolean(props.blockerEnabled?.())}
+            class={toggleClass(props.maskAll(), "amber")}
+            accessibilityLabel={m().toggleSubtitlesMask}
+            tooltip={<Text class="text-xs">{m().toggleSubtitlesMask}</Text>}
+          >
+            <Icon
+              name={props.maskAll() ? "eye-off" : "eye"}
+              size={14}
+              tone={props.maskAll() ? "amber" : "muted-foreground"}
             />
+            <Text
+              class={`hidden text-xs font-medium md:flex ${
+                props.maskAll() ? "text-amber" : "text-muted-foreground"
+              }`}
+            >
+              {props.maskAll() ? m().masked : m().captions}
+            </Text>
+          </Button>
+
+          <If when={Boolean(props.onToggleBlocker)}>
+            <Button
+              onPress={() => props.onToggleBlocker?.()}
+              class={toggleClass(Boolean(props.blockerEnabled?.()), "amber")}
+              accessibilityLabel={m().toggleSubtitleBlocker}
+              tooltip={<Text class="text-xs">{m().toggleSubtitleBlocker}</Text>}
+            >
+              <Icon
+                name="subtitle-block"
+                size={14}
+                tone={props.blockerEnabled?.() ? "amber" : "muted-foreground"}
+              />
+              <Text
+                class={`hidden text-xs font-medium md:flex ${
+                  props.blockerEnabled?.() ? "text-amber" : "text-muted-foreground"
+                }`}
+              >
+                {m().subtitleBlocker}
+              </Text>
+            </Button>
           </If>
-          <View class="ml-1 flex-row items-center rounded-md bg-muted p-0.5">
+
+          <View class="ml-0.5 flex-row items-center rounded-lg border border-line bg-well p-0.5">
             <Each of={lengths} key={(l) => l.mode}>
               {(l) => (
                 <Button
                   onPress={() => props.onChangeSentenceLength(l().mode)}
-                  class={`h-7 justify-center rounded px-2 ${
-                    props.sentenceLength() === l().mode ? "bg-background" : ""
+                  class={`h-7 justify-center rounded-md px-1.5 transition ${
+                    props.sentenceLength() === l().mode ? "bg-raised shadow-xs" : "hover:bg-accent"
                   }`}
                   accessibilityLabel={l().desc()}
                   selected={props.sentenceLength() === l().mode}
@@ -211,7 +261,7 @@ export function VideoPlayerControls(props: VideoPlayerControlsProps) {
                   <Text
                     class={`text-xs ${
                       props.sentenceLength() === l().mode
-                        ? "text-foreground"
+                        ? "font-medium text-foreground"
                         : "text-muted-foreground"
                     }`}
                   >

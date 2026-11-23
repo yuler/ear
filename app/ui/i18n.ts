@@ -34,6 +34,8 @@ export interface I18nMessages {
   looping: string;
   loopSingle: string;
   playbackSpeed: string;
+  mute: string;
+  unmute: string;
   masked: string;
   captions: string;
   toggleSubtitlesMask: string;
@@ -41,6 +43,7 @@ export interface I18nMessages {
   subtitleBlocker: string;
   toggleSubtitleBlocker: string;
   resetBlocker: string;
+  blockerIntensity: string;
   dragToMove: string;
   holdToDrag: string;
   moving: string;
@@ -128,6 +131,8 @@ export const MESSAGES: Record<EarLocale, I18nMessages> = {
     looping: "Looping",
     loopSingle: "Loop",
     playbackSpeed: "Playback speed",
+    mute: "Mute",
+    unmute: "Unmute",
     masked: "Masked",
     captions: "Captions",
     toggleSubtitlesMask: "Toggle subtitles mask",
@@ -135,6 +140,7 @@ export const MESSAGES: Record<EarLocale, I18nMessages> = {
     subtitleBlocker: "Blocker",
     toggleSubtitleBlocker: "Toggle subtitle blocker (B)",
     resetBlocker: "Reset position",
+    blockerIntensity: "Mask",
     dragToMove: "Drag to move",
     holdToDrag: "Hold to drag",
     moving: "Moving...",
@@ -215,6 +221,8 @@ export const MESSAGES: Record<EarLocale, I18nMessages> = {
     looping: "循环中",
     loopSingle: "单句循环",
     playbackSpeed: "播放倍速",
+    mute: "静音",
+    unmute: "取消静音",
     masked: "打码中",
     captions: "显示字幕",
     toggleSubtitlesMask: "字幕打码切换",
@@ -222,6 +230,7 @@ export const MESSAGES: Record<EarLocale, I18nMessages> = {
     subtitleBlocker: "拦截字幕条",
     toggleSubtitleBlocker: "切换拦截字幕条 (B)",
     resetBlocker: "重置位置",
+    blockerIntensity: "遮挡强度",
     dragToMove: "拖动调整位置",
     holdToDrag: "Hold to drag",
     moving: "拖动中…",

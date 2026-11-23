@@ -34,6 +34,7 @@ export function createPlayerController(opts: {
   let videoNode: VideoNode | null = null;
 
   const paused = signal(false);
+  const muted = signal(false);
   const rate = signal<PlaybackRate>(1);
   const volume = signal(1);
   const currentTimeSec = signal(0);
@@ -176,6 +177,7 @@ export function createPlayerController(opts: {
   };
 
   const toggleMask = () => maskAll.set(!maskAll());
+  const toggleMute = () => muted.set(!muted());
 
   const toggleBlocker = () => {
     const next = !blockerEnabled();
@@ -232,6 +234,7 @@ export function createPlayerController(opts: {
 
   return {
     paused,
+    muted,
     rate,
     volume,
     currentTimeSec,
@@ -247,6 +250,7 @@ export function createPlayerController(opts: {
     blockerEnabled,
     setVideoNode,
     togglePlay,
+    toggleMute,
     toggleSentencePause,
     changeSentenceLength,
     seek,

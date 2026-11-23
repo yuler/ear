@@ -1,6 +1,16 @@
 // Sibling logic, pure math & geometry helpers: app/ui/subtitleBlockerLogic.ts
-import { effect, PanResponder, signal, Text, View, type ViewRef } from "nsh";
-import { Button } from "nsh/base";
+import {
+  Canvas,
+  effect,
+  PanResponder,
+  ShaderEffect,
+  shadersAvailable,
+  signal,
+  Text,
+  View,
+  type ViewRef,
+} from "nsh";
+import { Button, Slider } from "nsh/base";
 import {
   getBlockerRect,
   resetBlockerRect,
@@ -11,13 +21,56 @@ import {
 import { Icon } from "./Icon";
 import { t } from "./i18n";
 import {
-  BLOCKER_BACKDROP_FILTER,
   computeDeltaRect,
   cursorForDrag,
+  DEFAULT_BLOCKER_INTENSITY,
+  drawMosaicCanvas,
+  getBlockerIntensity,
+  hydrateBlockerIntensity,
+  MOSAIC_SHADER,
+  saveBlockerIntensity,
   type DragMode,
 } from "./subtitleBlockerLogic";
 
 export type { DragMode } from "./subtitleBlockerLogic";
+
+function MiniSlider(props: {
+  value: () => number;
+  min: number;
+  max: number;
+  step?: number;
+  width?: number;
+  label: string;
+  unit?: string;
+  onChange: (val: number) => void;
+}) {
+  return (
+    <View class="flex-row items-center gap-1.5 select-none">
+      <Text class="font-mono text-[10px] text-white/75 select-none">
+        {props.label}
+      </Text>
+      <View style={{ width: props.width ?? 76 }} class="justify-center">
+        <Slider
+          value={props.value()}
+          min={props.min}
+          max={props.max}
+          step={props.step ?? 1}
+          onChange={(e) => {
+            if (typeof e.value === "number") props.onChange(e.value);
+          }}
+          trackClass="h-5 justify-center cursor-pointer select-none"
+          indicatorClass="h-1.5 w-full rounded-full bg-white/20 overflow-hidden"
+          rangeClass="h-full rounded-full bg-amber"
+          thumbClass="size-3.5 rounded-full border border-black/40 bg-amber shadow-md transition-transform hover:scale-125"
+        />
+      </View>
+      <Text class="min-w-[28px] font-mono text-[10px] text-white/90 select-none tabular-nums">
+        {Math.round(props.value())}
+        {props.unit ?? ""}
+      </Text>
+    </View>
+  );
+}
 
 export function SubtitleBlocker(props: {
   videoId?: () => string | undefined;
@@ -30,6 +83,7 @@ export function SubtitleBlocker(props: {
   const m = () => t(lang());
 
   const rect = signal<SubtitleBlockerRect>(getBlockerRect(videoId()));
+  const intensity = signal<number>(getBlockerIntensity());
 
   const isHovered = signal(false);
   const dragMode = signal<DragMode | null>(null);
@@ -38,6 +92,10 @@ export function SubtitleBlocker(props: {
   const containerSize = signal({ width: 1000, height: 562 });
 
   let idleTimer: ReturnType<typeof setTimeout> | null = null;
+
+  void hydrateBlockerIntensity().then((val) => {
+    intensity.set(val);
+  });
 
   // Sync rect when videoId changes
   effect(() => {
@@ -74,12 +132,18 @@ export function SubtitleBlocker(props: {
       if (!dragMode()) {
         isHovered.set(false);
       }
-    }, 2000); // 2s deactivate timer
+    }, 2000);
   };
 
   const handleReset = () => {
     const defaultR = resetBlockerRect(videoId());
     rect.set({ ...defaultR });
+    intensity.set(saveBlockerIntensity(DEFAULT_BLOCKER_INTENSITY));
+    handleMouseEnter();
+  };
+
+  const handleIntensityChange = (val: number) => {
+    intensity.set(saveBlockerIntensity(val));
     handleMouseEnter();
   };
 
@@ -142,7 +206,7 @@ export function SubtitleBlocker(props: {
   const seHandler = createPanHandler("se");
 
   const isNearTop = () => rect().y < 12;
-  const TOOLBAR_WIDTH = 76;
+  const TOOLBAR_WIDTH = 250;
   const getToolbarWidth = () =>
     Math.min(TOOLBAR_WIDTH, (rect().width / 100) * containerSize().width);
 
@@ -187,13 +251,30 @@ export function SubtitleBlocker(props: {
           onMouseEnter={handleMouseEnter}
           onMouseLeave={handleMouseLeave}
         >
-          {/* Fixed blur style: blurs the video behind the box. */}
-          <View
-            class="pointer-events-none absolute inset-0 overflow-hidden rounded-lg bg-black/30"
-            style={{ backdropFilter: BLOCKER_BACKDROP_FILTER }}
-          />
+          {/* Visual Background Layer: Real-time dynamic video pixelated mosaic */}
+          <If when={shadersAvailable()}>
+            <View class="pointer-events-none absolute inset-0 overflow-hidden rounded-lg bg-black/20 backdrop-blur-xl">
+              <ShaderEffect
+                class="h-full w-full"
+                progress={intensity() / 100}
+                source={MOSAIC_SHADER}
+              >
+                <View class="h-full w-full" />
+              </ShaderEffect>
+            </View>
+          </If>
+          <If when={!shadersAvailable()}>
+            <View class="pointer-events-none absolute inset-0 overflow-hidden rounded-lg bg-black/20 backdrop-blur-xl">
+              <Canvas
+                class="h-full w-full"
+                draw={(cx, size) => {
+                  drawMosaicCanvas(cx, size, intensity());
+                }}
+              />
+            </View>
+          </If>
 
-          {/* Draggable Surface Layer: 按住整个区域均可平滑拖放 (Whole-area Drag & Drop) */}
+          {/* Draggable Surface Layer */}
           <View
             class="pointer-events-auto absolute inset-0 rounded-lg select-none"
             style={{
@@ -203,14 +284,14 @@ export function SubtitleBlocker(props: {
             {...moveHandler.panHandlers}
           />
 
-          {/* Controls & Handles: 仅在悬浮 (hover) 或拖拽时才显示 */}
+          {/* Controls & Handles: shown on hover or drag */}
           <If when={isHovered() || dragMode() !== null}>
-            {/* Center Reference / Placeholder Hint Badge: 纯视觉提示 (pointer-events-none, 像 placeholder 一样) */}
+            {/* Center Reference / Placeholder Hint Badge */}
             <View class="pointer-events-none absolute inset-0 items-center justify-center select-none">
               <View
                 class={`pointer-events-none flex-row items-center gap-1.5 rounded-full px-3 py-1 select-none backdrop-blur-sm transition-all ${
                   dragMode() === "move"
-                    ? "border border-amber/90 bg-black/80 text-amber shadow-lg scale-105"
+                    ? "scale-105 border border-amber/90 bg-black/80 text-amber shadow-lg"
                     : "border border-white/20 bg-black/40 text-white/75"
                 }`}
               >
@@ -220,7 +301,7 @@ export function SubtitleBlocker(props: {
                   tone={dragMode() === "move" ? "amber" : "faint"}
                 />
                 <Text
-                  class={`font-mono text-[11px] select-none tracking-wide ${
+                  class={`font-mono text-[11px] tracking-wide select-none ${
                     dragMode() === "move"
                       ? "font-semibold text-amber"
                       : "text-white/75"
@@ -233,26 +314,26 @@ export function SubtitleBlocker(props: {
               </View>
             </View>
 
-            {/* Blocker border segment: stops right at the toolbar junction, leaving the seam 100% line-free */}
+            {/* Blocker border segment stopping cleanly at the toolbar junction */}
             <If when={!isNearTop()}>
               <View
-                class="pointer-events-none absolute top-0 left-0 border-t border-amber/80 rounded-tl-lg"
+                class="pointer-events-none absolute top-0 left-0 rounded-tl-lg border-t border-amber/80"
                 style={{ right: getToolbarWidth() }}
               />
             </If>
             <If when={isNearTop()}>
               <View
-                class="pointer-events-none absolute bottom-0 left-0 border-b border-amber/80 rounded-bl-lg"
+                class="pointer-events-none absolute bottom-0 left-0 rounded-bl-lg border-b border-amber/80"
                 style={{ right: getToolbarWidth() }}
               />
             </If>
 
-            {/* Top-Right seamless tab handle toolbar (半透明渐变背景 + 严丝合缝对齐) */}
+            {/* Seamless tab handle toolbar: intensity slider + reset + close */}
             <View
-              class={`pointer-events-auto absolute flex-row items-center gap-2 px-3 py-1.5 backdrop-blur-md z-40 select-none ${
+              class={`pointer-events-auto absolute z-40 flex-row items-center justify-between gap-2 px-3 py-1.5 backdrop-blur-md select-none ${
                 isNearTop()
-                  ? "rounded-b-xl rounded-t-none border-l border-r border-b border-amber/80 border-t-0 bg-black/80"
-                  : "rounded-t-xl rounded-b-none border-l border-r border-t border-amber/80 border-b-0 bg-black/80"
+                  ? "rounded-b-xl rounded-t-none border-l border-r border-b border-t-0 border-amber/80 bg-black/85"
+                  : "rounded-t-xl rounded-b-none border-l border-r border-t border-b-0 border-amber/80 bg-black/85"
               }`}
               style={{
                 right: 0,
@@ -267,31 +348,41 @@ export function SubtitleBlocker(props: {
               onMouseEnter={handleMouseEnter}
               onMouseLeave={handleMouseLeave}
             >
-              {/* Reset to Default Position */}
-              <Button
-                onPress={handleReset}
-                class="rounded-md border border-white/15 bg-white/5 px-1.5 py-0.5 hover:bg-white/10 active:scale-95"
-                accessibilityLabel={m().resetBlocker}
-              >
-                <Icon name="repeat" size={11} tone="faint" />
-              </Button>
+              <MiniSlider
+                value={intensity}
+                min={10}
+                max={100}
+                step={5}
+                width={72}
+                unit="%"
+                label={m().blockerIntensity}
+                onChange={handleIntensityChange}
+              />
 
-              {/* Close Button */}
-              <If when={props.onToggleEnabled}>
+              <View class="shrink-0 flex-row items-center gap-1">
                 <Button
-                  onPress={props.onToggleEnabled}
-                  class="rounded-md border border-white/15 bg-white/5 px-1.5 py-0.5 hover:bg-white/10 active:scale-95"
-                  accessibilityLabel={m().toggleSubtitleBlocker}
+                  onPress={handleReset}
+                  class="rounded-md border border-white/15 bg-white/5 px-1.5 py-0.5 hover:bg-white/15 active:scale-95"
+                  accessibilityLabel={m().resetBlocker}
                 >
-                  <Icon name="x" size={11} tone="faint" />
+                  <Icon name="repeat" size={11} tone="faint" />
                 </Button>
-              </If>
+
+                <If when={props.onToggleEnabled}>
+                  <Button
+                    onPress={props.onToggleEnabled}
+                    class="rounded-md border border-white/15 bg-white/5 px-1.5 py-0.5 hover:bg-white/15 active:scale-95"
+                    accessibilityLabel={m().toggleSubtitleBlocker}
+                  >
+                    <Icon name="x" size={11} tone="faint" />
+                  </Button>
+                </If>
+              </View>
             </View>
 
-            {/* Resize Handles (8 directions, perfectly clearing the toolbar) */}
-            {/* Top Handle: ↕ (Avoids toolbar at top-right by clearing getToolbarWidth()) */}
+            {/* Resize Handles (8 directions, clearing the toolbar) */}
             <View
-              class="pointer-events-auto absolute items-center justify-center z-20 group"
+              class="pointer-events-auto group absolute z-20 items-center justify-center"
               style={
                 isNearTop()
                   ? { top: -8, left: 24, right: 24, height: 16, cursor: "ns-resize" }
@@ -299,12 +390,11 @@ export function SubtitleBlocker(props: {
               }
               {...nHandler.panHandlers}
             >
-              <View class="h-1.5 w-14 rounded-full bg-amber border border-black/50 group-hover:h-2 group-hover:scale-110 transition-all shadow-md" />
+              <View class="h-1.5 w-14 rounded-full border border-black/50 bg-amber shadow-md transition-all group-hover:h-2 group-hover:scale-110" />
             </View>
 
-            {/* Bottom Handle: ↕ (Avoids toolbar at bottom-right by clearing getToolbarWidth()) */}
             <View
-              class="pointer-events-auto absolute items-center justify-center z-20 group"
+              class="pointer-events-auto group absolute z-20 items-center justify-center"
               style={
                 isNearTop()
                   ? { bottom: -8, left: 24, right: getToolbarWidth() + 12, height: 16, cursor: "ns-resize" }
@@ -312,65 +402,58 @@ export function SubtitleBlocker(props: {
               }
               {...sHandler.panHandlers}
             >
-              <View class="h-1.5 w-14 rounded-full bg-amber border border-black/50 group-hover:h-2 group-hover:scale-110 transition-all shadow-md" />
+              <View class="h-1.5 w-14 rounded-full border border-black/50 bg-amber shadow-md transition-all group-hover:h-2 group-hover:scale-110" />
             </View>
 
-            {/* Left Handle: ↔ (Wide hit zone for effortless horizontal stretching) */}
             <View
-              class="pointer-events-auto absolute items-center justify-center z-20 group"
+              class="pointer-events-auto group absolute z-20 items-center justify-center"
               style={{ left: -10, top: 12, bottom: 12, width: 20, cursor: "ew-resize" }}
               {...wHandler.panHandlers}
             >
-              <View class="w-1.5 h-12 rounded-full bg-amber border border-black/50 group-hover:w-2 group-hover:scale-110 transition-all shadow-md" />
+              <View class="h-12 w-1.5 rounded-full border border-black/50 bg-amber shadow-md transition-all group-hover:w-2 group-hover:scale-110" />
             </View>
 
-            {/* Right Handle: ↔ (Wide hit zone for effortless horizontal stretching) */}
             <View
-              class="pointer-events-auto absolute items-center justify-center z-20 group"
+              class="pointer-events-auto group absolute z-20 items-center justify-center"
               style={{ right: -10, top: 12, bottom: 12, width: 20, cursor: "ew-resize" }}
               {...eHandler.panHandlers}
             >
-              <View class="w-1.5 h-12 rounded-full bg-amber border border-black/50 group-hover:w-2 group-hover:scale-110 transition-all shadow-md" />
+              <View class="h-12 w-1.5 rounded-full border border-black/50 bg-amber shadow-md transition-all group-hover:w-2 group-hover:scale-110" />
             </View>
 
-            {/* Four Corners: ⤡, ⤢ */}
-            {/* Top-Left: Always present */}
             <View
-              class="pointer-events-auto absolute items-center justify-center z-20 group"
+              class="pointer-events-auto group absolute z-20 items-center justify-center"
               style={{ top: -10, left: -10, width: 22, height: 22, cursor: "nwse-resize" }}
               {...nwHandler.panHandlers}
             >
-              <View class="size-3.5 rounded-full bg-amber border border-black/50 group-hover:scale-125 transition-transform shadow-md" />
+              <View class="size-3.5 rounded-full border border-black/50 bg-amber shadow-md transition-transform group-hover:scale-125" />
             </View>
 
-            {/* Top-Right: Only shown when toolbar is at bottom, so it never collides with toolbar */}
             <If when={isNearTop()}>
               <View
-                class="pointer-events-auto absolute items-center justify-center z-20 group"
+                class="pointer-events-auto group absolute z-20 items-center justify-center"
                 style={{ top: -10, right: -10, width: 22, height: 22, cursor: "nesw-resize" }}
                 {...neHandler.panHandlers}
               >
-                <View class="size-3.5 rounded-full bg-amber border border-black/50 group-hover:scale-125 transition-transform shadow-md" />
+                <View class="size-3.5 rounded-full border border-black/50 bg-amber shadow-md transition-transform group-hover:scale-125" />
               </View>
             </If>
 
-            {/* Bottom-Left: Always present */}
             <View
-              class="pointer-events-auto absolute items-center justify-center z-20 group"
+              class="pointer-events-auto group absolute z-20 items-center justify-center"
               style={{ bottom: -10, left: -10, width: 22, height: 22, cursor: "nesw-resize" }}
               {...swHandler.panHandlers}
             >
-              <View class="size-3.5 rounded-full bg-amber border border-black/50 group-hover:scale-125 transition-transform shadow-md" />
+              <View class="size-3.5 rounded-full border border-black/50 bg-amber shadow-md transition-transform group-hover:scale-125" />
             </View>
 
-            {/* Bottom-Right: Only shown when toolbar is at top, so it never collides with toolbar */}
             <If when={!isNearTop()}>
               <View
-                class="pointer-events-auto absolute items-center justify-center z-20 group"
+                class="pointer-events-auto group absolute z-20 items-center justify-center"
                 style={{ bottom: -10, right: -10, width: 22, height: 22, cursor: "nwse-resize" }}
                 {...seHandler.panHandlers}
               >
-                <View class="size-3.5 rounded-full bg-amber border border-black/50 group-hover:scale-125 transition-transform shadow-md" />
+                <View class="size-3.5 rounded-full border border-black/50 bg-amber shadow-md transition-transform group-hover:scale-125" />
               </View>
             </If>
           </If>
