@@ -113,3 +113,56 @@ export function filterActiveDownloads(
     return tokens.every((tok) => haystack.includes(tok));
   });
 }
+
+/** Toggle a single videoId in a multi-select set, returning a new Set. */
+export function toggleSelectedId(
+  selected: ReadonlySet<string>,
+  videoId: string,
+): Set<string> {
+  const next = new Set(selected);
+  if (next.has(videoId)) next.delete(videoId);
+  else next.add(videoId);
+  return next;
+}
+
+/** Drop selected IDs that are no longer present in the library. */
+export function pruneSelectedIds(
+  selected: ReadonlySet<string>,
+  validIds: ReadonlySet<string>,
+): Set<string> {
+  let changed = false;
+  for (const id of selected) {
+    if (!validIds.has(id)) {
+      changed = true;
+      break;
+    }
+  }
+  if (!changed) return new Set(selected);
+  const next = new Set<string>();
+  for (const id of selected) {
+    if (validIds.has(id)) next.add(id);
+  }
+  return next;
+}
+
+/** True when there is at least one visible item and every visible item is selected. */
+export function areAllVisibleSelected(
+  selected: ReadonlySet<string>,
+  visibleIds: readonly string[],
+): boolean {
+  return visibleIds.length > 0 && visibleIds.every((id) => selected.has(id));
+}
+
+/** Select all visible items, or deselect them all if every visible item is already selected. */
+export function toggleSelectAllIds(
+  selected: ReadonlySet<string>,
+  visibleIds: readonly string[],
+): Set<string> {
+  const next = new Set(selected);
+  if (areAllVisibleSelected(selected, visibleIds)) {
+    for (const id of visibleIds) next.delete(id);
+  } else {
+    for (const id of visibleIds) next.add(id);
+  }
+  return next;
+}

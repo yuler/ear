@@ -3,10 +3,14 @@ import { expect, test } from "nsh/test";
 import type { LibraryEntry } from "../library/types";
 import { formatEntryDescription, isAudioEntry, LibraryView } from "./LibraryView";
 import {
+  areAllVisibleSelected,
   completedEntries,
   filterLibraryEntries,
   formatDuration,
+  pruneSelectedIds,
   subtitleIssue,
+  toggleSelectAllIds,
+  toggleSelectedId,
 } from "./libraryViewHelpers";
 
 function mockEntry(over: Partial<LibraryEntry> = {}): LibraryEntry {
@@ -212,4 +216,30 @@ test("LibraryView accepts disabled prop and safely renders empty and populated v
   });
 
   expect(view).toBeDefined();
+});
+
+test("multi-select helpers toggle, select-all, deselect-all, and prune deleted IDs", () => {
+  let selected = new Set<string>();
+  selected = toggleSelectedId(selected, "v1");
+  expect([...selected]).toEqual(["v1"]);
+  selected = toggleSelectedId(selected, "v2");
+  expect([...selected]).toEqual(["v1", "v2"]);
+  selected = toggleSelectedId(selected, "v1");
+  expect([...selected]).toEqual(["v2"]);
+
+  const visible = ["v1", "v2", "v3"];
+  expect(areAllVisibleSelected(selected, visible)).toBe(false);
+
+  // Select all visible
+  selected = toggleSelectAllIds(selected, visible);
+  expect(areAllVisibleSelected(selected, visible)).toBe(true);
+  expect([...selected].sort()).toEqual(["v1", "v2", "v3"]);
+
+  // Toggle again deselects all visible
+  selected = toggleSelectAllIds(selected, visible);
+  expect(selected.size).toBe(0);
+
+  // Prune drops IDs no longer in the library
+  const pruned = pruneSelectedIds(new Set(["v1", "v2", "gone"]), new Set(["v1", "v2"]));
+  expect([...pruned].sort()).toEqual(["v1", "v2"]);
 });

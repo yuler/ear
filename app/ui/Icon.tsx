@@ -1,5 +1,6 @@
 import { Image, token, type Tokens } from "nsh";
 import check from "./icons/check.svg";
+import checkSquare from "./icons/check-square.svg";
 import chevronLeft from "./icons/chevron-left.svg";
 import chevronRight from "./icons/chevron-right.svg";
 import clipboard from "./icons/clipboard.svg";
@@ -24,12 +25,14 @@ import settingsIcon from "./icons/settings.svg";
 import sparkles from "./icons/sparkles.svg";
 import subtitles from "./icons/subtitles.svg";
 import subtitleBlock from "./icons/subtitle-block.svg";
+import trash from "./icons/trash.svg";
 import volume from "./icons/volume.svg";
 import volumeX from "./icons/volume-x.svg";
 import x from "./icons/x.svg";
 
 const ICONS = {
   check,
+  "check-square": checkSquare,
   "chevron-left": chevronLeft,
   "chevron-right": chevronRight,
   clipboard,
@@ -54,6 +57,7 @@ const ICONS = {
   sparkles,
   subtitles,
   "subtitle-block": subtitleBlock,
+  trash,
   volume,
   "volume-x": volumeX,
   x,

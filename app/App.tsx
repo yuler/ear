@@ -141,6 +141,13 @@ function App() {
     await downloads.refresh();
   };
 
+  const deleteLibraryEntries = async (entries: LibraryEntry[]) => {
+    for (const entry of entries) {
+      await deleteEntry(entry.videoId, { deleteMediaFile: true });
+    }
+    await downloads.refresh();
+  };
+
   /**
    * Discover card press: open it when already downloaded; otherwise load its
    * URL into the top search bar so the user can pick format & quality first.
@@ -249,11 +256,8 @@ function App() {
   return (
     <View class="relative flex-1 flex-col bg-background pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)]">
       <TopBar
-        activePage={activePage}
-        onSelectPage={selectPage}
         settingsOpen={showSettingsModal}
         onOpenSettings={toggleSettings}
-        activeDownloadCount={() => downloads.list().length}
         url={url}
         isLink={isLink}
         onUrlChange={(v) => {
@@ -284,6 +288,7 @@ function App() {
       <If when={activePage() === "library"}>
         <LibraryView
           disabled={isBackgroundDisabled}
+          previewOpen={() => Boolean(preview.active())}
           savedEntries={savedEntries}
           activeDownloads={downloads.list}
           searchQuery={searchQuery}
@@ -296,6 +301,7 @@ function App() {
           onOpenEntry={(entry, rect) => void openEntry(entry, rect)}
           onOpenFolder={(entry) => void revealEntry(entry)}
           onDeleteEntry={(entry) => void deleteLibraryEntry(entry)}
+          onDeleteEntries={(entries) => void deleteLibraryEntries(entries)}
           onPauseDownload={downloads.pause}
           onResumeDownload={(vid) => void downloads.resume(vid)}
           onCancelDownload={(vid) => void downloads.cancel(vid)}
@@ -304,9 +310,10 @@ function App() {
 
       <If when={activePage() === "discover"}>
         <Scroll class="min-h-0 flex-1">
-          <View class="mx-auto w-full max-w-[1440px] p-4">
+          <View class="mx-auto w-full max-w-[1440px] px-4 pt-2 pb-4">
             <DiscoverView
               disabled={isBackgroundDisabled}
+              onBack={() => selectPage("library")}
               onSelectItem={(item, rect) => void selectDiscoverItem(item, rect)}
               savedEntries={savedEntries}
               activeDownloads={downloads.list}

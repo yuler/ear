@@ -15,16 +15,12 @@ export type AppPage = "library" | "discover";
 export const TOP_BAR_HEIGHT = 48;
 
 /**
- * The window's top bar, on every page: optional back button on Discover,
- * centered search / link input (its parsed link's card pops over the content
- * below it), and the Settings modal trigger.
+ * The window's top bar, on every page: left-aligned search / link input
+ * (its parsed link's card pops directly below it) and the Settings trigger.
  */
 export function TopBar(props: {
-  activePage: () => AppPage;
-  onSelectPage: (page: AppPage) => void;
   settingsOpen: () => boolean;
   onOpenSettings: () => void;
-  activeDownloadCount: () => number;
   url: () => string;
   isLink: () => boolean;
   onUrlChange: (v: string) => void;
@@ -46,9 +42,6 @@ export function TopBar(props: {
 }) {
   const t = shellT;
   const insets = () => macTitleBarInsets();
-  const isDiscover = () => props.activePage() === "discover";
-  const downloadBadge = () =>
-    isDiscover() ? props.activeDownloadCount() : 0;
 
   const field = (
     <View class="h-9 w-full flex-row items-center gap-2.5 rounded-xl border border-line bg-well px-3">
@@ -109,36 +102,15 @@ export function TopBar(props: {
         paddingLeft: insets().left > 0 ? insets().left + 8 : 16,
         paddingRight: titleBar().right ? titleBar().right + 8 : 16,
       }}
-      class="shrink-0 flex-row items-center gap-3 border-b border-line bg-background"
+      class="shrink-0 flex-row items-center gap-3 bg-background"
     >
-      <If when={isDiscover()}>
-        <Button
-          onPress={() => props.onSelectPage("library")}
-          class="h-8 shrink-0 flex-row items-center gap-1 rounded-md px-2 transition hover:bg-well active:bg-accent"
-          accessibilityLabel={t().backToLibrary}
-        >
-          <Icon name="chevron-left" size={14} tone="muted-foreground" />
-          <Text class="text-sm font-medium text-foreground">{t().library}</Text>
-          <If when={downloadBadge() > 0}>
-            <View
-              class="ml-0.5 min-w-[18px] items-center rounded-full bg-brand px-1.5"
-              accessibilityLabel={t().activeDownloads(downloadBadge())}
-            >
-              <Text class="font-mono text-[10px] font-semibold tabular-nums text-brand-foreground">
-                {downloadBadge()}
-              </Text>
-            </View>
-          </If>
-        </Button>
-      </If>
-
       <View class="min-w-0 flex-1 flex-row items-center">
         <View class="w-full max-w-[760px]">
           <Popover
             open={Boolean(props.preview())}
             placement="bottom"
             align="start"
-            offset={6}
+            offset={4}
             closeOnPressOutside={false}
             onOpenChange={(e) => {
               if (!e.open && e.reason === "cancel") props.onDismissPreview();

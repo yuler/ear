@@ -7,13 +7,18 @@ import { Icon } from "../ui/Icon";
 import { shellT } from "../ui/shellI18n";
 import { DiscoverCard } from "./discover/DiscoverCard";
 import type { DiscoverItem } from "./discover/types";
+import { LibraryBatchBar } from "./LibraryBatchBar";
 import { LibraryCard, POSTER_GRID_STYLE } from "./LibraryCards";
 import {
+  areAllVisibleSelected,
   completedEntries,
   filterActiveDownloads,
   filterLibraryEntries,
   formatEntryDescription,
   isAudioEntry,
+  pruneSelectedIds,
+  toggleSelectAllIds,
+  toggleSelectedId,
 } from "./libraryViewHelpers";
 import type { ViewTransitionRect } from "./viewTransition";
 
@@ -40,13 +45,37 @@ export async function confirmDelete(entry: LibraryEntry): Promise<boolean> {
   }
 }
 
+/** Asks before batch-deleting one or more entries; resolves true when confirmed. */
+export async function confirmDeleteMany(
+  entries: readonly LibraryEntry[],
+): Promise<boolean> {
+  if (entries.length === 0) return false;
+  if (entries.length === 1) return confirmDelete(entries[0]!);
+  const t = shellT();
+  try {
+    const res = await AlertDialog.show({
+      title: t.deleteBatchTitle(entries.length),
+      description: t.deleteBatchDescription(entries.length),
+      actions: [
+        { id: "cancel", label: t.cancel, role: "cancel" },
+        { id: "delete", label: t.delete, role: "destructive" },
+      ],
+      closeOnEscape: true,
+    });
+    return res.action === "delete";
+  } catch {
+    return false;
+  }
+}
+
 /**
  * Library: the primary home page right under the search bar.
  * Shows active downloads and local materials (filtered live by searchQuery),
- * with a subtle Discover preview entry tucked below.
+ * with a fixed bottom Discover strip and optional multi-select batch toolbar.
  */
 export function LibraryView(props: {
   disabled?: () => boolean;
+  previewOpen?: () => boolean;
   savedEntries: () => LibraryEntry[];
   activeDownloads?: () => DownloadTaskProgress[];
   searchQuery?: () => string;
@@ -60,6 +89,7 @@ export function LibraryView(props: {
   onOpenEntry: (entry: LibraryEntry, originRect?: ViewTransitionRect | null) => void;
   onOpenFolder: (entry: LibraryEntry) => void;
   onDeleteEntry?: (entry: LibraryEntry) => void;
+  onDeleteEntries?: (entries: LibraryEntry[]) => void;
   onPauseDownload?: (videoId: string) => void;
   onResumeDownload?: (videoId: string) => void;
   onCancelDownload?: (videoId: string) => void;
@@ -79,6 +109,17 @@ export function LibraryView(props: {
   const isEmpty = () => totalCount() === 0;
   const isSearchEmpty = () => isSearching() && visibleCount() === 0;
 
+  const selectionMode = signal(false);
+  const selectedIds = signal<Set<string>>(new Set());
+
+  const selectedEntries = () =>
+    allEntries().filter((e) => selectedIds().has(e.videoId));
+  const selectedCount = () => selectedEntries().length;
+  const visibleEntryIds = () => entries().map((e) => e.videoId);
+  const allVisibleSelected = () =>
+    areAllVisibleSelected(selectedIds(), visibleEntryIds());
+  const canDelete = Boolean(props.onDeleteEntries || props.onDeleteEntry);
+
   const downloadedIds = () =>
     new Set(props.savedEntries().map((e) => e.videoId));
   const downloadFor = (videoId: string) =>
@@ -87,10 +128,30 @@ export function LibraryView(props: {
   const discoverPreview = (): DiscoverItem[] =>
     (props.discoverItems?.() ?? []).slice(0, DISCOVER_PREVIEW_LIMIT);
   const showDiscoverSection = () =>
-    !isSearching() && Boolean(props.onOpenDiscover);
+    !isSearching() && !selectionMode() && Boolean(props.onOpenDiscover);
 
   const focusedIndex = signal<number>(-1);
   const discoverScrollRef = signal<ScrollRef | null>(null);
+
+  const enterSelectionMode = (initialVideoId?: string) => {
+    selectionMode.set(true);
+    if (initialVideoId) {
+      selectedIds.set(new Set([initialVideoId]));
+    }
+  };
+
+  const exitSelectionMode = () => {
+    selectionMode.set(false);
+    selectedIds.set(new Set());
+  };
+
+  const toggleEntrySelection = (entry: LibraryEntry) => {
+    selectedIds.set(toggleSelectedId(selectedIds(), entry.videoId));
+  };
+
+  const toggleSelectAll = () => {
+    selectedIds.set(toggleSelectAllIds(selectedIds(), visibleEntryIds()));
+  };
 
   // Clamp the keyboard cursor when the list shrinks (deletion, search, refresh).
   effect(() => {
@@ -103,9 +164,39 @@ export function LibraryView(props: {
     }
   });
 
+  // Prune stale selections and exit selection mode if the library empties.
+  effect(() => {
+    const list = allEntries();
+    if (list.length === 0) {
+      if (selectionMode()) exitSelectionMode();
+      return;
+    }
+    const cur = selectedIds();
+    if (cur.size === 0) return;
+    const valid = new Set(list.map((e) => e.videoId));
+    const pruned = pruneSelectedIds(cur, valid);
+    if (pruned.size !== cur.size) {
+      selectedIds.set(pruned);
+    }
+  });
+
   const requestDelete = async (entry: LibraryEntry) => {
-    if (!props.onDeleteEntry) return;
-    if (await confirmDelete(entry)) props.onDeleteEntry(entry);
+    if (!props.onDeleteEntry && !props.onDeleteEntries) return;
+    if (!(await confirmDelete(entry))) return;
+    if (props.onDeleteEntry) props.onDeleteEntry(entry);
+    else props.onDeleteEntries?.([entry]);
+  };
+
+  const requestBatchDelete = async () => {
+    const targets = selectedEntries();
+    if (targets.length === 0 || !canDelete) return;
+    if (!(await confirmDeleteMany(targets))) return;
+    if (props.onDeleteEntries) {
+      props.onDeleteEntries(targets);
+    } else if (props.onDeleteEntry) {
+      for (const item of targets) props.onDeleteEntry(item);
+    }
+    exitSelectionMode();
   };
 
   const openMenu = (entry: LibraryEntry, at?: { x: number; y: number }) => {
@@ -113,8 +204,9 @@ export function LibraryView(props: {
     void Menu.popup(
       [
         { label: t.openFolder, onSelect: () => props.onOpenFolder(entry) },
-        props.onDeleteEntry ? { type: "separator" } : null,
-        props.onDeleteEntry
+        { label: t.select, onSelect: () => enterSelectionMode(entry.videoId) },
+        canDelete ? { type: "separator" } : null,
+        canDelete
           ? { label: t.delete, onSelect: () => void requestDelete(entry) }
           : null,
       ],
@@ -161,82 +253,120 @@ export function LibraryView(props: {
       right: () => move(1),
       up: () => move(-1),
       left: () => move(-1),
-      enter: withFocused((e) => props.onOpenEntry(e)),
-      o: withFocused((e) => props.onOpenFolder(e)),
-      delete: withFocused((e) => void requestDelete(e)),
-      backspace: withFocused((e) => void requestDelete(e)),
+      enter: withFocused((e) => {
+        if (selectionMode()) toggleEntrySelection(e);
+        else props.onOpenEntry(e);
+      }),
+      space: withFocused((e) => {
+        if (selectionMode()) toggleEntrySelection(e);
+      }),
+      o: withFocused((e) => {
+        if (!selectionMode()) props.onOpenFolder(e);
+      }),
+      delete: () => {
+        if (props.disabled?.()) return;
+        if (selectionMode()) {
+          void requestBatchDelete();
+          return;
+        }
+        const entry = focused();
+        if (entry) void requestDelete(entry);
+      },
+      backspace: () => {
+        if (props.disabled?.()) return;
+        if (selectionMode()) {
+          void requestBatchDelete();
+          return;
+        }
+        const entry = focused();
+        if (entry) void requestDelete(entry);
+      },
+      "mod+a": () => {
+        if (props.disabled?.() || !selectionMode()) return;
+        toggleSelectAll();
+      },
+      escape: () => {
+        if (props.disabled?.() || props.previewOpen?.()) return;
+        if (selectionMode()) exitSelectionMode();
+      },
     },
     { when: "notEditing" },
   );
 
   const discoverSection = (
     <If when={showDiscoverSection()}>
-      <View class="shrink-0 gap-3 border-t border-line/60 pt-5">
-        <View class="flex-row items-center justify-between gap-2 px-1">
-          <View class="flex-row items-center gap-2">
-            <Icon name="compass" size={14} tone="muted-foreground" />
-            <Text class="text-xs font-semibold text-muted-foreground">
-              {shellT().discover}
-            </Text>
-            <Text class="hidden text-xs text-dim sm:flex">
-              · {shellT().discoverSectionHint}
-            </Text>
-          </View>
-          <Button
-            onPress={() => props.onOpenDiscover?.()}
-            class="flex-row items-center gap-1 rounded-md px-2 py-1 transition hover:bg-well active:bg-accent"
-            accessibilityLabel={shellT().browseDiscover}
-          >
-            <Text class="text-xs font-medium text-muted-foreground">
-              {shellT().browseDiscover}
-            </Text>
-            <Icon name="chevron-right" size={12} tone="muted-foreground" />
-          </Button>
-        </View>
-
-        <If when={discoverPreview().length > 0 && Boolean(props.onSelectDiscoverItem)}>
-          <View class="w-full gap-1.5">
-            <Scroll
-              ref={(node) => discoverScrollRef.set(node)}
-              horizontal
-              scrollbar={false}
-              class="w-full"
-              style={{ height: 184 }}
+      <View class="shrink-0 border-t border-line/60 bg-background">
+        <View class="mx-auto w-full max-w-[1440px] gap-3 px-4 pt-3.5 pb-4">
+          <View class="flex-row items-center justify-between gap-2 px-1">
+            <View class="flex-row items-center gap-2">
+              <Icon name="compass" size={14} tone="muted-foreground" />
+              <Text class="text-xs font-semibold text-muted-foreground">
+                {shellT().discover}
+              </Text>
+              <Text class="hidden text-xs text-dim sm:flex">
+                · {shellT().discoverSectionHint}
+              </Text>
+            </View>
+            <Button
+              onPress={() => props.onOpenDiscover?.()}
+              class="flex-row items-center gap-1 rounded-md px-2 py-1 transition hover:bg-well active:bg-accent"
+              accessibilityLabel={shellT().browseDiscover}
             >
-              <View class="flex-row gap-3">
-                {discoverPreview().map((item) => (
-                  <View class="w-[220px] shrink-0">
-                    <DiscoverCard
-                      item={item}
-                      onPress={(it, rect) => props.onSelectDiscoverItem?.(it, rect)}
-                      isDownloaded={() => downloadedIds().has(item.videoId)}
-                      download={() => downloadFor(item.videoId)}
-                    />
-                  </View>
-                ))}
-              </View>
-            </Scroll>
-            <If when={Boolean(discoverScrollRef())}>
-              <Scrollbar
-                scroll={discoverScrollRef()!}
-                axis="horizontal"
-                mode="always"
-                class="h-2.5 w-full rounded-full bg-well/60 p-0.5"
-                thumbClass="h-full rounded-full bg-dim/70 transition hover:bg-muted-foreground active:bg-foreground/70"
-                accessibilityLabel="Scroll Discover items horizontally"
-              />
-            </If>
+              <Text class="text-xs font-medium text-muted-foreground">
+                {shellT().browseDiscover}
+              </Text>
+              <Icon name="chevron-right" size={12} tone="muted-foreground" />
+            </Button>
           </View>
-        </If>
+
+          <If when={discoverPreview().length > 0 && Boolean(props.onSelectDiscoverItem)}>
+            <View class="w-full gap-1.5">
+              <Scroll
+                ref={(node) => discoverScrollRef.set(node)}
+                horizontal
+                scrollbar={false}
+                class="w-full"
+                style={{ height: 184 }}
+              >
+                <View class="flex-row gap-3">
+                  {discoverPreview().map((item) => (
+                    <View class="w-[220px] shrink-0">
+                      <DiscoverCard
+                        item={item}
+                        onPress={(it, rect) => props.onSelectDiscoverItem?.(it, rect)}
+                        isDownloaded={() => downloadedIds().has(item.videoId)}
+                        download={() => downloadFor(item.videoId)}
+                      />
+                    </View>
+                  ))}
+                </View>
+              </Scroll>
+              <If when={Boolean(discoverScrollRef())}>
+                <Scrollbar
+                  scroll={discoverScrollRef()!}
+                  axis="horizontal"
+                  mode="always"
+                  class="h-2.5 w-full rounded-full bg-well/60 p-0.5"
+                  thumbClass="h-full rounded-full bg-dim/70 transition hover:bg-muted-foreground active:bg-foreground/70"
+                  accessibilityLabel="Scroll Discover items horizontally"
+                />
+              </If>
+            </View>
+          </If>
+        </View>
       </View>
     </If>
   );
 
   return (
-    <View class="min-h-0 flex-1 flex-col">
+    <View class="relative min-h-0 flex-1 flex-col">
       <If when={visibleCount() > 0}>
         <Scroll class="min-h-0 flex-1">
-          <View class="mx-auto w-full max-w-[1440px] flex-col gap-3 p-4 pb-8">
+          <View
+            class={`mx-auto w-full max-w-[1440px] flex-col gap-3 px-4 pt-2 ${
+              selectionMode() ? "pb-24" : "pb-6"
+            }`}
+          >
             <View class="flex-row items-center justify-between px-1">
               <View class="flex-row items-center gap-2">
                 <Text class="text-sm font-semibold text-foreground">
@@ -248,6 +378,36 @@ export function LibraryView(props: {
                     : `${totalCount()}`}
                 </Text>
               </View>
+
+              <If when={entries().length > 0}>
+                <Button
+                  onPress={() => {
+                    if (selectionMode()) exitSelectionMode();
+                    else enterSelectionMode();
+                  }}
+                  class={`flex-row items-center gap-1.5 rounded-md border px-2.5 py-1 transition ${
+                    selectionMode()
+                      ? "border-brand/40 bg-brand-soft hover:opacity-90"
+                      : "border-line bg-well/60 hover:bg-well active:bg-accent"
+                  }`}
+                  accessibilityLabel={
+                    selectionMode() ? shellT().done : shellT().select
+                  }
+                >
+                  <Icon
+                    name="check-square"
+                    size={13}
+                    tone={selectionMode() ? "brand" : "muted-foreground"}
+                  />
+                  <Text
+                    class={`text-xs font-medium ${
+                      selectionMode() ? "text-brand" : "text-muted-foreground"
+                    }`}
+                  >
+                    {selectionMode() ? shellT().done : shellT().select}
+                  </Text>
+                </Button>
+              </If>
             </View>
 
             <View style={POSTER_GRID_STYLE}>
@@ -266,22 +426,21 @@ export function LibraryView(props: {
                   <LibraryCard
                     entry={entry()}
                     selected={focusedIndex() === index()}
+                    selectionMode={selectionMode()}
+                    checked={selectedIds().has(entry().videoId)}
                     onOpen={props.onOpenEntry}
+                    onToggleSelect={toggleEntrySelection}
                     onMenu={openMenu}
                   />
                 )}
               </Each>
             </View>
-
-            <If when={showDiscoverSection()}>
-              <View class="mt-6">{discoverSection}</View>
-            </If>
           </View>
         </Scroll>
       </If>
 
       <If when={visibleCount() === 0}>
-        <View class="mx-auto min-h-0 w-full max-w-[1440px] flex-1 flex-col px-4 pt-4 pb-5">
+        <View class="mx-auto min-h-0 w-full max-w-[1440px] flex-1 flex-col px-4 pt-2 pb-4">
           <If when={isSearching()}>
             <View class="shrink-0 flex-row items-center justify-between px-1">
               <View class="flex-row items-center gap-2">
@@ -328,9 +487,24 @@ export function LibraryView(props: {
               </View>
             </If>
           </View>
-
-          {discoverSection}
         </View>
+      </If>
+
+      {discoverSection}
+
+      <If when={selectionMode()}>
+        <LibraryBatchBar
+          selectedCount={selectedCount}
+          allSelected={allVisibleSelected}
+          canDelete={canDelete}
+          onToggleSelectAll={toggleSelectAll}
+          onOpenFolder={() => {
+            const single = selectedEntries()[0];
+            if (single) props.onOpenFolder(single);
+          }}
+          onDeleteSelected={() => void requestBatchDelete()}
+          onExit={exitSelectionMode}
+        />
       </If>
     </View>
   );

@@ -23,12 +23,14 @@ export function DiscoverView(props: {
     item: DiscoverItem,
     originRect?: ViewTransitionRect | null,
   ) => void;
+  onBack?: () => void;
   savedEntries?: () => LibraryEntry[];
   activeDownloads?: () => DownloadTaskProgress[];
   searchQuery?: () => string;
   onClearSearch?: () => void;
 }) {
   const filters = signal<DiscoverFilterState>({ language: "en", level: "all" });
+  const activeDownloadCount = () => props.activeDownloads?.().length ?? 0;
 
   if (
     discoverItems().length === 0 &&
@@ -92,10 +94,38 @@ export function DiscoverView(props: {
   return (
     <View class="gap-4 pb-8">
       <View class="flex-row flex-wrap items-center justify-between gap-3">
-        <DiscoverFilters
-          filters={filters}
-          onChange={(patch) => filters.set({ ...filters(), ...patch })}
-        />
+        <View class="flex-row flex-wrap items-center gap-3">
+          <If when={Boolean(props.onBack)}>
+            <Button
+              onPress={() => props.onBack?.()}
+              class="h-8 shrink-0 flex-row items-center gap-1 rounded-md border border-line bg-well/60 pr-2.5 pl-1.5 transition hover:bg-well active:bg-accent"
+              accessibilityLabel={shellT().backToLibrary}
+            >
+              <Icon name="chevron-left" size={14} tone="muted-foreground" />
+              <Text class="text-xs font-medium text-foreground">
+                {shellT().library}
+              </Text>
+              <If when={activeDownloadCount() > 0}>
+                <View
+                  class="ml-0.5 min-w-[18px] items-center rounded-full bg-brand px-1.5"
+                  accessibilityLabel={shellT().activeDownloads(
+                    activeDownloadCount(),
+                  )}
+                >
+                  <Text class="font-mono text-[10px] font-semibold tabular-nums text-brand-foreground">
+                    {activeDownloadCount()}
+                  </Text>
+                </View>
+              </If>
+            </Button>
+            <View class="hidden h-4 w-px bg-line sm:flex" />
+          </If>
+
+          <DiscoverFilters
+            filters={filters}
+            onChange={(patch) => filters.set({ ...filters(), ...patch })}
+          />
+        </View>
         <Button
           onPress={() => void loadDiscover({ refresh: true })}
           class="h-7 w-7 items-center justify-center rounded-md hover:bg-well active:bg-accent"

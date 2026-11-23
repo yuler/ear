@@ -28,7 +28,10 @@ export const POSTER_GRID_STYLE = {
 export function LibraryCard(props: {
   entry: LibraryEntry;
   selected?: boolean;
+  selectionMode?: boolean;
+  checked?: boolean;
   onOpen: (entry: LibraryEntry, originRect?: ViewTransitionRect | null) => void;
+  onToggleSelect?: (entry: LibraryEntry) => void;
   onMenu: (entry: LibraryEntry, at?: { x: number; y: number }) => void;
 }) {
   let posterRef: ViewRef | null = null;
@@ -37,24 +40,42 @@ export function LibraryCard(props: {
   const audio = isAudioEntry(entry);
   const issue = subtitleIssue(entry);
 
-  const handleOpen = async () => {
+  const handlePress = async () => {
+    if (props.selectionMode) {
+      props.onToggleSelect?.(entry);
+      return;
+    }
     const rect = posterRef
       ? await captureElementRect(posterRef, POSTER_RADIUS)
       : null;
     props.onOpen(entry, rect);
   };
 
+  const cardHighlight = () => {
+    if (props.selectionMode && props.checked) {
+      return "bg-brand-soft/60 ring-2 ring-brand";
+    }
+    if (props.selected) {
+      return "bg-well ring-2 ring-brand";
+    }
+    return "";
+  };
+
   return (
     <View
-      onContextMenu={(e) => props.onMenu(entry, e.pagePosition)}
-      class={`group relative rounded-lg transition hover:bg-well ${
-        props.selected ? "bg-well ring-2 ring-brand" : ""
-      }`}
+      onContextMenu={(e) => {
+        if (!props.selectionMode) props.onMenu(entry, e.pagePosition);
+      }}
+      class={`group relative rounded-lg transition hover:bg-well ${cardHighlight()}`}
     >
       <Button
-        onPress={() => void handleOpen()}
+        onPress={() => void handlePress()}
         class="flex-col gap-2 p-1.5 text-left"
-        accessibilityLabel={`Open ${entry.title}`}
+        accessibilityLabel={
+          props.selectionMode
+            ? `Select ${entry.title}`
+            : `Open ${entry.title}`
+        }
       >
         <View
           ref={(node) => {
@@ -103,15 +124,30 @@ export function LibraryCard(props: {
           </View>
         </View>
       </Button>
-      <Button
-        onPress={() => props.onMenu(entry)}
-        class={`absolute top-3 right-3 h-6 w-6 items-center justify-center rounded-md bg-black/70 transition active:bg-black/90 ${
-          props.selected ? "opacity-100" : "opacity-0 group-hover:opacity-100"
-        }`}
-        accessibilityLabel={shellT().moreActions}
-      >
-        <Text class="text-sm font-bold leading-none text-white">⋯</Text>
-      </Button>
+      <If when={Boolean(props.selectionMode)}>
+        <View
+          class={`pointer-events-none absolute top-3 right-3 h-5.5 w-5.5 items-center justify-center rounded-full shadow-sm transition ${
+            props.checked
+              ? "bg-brand"
+              : "border-2 border-white/85 bg-black/45"
+          }`}
+        >
+          <If when={Boolean(props.checked)}>
+            <Icon name="check" size={12} color="#ffffff" />
+          </If>
+        </View>
+      </If>
+      <If when={!props.selectionMode}>
+        <Button
+          onPress={() => props.onMenu(entry)}
+          class={`absolute top-3 right-3 h-6 w-6 items-center justify-center rounded-md bg-black/70 transition active:bg-black/90 ${
+            props.selected ? "opacity-100" : "opacity-0 group-hover:opacity-100"
+          }`}
+          accessibilityLabel={shellT().moreActions}
+        >
+          <Text class="text-sm font-bold leading-none text-white">⋯</Text>
+        </Button>
+      </If>
     </View>
   );
 }

@@ -41,7 +41,17 @@ export interface ShellMessages {
   delete: string;
   deleteTitle: string;
   deleteDescription: (title: string) => string;
+  deleteBatchTitle: (n: number) => string;
+  deleteBatchDescription: (n: number) => string;
   cancel: string;
+  select: string;
+  done: string;
+  selectAll: string;
+  deselectAll: string;
+  selectedCount: (n: number) => string;
+  batchToolbar: string;
+  deleteSelected: string;
+  exitSelectMode: string;
   autoSubtitles: string;
   noSubtitlesBadge: string;
   audio: string;
@@ -108,7 +118,17 @@ const EN: ShellMessages = {
   delete: "Delete",
   deleteTitle: "Delete this item?",
   deleteDescription: (title) => `“${title}” and its local files will be removed.`,
+  deleteBatchTitle: (n) => `Delete ${n} items?`,
+  deleteBatchDescription: (n) => `${n} selected items and their local files will be removed.`,
   cancel: "Cancel",
+  select: "Select",
+  done: "Done",
+  selectAll: "Select all",
+  deselectAll: "Deselect all",
+  selectedCount: () => "selected",
+  batchToolbar: "Batch actions",
+  deleteSelected: "Delete selected",
+  exitSelectMode: "Exit selection mode",
   autoSubtitles: "Auto subtitles",
   noSubtitlesBadge: "No subtitles",
   audio: "Audio",
@@ -173,7 +193,17 @@ const ZH: ShellMessages = {
   delete: "删除",
   deleteTitle: "删除这个条目？",
   deleteDescription: (title) => `将移除「${title}」及其本地文件。`,
+  deleteBatchTitle: (n) => `删除这 ${n} 个条目？`,
+  deleteBatchDescription: (n) => `将移除已选的 ${n} 个条目及其本地文件。`,
   cancel: "取消",
+  select: "多选",
+  done: "完成",
+  selectAll: "全选",
+  deselectAll: "取消全选",
+  selectedCount: () => "项已选",
+  batchToolbar: "批量操作",
+  deleteSelected: "删除所选",
+  exitSelectMode: "退出多选",
   autoSubtitles: "自动字幕",
   noSubtitlesBadge: "无字幕",
   audio: "音频",
