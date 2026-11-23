@@ -1,5 +1,5 @@
-import { effect, keymap, Scroll, signal, Text, View } from "nsh";
-import { AlertDialog, Button } from "nsh/base";
+import { effect, keymap, Scroll, signal, Text, View, type ScrollRef } from "nsh";
+import { AlertDialog, Button, Scrollbar } from "nsh/base";
 import { Menu } from "nsh/desktop";
 import type { DownloadTaskProgress, LibraryEntry } from "../library/types";
 import { ActiveDownloadCard } from "../ui/ActiveDownloadRow";
@@ -90,6 +90,7 @@ export function LibraryView(props: {
     !isSearching() && Boolean(props.onOpenDiscover);
 
   const focusedIndex = signal<number>(-1);
+  const discoverScrollRef = signal<ScrollRef | null>(null);
 
   // Clamp the keyboard cursor when the list shrinks (deletion, search, refresh).
   effect(() => {
@@ -194,20 +195,38 @@ export function LibraryView(props: {
         </View>
 
         <If when={discoverPreview().length > 0 && Boolean(props.onSelectDiscoverItem)}>
-          <Scroll horizontal class="w-full" style={{ height: 186 }}>
-            <View class="flex-row gap-3 pb-2">
-              {discoverPreview().map((item) => (
-                <View class="w-[220px] shrink-0">
-                  <DiscoverCard
-                    item={item}
-                    onPress={(it, rect) => props.onSelectDiscoverItem?.(it, rect)}
-                    isDownloaded={() => downloadedIds().has(item.videoId)}
-                    download={() => downloadFor(item.videoId)}
-                  />
-                </View>
-              ))}
-            </View>
-          </Scroll>
+          <View class="w-full gap-1.5">
+            <Scroll
+              ref={(node) => discoverScrollRef.set(node)}
+              horizontal
+              scrollbar={false}
+              class="w-full"
+              style={{ height: 184 }}
+            >
+              <View class="flex-row gap-3">
+                {discoverPreview().map((item) => (
+                  <View class="w-[220px] shrink-0">
+                    <DiscoverCard
+                      item={item}
+                      onPress={(it, rect) => props.onSelectDiscoverItem?.(it, rect)}
+                      isDownloaded={() => downloadedIds().has(item.videoId)}
+                      download={() => downloadFor(item.videoId)}
+                    />
+                  </View>
+                ))}
+              </View>
+            </Scroll>
+            <If when={Boolean(discoverScrollRef())}>
+              <Scrollbar
+                scroll={discoverScrollRef()!}
+                axis="horizontal"
+                mode="always"
+                class="h-2.5 w-full rounded-full bg-well/60 p-0.5"
+                thumbClass="h-full rounded-full bg-dim/70 transition hover:bg-muted-foreground active:bg-foreground/70"
+                accessibilityLabel="Scroll Discover items horizontally"
+              />
+            </If>
+          </View>
         </If>
       </View>
     </If>
