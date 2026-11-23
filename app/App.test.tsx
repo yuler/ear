@@ -1,21 +1,32 @@
+import { signal } from "nsh";
 import { expect, open, test } from "nsh/test";
-import { availableQualityIds, defaultQualityId, pickDefaultTrack } from "./appPreview";
-import { buildVideoPreview } from "./clipboard";
+import {
+  availableQualityIds,
+  createPreviewController,
+  defaultQualityId,
+  pickDefaultTrack,
+} from "./appPreview";
+import { buildVideoPreview, isLinkText } from "./clipboard";
 import nshConfig from "./nsh.json";
 import { MESSAGES } from "./ui/i18n";
 import type { CaptionTrack } from "./youtube/types";
 
 const has = (texts: string[], s: string) => texts.some((t) => t.includes(s));
 
-test("top bar shows Discover | Library and Settings; an empty library starts on Discover", async () => {
+test("starts on Library under the search bar, with a weak Discover entry below and Discover as a subpage", async () => {
   const app = await open("./App.tsx");
-  expect(app.shows("label:Discover")).toBe(true);
-  expect(app.shows("label:Library")).toBe(true);
   expect(app.shows("label:Settings")).toBe(true);
+  // No top-bar Discover | Library tabs on the Library home page.
+  expect(app.shows("label:Back to Library")).toBe(false);
   expect(app.texts().every((t) => t !== "index")).toBe(true);
 
-  // Discover filters: a language and one level scale, no duration tiers or tags.
+  await app.waitFor("Your library is empty");
+  expect(app.shows("label:Browse all")).toBe(true);
+
+  // Open Discover page from the weak entry below Library.
+  await app.press("label:Browse all");
   await app.waitFor("English");
+  expect(app.shows("label:Back to Library")).toBe(true);
   expect(has(app.texts(), "Japanese")).toBe(true);
   expect(has(app.texts(), "A1")).toBe(true);
   expect(has(app.texts(), "N5")).toBe(false);
@@ -26,8 +37,10 @@ test("top bar shows Discover | Library and Settings; an empty library starts on 
   await app.waitFor("N5");
   expect(has(app.texts(), "A1")).toBe(false);
 
-  await app.press("label:Library");
+  // Back button returns to Library.
+  await app.press("label:Back to Library");
   await app.waitFor("Your library is empty");
+  expect(app.shows("label:Back to Library")).toBe(false);
 });
 
 test("a clipboard link pops a card with quality, one subtitle line and Download, which closes it", async () => {
@@ -41,23 +54,29 @@ test("a clipboard link pops a card with quality, one subtitle line and Download,
 
   await app.press("label:Download");
   await app.waitUntil(() => !has(app.texts(), "Subtitles:"));
-  // No tab switch on download start.
-  expect(app.shows("text:Your library is empty")).toBe(false);
 });
 
-test("Settings keeps the top bar, opens shortcuts from its entry, and Library returns", async () => {
+test("Settings opens as a modal over Library, stacks Shortcuts modal, and Escape closes layer by layer", async () => {
   const app = await open("./App.tsx");
+  await app.waitFor("Your library is empty");
+
   await app.press("label:Settings");
   await app.waitFor(MESSAGES.en.settingsDownloadFolder);
-  expect(app.shows("label:Discover")).toBe(true);
+  // Library remains underneath the Settings modal.
+  expect(has(app.texts(), "Your library is empty")).toBe(true);
 
   await app.press(`label:${MESSAGES.en.settingsShortcuts}`);
   await app.waitFor("快捷键指南");
+
+  // First Escape closes Shortcuts only, keeping Settings modal open.
   await app.keyboard.press("escape");
   expect(app.texts().every((t) => t !== "快捷键指南")).toBe(true);
+  expect(has(app.texts(), MESSAGES.en.settingsDownloadFolder)).toBe(true);
 
-  await app.press("label:Library");
-  await app.waitFor("Your library is empty");
+  // Second Escape closes Settings modal.
+  await app.keyboard.press("escape");
+  expect(has(app.texts(), MESSAGES.en.settingsDownloadFolder)).toBe(false);
+  expect(has(app.texts(), "Your library is empty")).toBe(true);
 });
 
 test("quality choices are 360p / 720p / 1080p / audio only, defaulting to 360p", () => {
@@ -82,7 +101,7 @@ test("default subtitle: same-language manual track, else its auto track", () => 
   expect(pickDefaultTrack([], { language: "en" })).toBe(null);
 });
 
-test("buildVideoPreview extracts YouTube URL", () => {
+test("buildVideoPreview extracts YouTube URL and ignores plain search words (including 11-letter words)", () => {
   const preview = buildVideoPreview(
     "https://www.youtube.com/watch?v=b-6XR0rflJw",
     "clipboard",
@@ -92,6 +111,49 @@ test("buildVideoPreview extracts YouTube URL", () => {
   expect(preview?.thumbnailUrl).toBe(
     "https://i.ytimg.com/vi/b-6XR0rflJw/hqdefault.jpg",
   );
+
+  expect(isLinkText("https://youtu.be/b-6XR0rflJw")).toBe(true);
+  expect(isLinkText("environment")).toBe(false);
+  expect(buildVideoPreview("environment", "input")).toBe(null);
+  expect(buildVideoPreview("slow english", "input")).toBe(null);
+});
+
+test("selectFromDiscover populates the search bar with preview config and clears cleanly on dismiss", () => {
+  const url = signal("");
+  const preview = createPreviewController(url);
+
+  preview.selectFromDiscover({
+    videoId: "3mxblcBZgqM",
+    url: "https://www.youtube.com/watch?v=3mxblcBZgqM",
+    title: "5 min Japanese Listening",
+    thumbnailUrl: "https://i.ytimg.com/vi/3mxblcBZgqM/hqdefault.jpg",
+    language: "ja",
+  });
+
+  expect(url()).toBe("https://www.youtube.com/watch?v=3mxblcBZgqM");
+  expect(preview.active()?.videoId).toBe("3mxblcBZgqM");
+  expect(preview.active()?.title).toBe("5 min Japanese Listening");
+  expect(preview.active()?.source).toBe("discover");
+  expect(preview.active()?.language).toBe("ja");
+
+  // Dismissing a Discover-seeded preview closes the card and clears the search bar.
+  preview.dismiss();
+  expect(preview.active()).toBe(null);
+  expect(url()).toBe("");
+
+  // Clicking the same Discover item again re-opens the preview card.
+  preview.selectFromDiscover({
+    videoId: "3mxblcBZgqM",
+    url: "https://www.youtube.com/watch?v=3mxblcBZgqM",
+    title: "5 min Japanese Listening",
+    thumbnailUrl: "https://i.ytimg.com/vi/3mxblcBZgqM/hqdefault.jpg",
+    language: "ja",
+  });
+  expect(preview.active()?.videoId).toBe("3mxblcBZgqM");
+
+  // Typing plain search text does not trigger a preview card.
+  url.set("slow english");
+  expect(preview.active()).toBe(null);
 });
 
 test("app configuration: single instance, icon, and window size limits", () => {

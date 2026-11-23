@@ -17,16 +17,17 @@ import {
 } from "./appMedia";
 import { createPreviewController } from "./appPreview";
 import { installAppMenu, setupWindowChrome } from "./appWindow";
-import type { ClipboardVideoPreview } from "./clipboard";
+import { isLinkText, type ClipboardVideoPreview } from "./clipboard";
 import { isDevMode } from "./env";
 import { deleteEntry, listEntriesSafe } from "./library/index";
 import type { LibraryEntry } from "./library/types";
 import { DevRibbon } from "./ui/DevRibbon";
 import { initSettings, settings } from "./ui/settings";
+import { SettingsModal } from "./ui/SettingsModal";
 import { shellT } from "./ui/shellI18n";
 import { ShortcutsModal } from "./ui/ShortcutsModal";
 import { showToast, ToastHost } from "./ui/Toast";
-import { TopBar, type MediaTab } from "./ui/TopBar";
+import { TopBar, type AppPage } from "./ui/TopBar";
 import { UpdateModal } from "./ui/UpdateModal";
 import {
   checkUpdateInBackground,
@@ -34,27 +35,23 @@ import {
   globalUpdateModalOpen,
 } from "./updater";
 import { DiscoverView } from "./views/discover/DiscoverView";
-import { loadDiscover } from "./views/discover/source";
+import { discoverItems, loadDiscover } from "./views/discover/source";
 import type { DiscoverItem } from "./views/discover/types";
 import { LibraryView } from "./views/LibraryView";
-import { SettingsView } from "./views/SettingsView";
 import { VideoDetailView } from "./views/VideoDetailView";
 import type { ViewTransitionRect } from "./views/viewTransition";
 import { extractVideoId } from "./youtube/parse";
 
 function App() {
   const url = signal("");
-  const activeTab = signal<MediaTab>("discover");
-  /** The page Settings returns to. */
-  const previousTab = signal<"discover" | "library">("discover");
+  const activePage = signal<AppPage>("library");
   const savedEntries = signal<LibraryEntry[]>([]);
   const playingEntry = signal<LibraryEntry | null>(null);
   const playingSrc = signal<string | null>(null);
   const transitionOriginRect = signal<ViewTransitionRect | null>(null);
+  const showSettingsModal = signal(false);
   const showShortcutsModal = signal(false);
   let urlInputRef: InputRef | null = null;
-  /** Until the user picks a page, the first library load picks it. */
-  let startPageChosen = false;
 
   const preview = createPreviewController(url);
   const downloads = createDownloadController({
@@ -62,13 +59,16 @@ function App() {
     onError: (message) => showToast(message || shellT().downloadFailed, "error"),
   });
 
-  const selectTab = (tab: MediaTab) => {
-    startPageChosen = true;
-    if (tab !== "settings") previousTab.set(tab);
-    activeTab.set(tab);
+  const isLink = () => isLinkText(url());
+  const searchQuery = () => (isLink() ? "" : url().trim());
+
+  const selectPage = (page: AppPage) => {
+    activePage.set(page);
   };
-  const toggleSettings = () =>
-    selectTab(activeTab() === "settings" ? previousTab() : "settings");
+  const toggleSettings = () => {
+    if (globalUpdateModalOpen()) return;
+    showSettingsModal.set(!showSettingsModal());
+  };
   const toggleShortcutsModal = () => {
     if (globalUpdateModalOpen()) return;
     showShortcutsModal.set(!showShortcutsModal());
@@ -84,12 +84,6 @@ function App() {
   });
   void listEntriesSafe().then((entries) => {
     savedEntries.set(entries);
-    // Start page: the Library when it has anything, else Discover.
-    if (!startPageChosen && entries.length > 0) {
-      previousTab.set("library");
-      activeTab.set("library");
-    }
-    startPageChosen = true;
   });
 
   effect(() => {
@@ -119,6 +113,7 @@ function App() {
       qualityId,
       trackId,
       parsed: p.parsedVideo ?? null,
+      language: p.language ?? null,
     });
   };
 
@@ -141,7 +136,10 @@ function App() {
     await downloads.refresh();
   };
 
-  /** A Discover card's one action: open it when downloaded, else download it. */
+  /**
+   * Discover card press: open it when already downloaded; otherwise load its
+   * URL into the top search bar so the user can pick format & quality first.
+   */
   const selectDiscoverItem = async (
     item: DiscoverItem,
     originRect?: ViewTransitionRect | null,
@@ -154,18 +152,14 @@ function App() {
       return;
     }
     if (downloads.list().some((d) => d.videoId === item.videoId)) return;
-    void downloads.start({
-      videoId: item.videoId,
-      url: item.url,
-      title: item.title,
-      thumbnailUrl: item.thumbnailUrl,
-      qualityId: settings().defaultQuality ?? "360p",
-      language: item.language,
-    });
+    preview.selectFromDiscover(item);
   };
 
   const isBackgroundDisabled = () =>
-    Boolean(playingEntry()) || showShortcutsModal() || globalUpdateModalOpen();
+    Boolean(playingEntry()) ||
+    showSettingsModal() ||
+    showShortcutsModal() ||
+    globalUpdateModalOpen();
 
   keymap.bind(
     {
@@ -187,13 +181,15 @@ function App() {
       if (!isBackgroundDisabled()) focusLink();
     },
     "mod+,": () => {
-      if (!isBackgroundDisabled()) toggleSettings();
+      if (!playingEntry() && !showShortcutsModal() && !globalUpdateModalOpen()) {
+        toggleSettings();
+      }
     },
     "mod+1": () => {
-      if (!isBackgroundDisabled()) selectTab("discover");
+      if (!isBackgroundDisabled()) selectPage("library");
     },
     "mod+2": () => {
-      if (!isBackgroundDisabled()) selectTab("library");
+      if (!isBackgroundDisabled()) selectPage("discover");
     },
     escape: () => {
       if (globalUpdateModalOpen()) {
@@ -204,13 +200,19 @@ function App() {
         showShortcutsModal.set(false);
         return;
       }
+      if (showSettingsModal()) {
+        showSettingsModal.set(false);
+        return;
+      }
       // The player closes itself with its own transition.
       if (playingEntry()) return;
       if (preview.active()) {
         preview.dismiss();
         return;
       }
-      if (activeTab() === "settings") selectTab(previousTab());
+      if (activePage() === "discover") {
+        selectPage("library");
+      }
     },
   });
 
@@ -231,8 +233,8 @@ function App() {
   });
 
   installAppMenu({
-    activeTab,
-    selectTab,
+    activePage,
+    selectPage,
     toggleSettings,
     focusLink: () => urlInputRef?.focus(),
     readClipboard: () => void preview.checkClipboard(true),
@@ -242,14 +244,16 @@ function App() {
   return (
     <View class="relative flex-1 flex-col bg-background pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)]">
       <TopBar
-        activeTab={activeTab}
-        onSelectTab={selectTab}
+        activePage={activePage}
+        onSelectPage={selectPage}
+        settingsOpen={showSettingsModal}
         onOpenSettings={toggleSettings}
         activeDownloadCount={() => downloads.list().length}
         url={url}
+        isLink={isLink}
         onUrlChange={(v) => {
           url.set(v);
-          preview.undismiss();
+          if (isLinkText(v)) preview.undismiss();
         }}
         onClearUrl={() => {
           preview.dismiss();
@@ -271,39 +275,40 @@ function App() {
         onDismissPreview={preview.dismiss}
       />
 
-      <If when={activeTab() === "settings"}>
-        <View class="min-h-0 flex-1">
-          <SettingsView onOpenShortcuts={toggleShortcutsModal} />
+      <Scroll class="flex-1">
+        <View class="mx-auto w-full max-w-[1440px] p-4">
+          <If when={activePage() === "library"}>
+            <LibraryView
+              disabled={isBackgroundDisabled}
+              savedEntries={savedEntries}
+              activeDownloads={downloads.list}
+              searchQuery={searchQuery}
+              onClearSearch={() => url.set("")}
+              discoverItems={discoverItems}
+              onSelectDiscoverItem={(item, rect) =>
+                void selectDiscoverItem(item, rect)
+              }
+              onOpenDiscover={() => selectPage("discover")}
+              onOpenEntry={(entry, rect) => void openEntry(entry, rect)}
+              onOpenFolder={(entry) => void revealEntry(entry)}
+              onDeleteEntry={(entry) => void deleteLibraryEntry(entry)}
+              onPauseDownload={downloads.pause}
+              onResumeDownload={(vid) => void downloads.resume(vid)}
+              onCancelDownload={(vid) => void downloads.cancel(vid)}
+            />
+          </If>
+          <If when={activePage() === "discover"}>
+            <DiscoverView
+              disabled={isBackgroundDisabled}
+              onSelectItem={(item, rect) => void selectDiscoverItem(item, rect)}
+              savedEntries={savedEntries}
+              activeDownloads={downloads.list}
+              searchQuery={searchQuery}
+              onClearSearch={() => url.set("")}
+            />
+          </If>
         </View>
-      </If>
-
-      <If when={activeTab() !== "settings"}>
-        <Scroll class="flex-1">
-          <View class="mx-auto w-full max-w-[1440px] p-4">
-            <If when={activeTab() === "discover"}>
-              <DiscoverView
-                disabled={isBackgroundDisabled}
-                onSelectItem={(item, rect) => void selectDiscoverItem(item, rect)}
-                savedEntries={savedEntries}
-                activeDownloads={downloads.list}
-              />
-            </If>
-            <If when={activeTab() === "library"}>
-              <LibraryView
-                disabled={isBackgroundDisabled}
-                savedEntries={savedEntries}
-                activeDownloads={downloads.list}
-                onOpenEntry={(entry, rect) => void openEntry(entry, rect)}
-                onOpenFolder={(entry) => void revealEntry(entry)}
-                onDeleteEntry={(entry) => void deleteLibraryEntry(entry)}
-                onPauseDownload={downloads.pause}
-                onResumeDownload={(vid) => void downloads.resume(vid)}
-                onCancelDownload={(vid) => void downloads.cancel(vid)}
-              />
-            </If>
-          </View>
-        </Scroll>
-      </If>
+      </Scroll>
 
       <ToastHost />
 
@@ -313,7 +318,11 @@ function App() {
             entry={() => playingEntry()!}
             src={() => playingSrc()!}
             originRect={() => transitionOriginRect()}
-            disabled={() => showShortcutsModal() || globalUpdateModalOpen()}
+            disabled={() =>
+              showSettingsModal() ||
+              showShortcutsModal() ||
+              globalUpdateModalOpen()
+            }
             onClose={() => {
               playingEntry.set(null);
               playingSrc.set(null);
@@ -326,6 +335,12 @@ function App() {
       <If when={isDevMode()}>
         <DevRibbon />
       </If>
+
+      <SettingsModal
+        open={showSettingsModal}
+        onClose={() => showSettingsModal.set(false)}
+        onOpenShortcuts={toggleShortcutsModal}
+      />
 
       <ShortcutsModal
         open={showShortcutsModal}

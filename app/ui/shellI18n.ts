@@ -9,6 +9,8 @@ export interface ShellMessages {
   discover: string;
   library: string;
   settings: string;
+  close: string;
+  backToLibrary: string;
   linkPlaceholder: string;
   clearLink: string;
   readClipboard: string;
@@ -30,6 +32,8 @@ export interface ShellMessages {
   // Library
   libraryEmpty: string;
   libraryEmptyHint: string;
+  librarySearchEmpty: (query: string) => string;
+  clearSearch: string;
   moreActions: string;
   openFolder: string;
   delete: string;
@@ -49,6 +53,8 @@ export interface ShellMessages {
   stageError: string;
 
   // Discover
+  discoverSectionHint: string;
+  browseDiscover: string;
   allLanguages: string;
   english: string;
   japanese: string;
@@ -70,10 +76,12 @@ const EN: ShellMessages = {
   discover: "Discover",
   library: "Library",
   settings: "Settings",
-  linkPlaceholder: "Paste a YouTube link to download",
-  clearLink: "Clear link",
+  close: "Close",
+  backToLibrary: "Back to Library",
+  linkPlaceholder: "Search library or paste a YouTube link",
+  clearLink: "Clear search",
   readClipboard: "Read clipboard",
-  focusLink: "Focus link field",
+  focusLink: "Search or paste link",
   activeDownloads: (n) => `${n} downloading`,
 
   parsing: "Reading video…",
@@ -88,7 +96,9 @@ const EN: ShellMessages = {
   dismiss: "Dismiss",
 
   libraryEmpty: "Your library is empty",
-  libraryEmptyHint: "Paste a YouTube link above, or pick a video in Discover.",
+  libraryEmptyHint: "Paste a YouTube link above, or pick a curated video below.",
+  librarySearchEmpty: (query) => `No items matching “${query}”`,
+  clearSearch: "Clear search",
   moreActions: "More actions",
   openFolder: "Open folder",
   delete: "Delete",
@@ -107,6 +117,8 @@ const EN: ShellMessages = {
   stagePaused: "Paused",
   stageError: "Failed",
 
+  discoverSectionHint: "Curated picks — click to configure & download",
+  browseDiscover: "Browse all",
   allLanguages: "All",
   english: "English",
   japanese: "Japanese",
@@ -127,10 +139,12 @@ const ZH: ShellMessages = {
   discover: "发现",
   library: "媒体库",
   settings: "设置",
-  linkPlaceholder: "粘贴 YouTube 链接开始下载",
-  clearLink: "清空链接",
+  close: "关闭",
+  backToLibrary: "返回媒体库",
+  linkPlaceholder: "搜索媒体库，或粘贴 YouTube 链接",
+  clearLink: "清空输入",
   readClipboard: "读取剪贴板",
-  focusLink: "聚焦链接输入框",
+  focusLink: "搜索或粘贴链接",
   activeDownloads: (n) => `${n} 个下载中`,
 
   parsing: "正在解析视频…",
@@ -145,7 +159,9 @@ const ZH: ShellMessages = {
   dismiss: "关闭",
 
   libraryEmpty: "媒体库还是空的",
-  libraryEmptyHint: "在上方粘贴 YouTube 链接，或到「发现」挑一个视频。",
+  libraryEmptyHint: "在上方粘贴 YouTube 链接，或从下方精选素材中挑选。",
+  librarySearchEmpty: (query) => `没有找到匹配「${query}」的内容`,
+  clearSearch: "清空搜索",
   moreActions: "更多操作",
   openFolder: "打开文件夹",
   delete: "删除",
@@ -164,6 +180,8 @@ const ZH: ShellMessages = {
   stagePaused: "已暂停",
   stageError: "下载失败",
 
+  discoverSectionHint: "精选素材，点击预览配置后下载",
+  browseDiscover: "查看全部",
   allLanguages: "全部",
   english: "英语",
   japanese: "日语",

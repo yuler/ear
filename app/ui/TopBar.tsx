@@ -8,57 +8,24 @@ import { Icon } from "./Icon";
 import { shellT } from "./shellI18n";
 import { macTitleBarInsets } from "./titleBarInsets";
 
-export type MediaTab = "discover" | "library" | "settings";
+export type AppPage = "library" | "discover";
 
 /** The bar's height: the macOS hidden title bar's, traffic lights centered in it. */
 export const TOP_BAR_HEIGHT = 44;
 
-function TabButton(props: {
-  label: string;
-  active: boolean;
-  badge?: number;
-  onPress: () => void;
-}) {
-  return (
-    <Button
-      onPress={props.onPress}
-      selected={props.active}
-      class={`h-7 flex-row items-center gap-1.5 rounded-md px-3 transition ${
-        props.active ? "bg-raised shadow-sm" : "hover:bg-accent"
-      }`}
-      accessibilityLabel={props.label}
-    >
-      <Text
-        class={`text-sm ${
-          props.active ? "font-semibold text-foreground" : "text-muted-foreground"
-        }`}
-      >
-        {props.label}
-      </Text>
-      <If when={(props.badge ?? 0) > 0}>
-        <View
-          class="min-w-[18px] items-center rounded-full bg-brand px-1.5"
-          accessibilityLabel={shellT().activeDownloads(props.badge ?? 0)}
-        >
-          <Text class="font-mono text-[10px] font-semibold tabular-nums text-brand-foreground">
-            {props.badge}
-          </Text>
-        </View>
-      </If>
-    </Button>
-  );
-}
-
 /**
- * The window's top bar, on every page: `Discover | Library`, the link field
- * (its parsed link's card pops over the content below it) and Settings.
+ * The window's top bar, on every page: optional back button on Discover,
+ * centered search / link input (its parsed link's card pops over the content
+ * below it), and the Settings modal trigger.
  */
 export function TopBar(props: {
-  activeTab: () => MediaTab;
-  onSelectTab: (tab: MediaTab) => void;
+  activePage: () => AppPage;
+  onSelectPage: (page: AppPage) => void;
+  settingsOpen: () => boolean;
   onOpenSettings: () => void;
   activeDownloadCount: () => number;
   url: () => string;
+  isLink: () => boolean;
   onUrlChange: (v: string) => void;
   onClearUrl: () => void;
   onInputRef: (ref: InputRef | null) => void;
@@ -77,13 +44,14 @@ export function TopBar(props: {
 }) {
   const t = shellT;
   const insets = () => macTitleBarInsets();
-  const libraryBadge = () =>
-    props.activeTab() === "discover" ? props.activeDownloadCount() : 0;
+  const isDiscover = () => props.activePage() === "discover";
+  const downloadBadge = () =>
+    isDiscover() ? props.activeDownloadCount() : 0;
 
   const field = (
     <View class="h-8 w-full flex-row items-center gap-2 rounded-lg border border-line bg-well px-2.5">
       <Icon
-        name={props.url().trim().length > 0 ? "link" : "search"}
+        name={props.isLink() || Boolean(props.preview()) ? "link" : "search"}
         size={13}
         tone="muted-foreground"
       />
@@ -141,18 +109,27 @@ export function TopBar(props: {
       }}
       class="shrink-0 flex-row items-center gap-3 border-b border-line bg-background"
     >
-      <View class="shrink-0 flex-row items-center gap-0.5 rounded-lg bg-well p-0.5">
-        <TabButton
-          label={t().discover}
-          active={props.activeTab() === "discover"}
-          onPress={() => props.onSelectTab("discover")}
-        />
-        <TabButton
-          label={t().library}
-          active={props.activeTab() === "library"}
-          badge={libraryBadge()}
-          onPress={() => props.onSelectTab("library")}
-        />
+      <View class="min-w-8 shrink-0 flex-row items-center">
+        <If when={isDiscover()}>
+          <Button
+            onPress={() => props.onSelectPage("library")}
+            class="h-7 flex-row items-center gap-1 rounded-md px-2 transition hover:bg-well active:bg-accent"
+            accessibilityLabel={t().backToLibrary}
+          >
+            <Icon name="chevron-left" size={14} tone="muted-foreground" />
+            <Text class="text-sm font-medium text-foreground">{t().library}</Text>
+            <If when={downloadBadge() > 0}>
+              <View
+                class="ml-0.5 min-w-[18px] items-center rounded-full bg-brand px-1.5"
+                accessibilityLabel={t().activeDownloads(downloadBadge())}
+              >
+                <Text class="font-mono text-[10px] font-semibold tabular-nums text-brand-foreground">
+                  {downloadBadge()}
+                </Text>
+              </View>
+            </If>
+          </Button>
+        </If>
       </View>
 
       <View class="min-w-0 flex-1 items-center">
@@ -189,16 +166,16 @@ export function TopBar(props: {
 
       <Button
         onPress={props.onOpenSettings}
-        selected={props.activeTab() === "settings"}
+        selected={props.settingsOpen()}
         class={`relative h-8 w-8 shrink-0 items-center justify-center rounded-md transition ${
-          props.activeTab() === "settings" ? "bg-well" : "hover:bg-well"
+          props.settingsOpen() ? "bg-well" : "hover:bg-well"
         }`}
         accessibilityLabel={t().settings}
       >
         <Icon
           name="settings"
           size={16}
-          tone={props.activeTab() === "settings" ? "brand" : "muted-foreground"}
+          tone={props.settingsOpen() ? "brand" : "muted-foreground"}
         />
         <If when={globalUpdateAvailable()}>
           <View class="absolute top-1 right-1 h-2 w-2 rounded-full bg-brand" />

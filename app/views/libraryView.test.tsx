@@ -4,6 +4,7 @@ import type { LibraryEntry } from "../library/types";
 import { formatEntryDescription, isAudioEntry, LibraryView } from "./LibraryView";
 import {
   completedEntries,
+  filterLibraryEntries,
   formatDuration,
   subtitleIssue,
 } from "./libraryViewHelpers";
@@ -184,6 +185,18 @@ test("formatDuration hides unknown durations", () => {
   expect(formatDuration(1645000)).toBe("27:25");
   expect(formatDuration(3723000)).toBe("1:02:03");
   expect(formatDuration(null)).toBe("");
+});
+
+test("filterLibraryEntries matches multi-token case-insensitive queries across metadata", () => {
+  const entries = [
+    mockEntry({ videoId: "v1", title: "Slow English Podcast: Weird News", quality: "720p" }),
+    mockEntry({ videoId: "v2", title: "Daily Japanese Listening", site: "SoundCloud", quality: "M4A" }),
+  ];
+
+  expect(filterLibraryEntries(entries, "").length).toBe(2);
+  expect(filterLibraryEntries(entries, "slow news").map((e) => e.videoId)).toEqual(["v1"]);
+  expect(filterLibraryEntries(entries, "soundcloud m4a").map((e) => e.videoId)).toEqual(["v2"]);
+  expect(filterLibraryEntries(entries, "nonexistent").length).toBe(0);
 });
 
 test("LibraryView accepts disabled prop and safely renders empty and populated views", () => {

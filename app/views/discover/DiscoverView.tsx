@@ -18,13 +18,15 @@ import type { DiscoverFilterState, DiscoverItem } from "./types";
 
 export function DiscoverView(props: {
   disabled?: () => boolean;
-  /** A card was pressed: open it when downloaded, else download it. */
+  /** A card was pressed: open it when downloaded, else load into the link bar to configure & download. */
   onSelectItem: (
     item: DiscoverItem,
     originRect?: ViewTransitionRect | null,
   ) => void;
   savedEntries?: () => LibraryEntry[];
   activeDownloads?: () => DownloadTaskProgress[];
+  searchQuery?: () => string;
+  onClearSearch?: () => void;
 }) {
   const filters = signal<DiscoverFilterState>({ language: "en", level: "all" });
 
@@ -36,8 +38,9 @@ export function DiscoverView(props: {
     void loadDiscover();
   }
 
+  const query = () => (props.searchQuery?.() ?? "").trim();
   const filteredItems = (): DiscoverItem[] =>
-    filterDiscoverItems(discoverItems(), filters());
+    filterDiscoverItems(discoverItems(), filters(), query());
 
   const downloadedIds = () =>
     new Set((props.savedEntries?.() ?? []).map((e) => e.videoId));
@@ -152,14 +155,17 @@ export function DiscoverView(props: {
       <If when={discoverItems().length > 0 && filteredItems().length === 0}>
         <View class="items-center justify-center gap-3 py-16">
           <Text class="text-sm text-muted-foreground">
-            {shellT().discoverEmpty}
+            {query() ? shellT().librarySearchEmpty(query()) : shellT().discoverEmpty}
           </Text>
           <Button
-            onPress={() => filters.set({ ...filters(), level: "all" })}
+            onPress={() => {
+              filters.set({ ...filters(), level: "all" });
+              if (query()) props.onClearSearch?.();
+            }}
             class="rounded-md border border-line px-3 py-1.5 active:bg-accent"
           >
             <Text class="text-xs font-medium text-foreground">
-              {shellT().resetFilters}
+              {query() ? shellT().clearSearch : shellT().resetFilters}
             </Text>
           </Button>
         </View>

@@ -4,7 +4,7 @@ import { isDevMode } from "./env";
 import { mediaRoot, openDirectory } from "./library/paths";
 import { settings, updateSettings } from "./ui/settings";
 import { shellT } from "./ui/shellI18n";
-import type { MediaTab } from "./ui/TopBar";
+import type { AppPage } from "./ui/TopBar";
 
 /**
  * The main window's chrome. Its size (default 1200×800, at least 800×560)
@@ -24,17 +24,15 @@ export function setupWindowChrome(): void {
   }
 }
 
-function tabTitle(tab: MediaTab): string {
+function pageTitle(page: AppPage): string {
   const t = shellT();
-  if (tab === "discover") return t.discover;
-  if (tab === "library") return t.library;
-  return t.settings;
+  return page === "discover" ? t.discover : t.library;
 }
 
 /** Keeps the window title and the application menu in step with the page. */
 export function installAppMenu(deps: {
-  activeTab: () => MediaTab;
-  selectTab: (tab: MediaTab) => void;
+  activePage: () => AppPage;
+  selectPage: (page: AppPage) => void;
   toggleSettings: () => void;
   focusLink: () => void;
   readClipboard: () => void;
@@ -42,10 +40,10 @@ export function installAppMenu(deps: {
 }): void {
   effect(() => {
     if (!isAvailable) return;
-    const tab = deps.activeTab();
+    const page = deps.activePage();
     try {
       const prefix = isDevMode() ? "Ear [DEV]" : "Ear";
-      currentWindow().set({ title: `${prefix} — ${tabTitle(tab)}` });
+      currentWindow().set({ title: `${prefix} — ${pageTitle(page)}` });
     } catch {
       // outside a window (tests)
     }
@@ -59,7 +57,7 @@ export function installAppMenu(deps: {
       {
         label: "File",
         submenu: [
-          { label: "Focus Link Field", shortcut: "mod+l", onSelect: deps.focusLink },
+          { label: "Search or Paste Link", shortcut: "mod+l", onSelect: deps.focusLink },
           { label: "Read Link from Clipboard", onSelect: deps.readClipboard },
           {
             label: "Open Download Folder",
@@ -87,16 +85,16 @@ export function installAppMenu(deps: {
         label: "View",
         submenu: [
           {
-            label: t.discover,
+            label: t.library,
             shortcut: "mod+1",
-            checked: tab === "discover",
-            onSelect: () => deps.selectTab("discover"),
+            checked: page === "library",
+            onSelect: () => deps.selectPage("library"),
           },
           {
-            label: t.library,
+            label: t.discover,
             shortcut: "mod+2",
-            checked: tab === "library",
-            onSelect: () => deps.selectTab("library"),
+            checked: page === "discover",
+            onSelect: () => deps.selectPage("discover"),
           },
           { type: "separator" },
           {

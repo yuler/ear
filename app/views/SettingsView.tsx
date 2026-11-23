@@ -56,8 +56,8 @@ function Row(props: {
   children?: JSX.Element;
 }) {
   return (
-    <View class="min-h-14 flex-row items-center justify-between gap-6 border-b border-line py-3">
-      <View class="min-w-0 flex-1 gap-0.5">
+    <View class="min-h-14 flex-row flex-wrap items-center justify-between gap-x-4 gap-y-2 border-b border-line py-3">
+      <View class="min-w-[100px] flex-1 gap-0.5">
         <Text class="text-sm font-medium text-foreground">{props.label}</Text>
         {props.description?.() ? (
           <Text
@@ -143,102 +143,112 @@ function updateDescription(m: I18nMessages): { text: string; tone: string } {
   return { text: version, tone: "text-muted-foreground" };
 }
 
-/** Full-page settings: one flat list of preferences. */
-export function SettingsView(props?: { onOpenShortcuts?: () => void }) {
+/** Settings preference list, rendered standalone or embedded inside SettingsModal. */
+export function SettingsView(props?: {
+  embedded?: boolean;
+  onOpenShortcuts?: () => void;
+}) {
   const m = () => t(settings().language);
   const currentMediaDir = () => mediaRoot(settings().downloadFolder);
   const hasUpdate = () =>
     globalUpdateAvailable() && !!globalUpdateResult()?.hasUpdate;
 
-  return (
-    <Scroll class="flex-1 bg-background">
-      <View class="mx-auto w-full max-w-[640px] px-6 pb-12 pt-4">
-        <Row label={m().settingsDownloadFolder}>
-          <Input
-            value={settings().downloadFolder}
-            onChange={(e) => updateSettings({ downloadFolder: e.value })}
-            placeholder={defaultDownloadFolder()}
-            autoCapitalize="none"
-            autoCorrect={false}
-            class="w-64 rounded-lg border border-line bg-well px-3 py-1.5 text-xs text-foreground placeholder:text-dim"
-          />
+  const content = (
+    <View
+      class={
+        props?.embedded
+          ? "w-full px-5 pb-4 pt-1"
+          : "mx-auto w-full max-w-[640px] px-6 pb-12 pt-4"
+      }
+    >
+      <Row label={m().settingsDownloadFolder}>
+        <Input
+          value={settings().downloadFolder}
+          onChange={(e) => updateSettings({ downloadFolder: e.value })}
+          placeholder={defaultDownloadFolder()}
+          autoCapitalize="none"
+          autoCorrect={false}
+          class="w-44 sm:w-56 rounded-lg border border-line bg-well px-3 py-1.5 text-xs text-foreground placeholder:text-dim"
+        />
+        <SecondaryButton
+          label={m().settingsOpenFolder}
+          accessibilityLabel={m().settingsOpenFolderLabel}
+          onPress={() => void openDirectory(currentMediaDir())}
+        />
+      </Row>
+
+      <Row label={m().settingsAppearance}>
+        <Segmented
+          options={() => appearanceOptions(m())}
+          value={() => settings().appearance}
+          onChange={(v) => updateSettings({ appearance: v })}
+        />
+      </Row>
+
+      <Row label={m().settingsLanguage}>
+        <Segmented
+          options={() => languageOptions(m())}
+          value={() => settings().language}
+          onChange={(v) => updateSettings({ language: v })}
+        />
+      </Row>
+
+      <Row label={m().settingsDefaultQuality}>
+        <Segmented
+          options={() => qualityOptions(m())}
+          value={() => settings().defaultQuality}
+          onChange={(v) => updateSettings({ defaultQuality: v })}
+        />
+      </Row>
+
+      <Row label={m().settingsClipboard} description={() => m().settingsClipboardDesc}>
+        <Switch
+          checked={settings().clipboardAuto}
+          onChange={(e) => updateSettings({ clipboardAuto: e.checked })}
+          accessibilityLabel={m().settingsClipboard}
+          trackClass="h-5 w-9 rounded-full bg-line p-0.5 checked:bg-primary"
+          thumbClass="h-4 w-4 rounded-full bg-background transition checked:translate-x-4"
+        />
+      </Row>
+
+      <Row
+        label={m().settingsVersion}
+        description={() => updateDescription(m()).text}
+        descriptionClass={() => updateDescription(m()).tone}
+      >
+        {hasUpdate() ? (
           <SecondaryButton
-            label={m().settingsOpenFolder}
-            accessibilityLabel={m().settingsOpenFolderLabel}
-            onPress={() => void openDirectory(currentMediaDir())}
+            primary
+            label={m().settingsViewUpdate}
+            onPress={() => globalUpdateModalOpen.set(true)}
           />
-        </Row>
-
-        <Row label={m().settingsAppearance}>
-          <Segmented
-            options={() => appearanceOptions(m())}
-            value={() => settings().appearance}
-            onChange={(v) => updateSettings({ appearance: v })}
+        ) : (
+          <SecondaryButton
+            label={
+              globalUpdateChecking()
+                ? m().settingsCheckingUpdates
+                : m().settingsCheckUpdates
+            }
+            disabled={globalUpdateChecking()}
+            onPress={() => void runGlobalUpdateCheck()}
           />
-        </Row>
+        )}
+      </Row>
 
-        <Row label={m().settingsLanguage}>
-          <Segmented
-            options={() => languageOptions(m())}
-            value={() => settings().language}
-            onChange={(v) => updateSettings({ language: v })}
-          />
-        </Row>
-
-        <Row label={m().settingsDefaultQuality}>
-          <Segmented
-            options={() => qualityOptions(m())}
-            value={() => settings().defaultQuality}
-            onChange={(v) => updateSettings({ defaultQuality: v })}
-          />
-        </Row>
-
-        <Row label={m().settingsClipboard} description={() => m().settingsClipboardDesc}>
-          <Switch
-            checked={settings().clipboardAuto}
-            onChange={(e) => updateSettings({ clipboardAuto: e.checked })}
-            accessibilityLabel={m().settingsClipboard}
-            trackClass="h-5 w-9 rounded-full bg-line p-0.5 checked:bg-primary"
-            thumbClass="h-4 w-4 rounded-full bg-background transition checked:translate-x-4"
-          />
-        </Row>
-
-        <Row
-          label={m().settingsVersion}
-          description={() => updateDescription(m()).text}
-          descriptionClass={() => updateDescription(m()).tone}
-        >
-          {hasUpdate() ? (
-            <SecondaryButton
-              primary
-              label={m().settingsViewUpdate}
-              onPress={() => globalUpdateModalOpen.set(true)}
-            />
-          ) : (
-            <SecondaryButton
-              label={
-                globalUpdateChecking()
-                  ? m().settingsCheckingUpdates
-                  : m().settingsCheckUpdates
-              }
-              disabled={globalUpdateChecking()}
-              onPress={() => void runGlobalUpdateCheck()}
-            />
-          )}
-        </Row>
-
-        <Button
-          onPress={() => props?.onOpenShortcuts?.()}
-          accessibilityLabel={m().settingsShortcuts}
-          class="min-h-14 flex-row items-center justify-between gap-6 border-b border-line py-3 active:opacity-70"
-        >
-          <Text class="text-sm font-medium text-foreground">{m().settingsShortcuts}</Text>
-          <View class="flex-row items-center gap-1">
-            <Text class="text-xs text-muted-foreground">?</Text>
-            <Icon name="chevron-right" size={14} tone="muted-foreground" />
-          </View>
-        </Button>
-      </View>
-    </Scroll>
+      <Button
+        onPress={() => props?.onOpenShortcuts?.()}
+        accessibilityLabel={m().settingsShortcuts}
+        class="min-h-14 flex-row items-center justify-between gap-6 py-3 active:opacity-70"
+      >
+        <Text class="text-sm font-medium text-foreground">{m().settingsShortcuts}</Text>
+        <View class="flex-row items-center gap-1">
+          <Text class="text-xs text-muted-foreground">?</Text>
+          <Icon name="chevron-right" size={14} tone="muted-foreground" />
+        </View>
+      </Button>
+    </View>
   );
+
+  if (props?.embedded) return content;
+  return <Scroll class="flex-1 bg-background">{content}</Scroll>;
 }

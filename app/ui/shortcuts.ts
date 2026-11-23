@@ -36,24 +36,24 @@ export const SHORTCUT_CATEGORIES: ShortcutCategory[] = [
     description: "随时随地快速切换视图与常用操作",
     shortcuts: [
       {
-        id: "nav-discover",
+        id: "nav-library",
         keystroke: "mod+1",
-        label: "发现推荐",
-        description: "切换至 Discover 发现流",
+        label: "媒体库",
+        description: "返回媒体库首页",
         keys: ["mod+1"],
       },
       {
-        id: "nav-library",
+        id: "nav-discover",
         keystroke: "mod+2",
-        label: "媒体库",
-        description: "切换至已下载的视频与音频",
+        label: "发现素材",
+        description: "打开 Discover 精选素材页",
         keys: ["mod+2"],
       },
       {
         id: "focus-omnibar",
         keystroke: "mod+l",
-        label: "聚焦下载栏",
-        description: "快速定位至顶部链接输入栏",
+        label: "搜索 / 粘贴链接",
+        description: "快速聚焦顶部搜索栏（支持搜索本地或粘贴链接）",
         keys: ["mod+l", "mod+k"],
       },
       {

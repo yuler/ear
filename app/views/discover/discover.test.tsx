@@ -88,6 +88,10 @@ test("filterDiscoverItems filters by language and level only", () => {
 
   // A level of the other scale matches nothing in this language.
   expect(filterDiscoverItems(items, { language: "en", level: "N5" }).length).toBe(0);
+
+  // Optional search query filters by title/author/tags.
+  const searched = filterDiscoverItems(items, { language: "en", level: "all" }, "daily routine");
+  expect(searched.map((i) => i.videoId)).toEqual(["reKgQh0E9kg"]);
 });
 
 test("levelsFor shows CEFR for English and JLPT for Japanese", () => {

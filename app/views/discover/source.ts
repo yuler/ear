@@ -59,12 +59,30 @@ export function toDiscoverItem(raw: RawDiscoverCliItem): DiscoverItem {
 export function filterDiscoverItems(
   items: DiscoverItem[],
   f: DiscoverFilterState,
+  query = "",
 ): DiscoverItem[] {
-  return items.filter(
-    (item) =>
-      item.language === f.language &&
-      (f.level === "all" || item.level === f.level),
-  );
+  const tokens = query
+    .trim()
+    .toLowerCase()
+    .split(/\s+/)
+    .filter(Boolean);
+
+  return items.filter((item) => {
+    if (item.language !== f.language) return false;
+    if (f.level !== "all" && item.level !== f.level) return false;
+    if (tokens.length === 0) return true;
+    const haystack = [
+      item.title,
+      item.author,
+      item.level,
+      item.description,
+      ...item.tags,
+    ]
+      .filter(Boolean)
+      .join(" ")
+      .toLowerCase();
+    return tokens.every((tok) => haystack.includes(tok));
+  });
 }
 
 export async function fetchDiscoverItems(options?: {

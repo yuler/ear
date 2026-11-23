@@ -84,7 +84,9 @@ export function ClipboardCard(props: {
           <Icon name="loader" size={12} tone="muted-foreground" class="animate-spin" />
         </If>
         <Text class="min-w-0 flex-1 truncate text-xs text-muted-foreground">
-          {busy() ? shellT().parsing : props.preview().title}
+          {busy() && props.preview().source !== "discover"
+            ? shellT().parsing
+            : props.preview().title}
         </Text>
         <Button
           onPress={props.onDismiss}

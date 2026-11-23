@@ -168,7 +168,7 @@ test("ShortcutsModal exports valid component", () => {
   expect(typeof ShortcutsModal).toBe("function");
 });
 
-test("Keyboard shortcuts trigger modal via shift+/ and switch Discover / Library", async () => {
+test("Keyboard shortcuts trigger modal via shift+/ and switch Library / Discover", async () => {
   const app = await open("../App.tsx");
 
   await app.keyboard.press("shift+/");
@@ -180,10 +180,13 @@ test("Keyboard shortcuts trigger modal via shift+/ and switch Discover / Library
   await app.keyboard.press("escape");
   expect(app.texts().every((t) => t !== "快捷键指南")).toBe(true);
 
-  await app.keyboard.press("mod+2");
+  // Starts on Library; mod+2 opens Discover page.
   await app.waitFor("Your library is empty");
-
-  await app.keyboard.press("mod+1");
+  await app.keyboard.press("mod+2");
   await app.waitFor("label:Japanese");
   expect(app.texts().some((t) => t.includes("Your library is empty"))).toBe(false);
+
+  // mod+1 returns to Library.
+  await app.keyboard.press("mod+1");
+  await app.waitFor("Your library is empty");
 });

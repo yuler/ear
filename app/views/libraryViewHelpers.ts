@@ -66,3 +66,50 @@ export function completedEntries(
     )
     .sort((a, b) => b.createdAt - a.createdAt);
 }
+
+/** Case-insensitive multi-token search across local library entries. */
+export function filterLibraryEntries(
+  entries: readonly LibraryEntry[],
+  query: string,
+): LibraryEntry[] {
+  const tokens = query
+    .trim()
+    .toLowerCase()
+    .split(/\s+/)
+    .filter(Boolean);
+  if (tokens.length === 0) return [...entries];
+  return entries.filter((entry) => {
+    const haystack = [
+      entry.title,
+      entry.site,
+      entry.quality,
+      entry.subtitleLabel,
+      entry.note,
+      entry.videoId,
+    ]
+      .filter(Boolean)
+      .join(" ")
+      .toLowerCase();
+    return tokens.every((tok) => haystack.includes(tok));
+  });
+}
+
+/** Filter active downloads by the same search tokens. */
+export function filterActiveDownloads(
+  downloads: readonly DownloadTaskProgress[],
+  query: string,
+): DownloadTaskProgress[] {
+  const tokens = query
+    .trim()
+    .toLowerCase()
+    .split(/\s+/)
+    .filter(Boolean);
+  if (tokens.length === 0) return [...downloads];
+  return downloads.filter((task) => {
+    const haystack = [task.title, task.qualityLabel, task.subtitleLabel, task.videoId]
+      .filter(Boolean)
+      .join(" ")
+      .toLowerCase();
+    return tokens.every((tok) => haystack.includes(tok));
+  });
+}

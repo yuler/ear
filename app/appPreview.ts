@@ -2,6 +2,7 @@ import { signal, type Signal } from "nsh";
 import {
   buildVideoPreview,
   fetchVideoPreviewMeta,
+  isLinkText,
   readSystemClipboard,
   type ClipboardVideoPreview,
 } from "./clipboard";
@@ -66,6 +67,7 @@ export function pickDefaultTrack(
  */
 export function createPreviewController(url: Signal<string>) {
   const clipboardPreview = signal<ClipboardVideoPreview | null>(null);
+  const seededPreview = signal<ClipboardVideoPreview | null>(null);
   const metaMap = signal<Record<string, ClipboardVideoPreview>>({});
   const parsingMap = signal<Record<string, boolean>>({});
   const qualityMap = signal<Record<string, string>>({});
@@ -93,22 +95,42 @@ export function createPreviewController(url: Signal<string>) {
       });
   };
 
+  const withEnriched = (base: ClipboardVideoPreview): ClipboardVideoPreview => {
+    enrich(base);
+    const enriched = metaMap()[base.videoId];
+    return enriched
+      ? {
+          ...base,
+          ...enriched,
+          rawUrl: base.rawUrl,
+          source: base.source,
+          language: base.language ?? enriched.language ?? null,
+        }
+      : base;
+  };
+
   const active = (): ClipboardVideoPreview | null => {
     const typed = url().trim();
     const clip = clipboardPreview();
-    const typedVid = typed ? extractVideoId(typed) : null;
-    const fromInput = typed
-      ? clip && (clip.rawUrl === typed || (typedVid && clip.videoId === typedVid))
-        ? clip
-        : buildVideoPreview(typed, "input")
-      : null;
-    const candidate = fromInput ?? clip;
-    if (!candidate || dismissedVideoId() === candidate.videoId) return null;
-    enrich(candidate);
-    const enriched = metaMap()[candidate.videoId];
-    return enriched
-      ? { ...candidate, ...enriched, rawUrl: candidate.rawUrl, source: candidate.source }
-      : candidate;
+    const seed = seededPreview();
+
+    if (typed) {
+      if (!isLinkText(typed)) return null;
+      const typedVid = extractVideoId(typed);
+      if (!typedVid) return null;
+
+      const candidate =
+        seed && (seed.rawUrl === typed || seed.videoId === typedVid)
+          ? seed
+          : clip && (clip.rawUrl === typed || clip.videoId === typedVid)
+            ? clip
+            : buildVideoPreview(typed, "input");
+      if (!candidate || dismissedVideoId() === candidate.videoId) return null;
+      return withEnriched(candidate);
+    }
+
+    if (!clip || dismissedVideoId() === clip.videoId) return null;
+    return withEnriched(clip);
   };
 
   const isParsing = () => {
@@ -129,7 +151,10 @@ export function createPreviewController(url: Signal<string>) {
     if (!cur) return null;
     const chosen = trackMap()[cur.videoId];
     if (chosen) return chosen;
-    const track = pickDefaultTrack(cur.captionTracks ?? [], { title: cur.title });
+    const track = pickDefaultTrack(cur.captionTracks ?? [], {
+      language: cur.language,
+      title: cur.title,
+    });
     return track ? captionTrackId(track) : null;
   };
 
@@ -143,12 +168,39 @@ export function createPreviewController(url: Signal<string>) {
     if (!url().trim()) url.set(preview.rawUrl);
   };
 
+  /** Populate the search bar from a Discover card so the user can configure before downloading. */
+  const selectFromDiscover = (item: {
+    videoId: string;
+    url: string;
+    title: string;
+    thumbnailUrl: string;
+    language?: string | null;
+  }) => {
+    dismissedVideoId.set(null);
+    seededPreview.set({
+      rawUrl: item.url,
+      videoId: item.videoId,
+      title: item.title,
+      channel: "YouTube",
+      durationLabel: "CC",
+      thumbnailUrl: item.thumbnailUrl,
+      source: "discover",
+      language: item.language ?? null,
+      parsedVideo: null,
+      qualities: [],
+      captionTracks: [],
+      isParsed: false,
+    });
+    url.set(item.url);
+  };
+
   return {
     active,
     isParsing,
     qualityId,
     trackId,
     checkClipboard,
+    selectFromDiscover,
     selectQuality: (id: string) => {
       const cur = active();
       if (cur) setKey(qualityMap, cur.videoId, id);
@@ -160,14 +212,21 @@ export function createPreviewController(url: Signal<string>) {
     /** Hides the card for the current link until another one comes. */
     dismiss: () => {
       const cur = active();
-      if (cur) dismissedVideoId.set(cur.videoId);
+      if (cur) {
+        dismissedVideoId.set(cur.videoId);
+        if (cur.source === "discover") {
+          seededPreview.set(null);
+          if (url().trim() === cur.rawUrl) url.set("");
+        }
+      }
     },
-    /** The user typed: a dismissed link may show again. */
+    /** The user typed a link: a dismissed link may show again. */
     undismiss: () => dismissedVideoId.set(null),
     /** After a download starts: empty the field and close the card. */
     reset: (videoId?: string) => {
       if (videoId) dismissedVideoId.set(videoId);
       clipboardPreview.set(null);
+      seededPreview.set(null);
       url.set("");
     },
   };

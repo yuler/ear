@@ -18,12 +18,24 @@ export type ClipboardVideoPreview = {
   channel: string;
   durationLabel: string;
   thumbnailUrl: string;
-  source: "clipboard" | "input";
+  source: "clipboard" | "input" | "discover";
+  language?: string | null;
   parsedVideo?: ParsedVideo | null;
   qualities?: VideoQualityOption[];
   captionTracks?: CaptionTrack[];
   isParsed?: boolean;
 };
+
+/** True when text looks like a URL (prevents plain search words from triggering link mode). */
+export function isLinkText(rawText: string): boolean {
+  const trimmed = rawText.trim();
+  return (
+    trimmed.includes("youtube.com/") ||
+    trimmed.includes("youtu.be/") ||
+    trimmed.startsWith("http://") ||
+    trimmed.startsWith("https://")
+  );
+}
 
 export function formatDurationMs(durationMs: number | null): string {
   if (!durationMs || !Number.isFinite(durationMs) || durationMs <= 0) {
@@ -54,37 +66,26 @@ export async function readSystemClipboard(): Promise<string> {
 }
 
 /**
- * Check if a string contains a YouTube URL or 11-char video ID,
- * and build a preview model.
+ * Check if a string contains a YouTube URL and build a preview model.
  */
 export function buildVideoPreview(
   rawText: string,
-  source: "clipboard" | "input" = "clipboard",
+  source: "clipboard" | "input" | "discover" = "clipboard",
 ): ClipboardVideoPreview | null {
   const trimmed = rawText.trim();
   if (!trimmed) return null;
 
-  // For automatic clipboard detection, require a URL so random 11-character
-  // words in the clipboard don't false-trigger.
-  const isUrl =
-    trimmed.includes("youtube.com/") ||
-    trimmed.includes("youtu.be/") ||
-    trimmed.startsWith("http://") ||
-    trimmed.startsWith("https://");
+  // Require a URL so plain search queries (including 11-letter words like
+  // "environment") or random clipboard text never false-trigger link parsing.
+  if (!isLinkText(trimmed)) {
+    return null;
+  }
 
   const videoId = extractVideoId(trimmed);
   if (!videoId) return null;
 
-  if (source === "clipboard" && !isUrl) {
-    return null;
-  }
-
-  const normalizedUrl = isUrl
-    ? trimmed
-    : `https://www.youtube.com/watch?v=${videoId}`;
-
   return {
-    rawUrl: normalizedUrl,
+    rawUrl: trimmed,
     videoId,
     title: `YouTube Video (${videoId})`,
     channel: "YouTube",
