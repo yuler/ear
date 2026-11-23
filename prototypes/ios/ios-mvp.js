@@ -1,39 +1,44 @@
-// PROTOTYPE. Phone UI: library mirrored from the Mac, pairing sheet, swipe-to-delete,
-// background mode, player. Engine: ios-sync.js. Mac side: ios-mac.js.
+// PROTOTYPE. Phone UI: one library mirrored from several paired Macs, pair management
+// sheet, swipe-to-delete, background mode. Spec: docs/mobile.md.
+// Engine: ios-sync.js. Mac side: ios-mac.js. Player: ios-player.js.
 
-const SENTENCES = [
-  { start: 0, end: 12, text: "When you acquire a second language, comprehension always comes first." },
-  { start: 12, end: 25, text: "You do not memorize rules in order to speak fluently later." },
-  { start: 25, end: 39, text: "Instead, you listen to messages you can mostly understand in context." },
-  { start: 39, end: 52, text: "That gap between what you know and what you hear is called i plus one." },
-  { start: 52, end: 66, text: "Repeating a short sentence offline lets your ear catch weak syllables naturally." },
-  { start: 66, end: 80, text: "Once the rhythm feels effortless, your brain stores the whole phrase." }
+const VIDEOS = {
+  "krashen-ci": { title: "Stephen Krashen · Comprehensible Input", dur: "12:40", sizeMb: 48, sentences: 148, hue: 210 },
+  "bbc-habits": { title: "BBC 6 Minute · Building Tiny Daily Habits", dur: "06:12", sizeMb: 24, sentences: 74, hue: 330 },
+  "podcast-42": { title: "Daily English Podcast #42 · Connected Speech", dur: "18:05", sizeMb: 72, sentences: 210, hue: 150 },
+  "tokyo-walk": { title: "東京の散歩 · Slow Japanese", dur: "08:30", sizeMb: 40, sentences: 96, hue: 20 },
+  "cities-loud": { title: "Why Cities Are Loud · Vox", dur: "11:02", sizeMb: 56, sentences: 132, hue: 260 },
+  "small-talk": { title: "Small Talk That Works", dur: "05:20", sizeMb: 22, sentences: 61, hue: 90 },
+  "news-slow": { title: "News in Slow English · Week 47", dur: "15:10", sizeMb: 30, sentences: 160, hue: 40 }
+};
+
+const WIFI = [
+  { id: "home", label: "家里 Wi-Fi" },
+  { id: "office", label: "公司 Wi-Fi" },
+  { id: "none", label: "外出（无 Wi-Fi）" }
 ];
 
-const INITIAL_LIBRARY = [
-  { id: "krashen-ci", title: "Stephen Krashen · Comprehensible Input", dur: "12:40", sizeMb: 48, sentences: 148, hue: 210 },
-  { id: "bbc-habits", title: "BBC 6 Minute · Building Tiny Daily Habits", dur: "06:12", sizeMb: 24, sentences: 74, hue: 330 },
-  { id: "podcast-42", title: "Daily English Podcast #42 · Connected Speech", dur: "18:05", sizeMb: 72, sentences: 210, hue: 150 },
-  { id: "tokyo-walk", title: "東京の散歩 · Slow Japanese", dur: "08:30", sizeMb: 40, sentences: 96, hue: 20 },
-  { id: "cities-loud", title: "Why Cities Are Loud · Vox", dur: "11:02", sizeMb: 56, sentences: 132, hue: 260 },
-  { id: "small-talk", title: "Small Talk That Works", dur: "05:20", sizeMb: 22, sentences: 61, hue: 90 }
-];
+const makeMac = (m) => ({ ...m, code: newPairCode(), codeLeft: PAIR_TTL_SEC, request: false, clients: [] });
 
 const state = {
   theme: matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark",
   transport: "lan",
-  lanConnected: true,
+  wifi: "home",
   offlineMode: false,
   background: false,
-  pair: null, // { mac, address } once paired
+  macs: [
+    makeMac({ id: "home", name: "家里 MacBook Pro", short: "家里", network: "home", networkName: "Home-5G",
+      ip: "192.168.1.42", port: 7890, library: ["krashen-ci", "bbc-habits", "podcast-42", "tokyo-walk"] }),
+    makeMac({ id: "office", name: "公司 iMac", short: "公司", network: "office", networkName: "Office-WiFi",
+      ip: "10.0.8.15", port: 7890, library: ["krashen-ci", "cities-loud", "small-talk", "news-slow"] })
+  ],
+  viewMac: "home", // which Mac panel is on screen (and whose QR the phone scans)
+  pairs: [], // paired Mac ids, in pairing order
+  items: {}, // videoId -> { state: syncing|ready|removed, progress, from: macId }
   pairFlow: "idle", // idle | scan | waiting
+  pairingMac: null,
   pairNotice: null,
   scannedCode: null,
-  mac: {
-    name: "MacBook Pro", ip: "192.168.1.42", port: 7890,
-    code: newPairCode(), codeLeft: PAIR_TTL_SEC, request: false, clients: []
-  },
-  library: INITIAL_LIBRARY.map((x) => ({ ...x, state: "remote", progress: 0 })),
   activeVideoId: null,
   currentSentenceIdx: 2,
   currentTime: 25,
@@ -45,21 +50,20 @@ const state = {
 };
 
 const el = (id) => document.getElementById(id);
-let playTimer = null;
 let swipeOpen = null; // item id whose 删除 is revealed
 let drag = null;
 
-function formatSec(sec) {
-  const m = String(Math.floor(sec / 60)).padStart(2, "0");
-  const s = String(Math.floor(sec % 60)).padStart(2, "0");
-  return `${m}:${s}`;
-}
+const wifiLabel = () => WIFI.find((w) => w.id === state.wifi).label;
+const onlineMacs = () => state.macs.filter(reachable);
+const overallPct = (lib) => {
+  const parts = lib.filter((x) => x.status !== "removed" && x.status !== "away");
+  return parts.reduce((a, x) => a + (x.status === "ready" ? 1 : x.progress), 0) / Math.max(1, parts.length);
+};
 
 // ---------- Library ----------
 
 function renderBanner() {
-  el("simLanBtn").textContent = state.lanConnected ? "LAN: 已接入家庭 Wi-Fi" : "LAN: 已断开 (外出)";
-  el("simLanBtn").classList.toggle("active", state.lanConnected);
+  el("simWifiBtn").textContent = `手机 Wi-Fi：${wifiLabel()}`;
   el("simBgBtn").textContent = state.background ? "回到前台" : "切到后台";
   el("simBgBtn").classList.toggle("active", state.background);
   el("offlineToggle").classList.toggle("on", state.offlineMode);
@@ -67,54 +71,59 @@ function renderBanner() {
   el("offlineLabel").textContent = state.offlineMode ? "Offline Mode: ON" : "Offline Mode";
 
   const icon = el("syncIcon"), title = el("syncTitle"), detail = el("syncDetail");
-  const wrap = el("syncProgressWrap"), s = syncStats();
+  const wrap = el("syncProgressWrap"), s = syncStats(), online = onlineMacs();
   el("syncBanner").classList.toggle("hidden", state.offlineMode);
   icon.classList.remove("spinning");
   wrap.classList.add("hidden");
-  el("pairEntryBtn").textContent = state.pair ? "设备" : "扫码配对";
+  el("pairEntryBtn").textContent = state.pairs.length ? `电脑 · ${state.pairs.length}` : "扫码配对";
+  const awayNote = s.away ? `还有 ${s.away} 个在其他电脑上，连上那里的 Wi-Fi 后镜像` : `${s.ready} 个视频与字幕已离线就绪`;
 
-  if (!state.pair) {
+  if (state.pairs.length === 0) {
     icon.textContent = "⇄";
-    title.textContent = "尚未配对 Mac";
-    detail.textContent = state.pairNotice ?? "在 Mac「设置 → 手机镜像」里扫码";
-  } else if (!state.lanConnected) {
+    title.textContent = "尚未配对电脑";
+    detail.textContent = state.pairNotice ?? "在电脑「设置 → 手机镜像」里扫码";
+  } else if (online.length === 0) {
     icon.textContent = "○";
-    title.textContent = "不在同一局域网 · 仅显示本地";
-    detail.textContent = "回到同一 Wi-Fi 后自动继续镜像";
+    title.textContent = "没有连上已配对的电脑";
+    detail.textContent = state.pairNotice ?? `当前：${wifiLabel()} · 回到家里或公司的 Wi-Fi 后自动镜像`;
   } else if (!s.complete) {
     icon.textContent = "↻";
     icon.classList.add("spinning");
-    title.textContent = `镜像中 ${s.ready}/${s.wanted} · 同时 ${s.syncing} 个`;
-    detail.textContent = `从 ${state.pair.mac} 拉取 · 切到后台也会继续`;
+    title.textContent = `镜像中 ${s.ready}/${s.wanted - s.away} · 同时 ${s.syncing} 个`;
+    detail.textContent = `从 ${online.map((m) => m.name).join("、")} 拉取 · 切到后台也会继续`;
     wrap.classList.remove("hidden");
-    const parts = state.library.filter((x) => x.state !== "removed");
-    const pct = parts.reduce((a, x) => a + (x.state === "ready" ? 1 : x.progress), 0) / Math.max(1, parts.length);
-    el("syncProgressBar").style.width = `${pct * 100}%`;
+    el("syncProgressBar").style.width = `${overallPct(phoneLibrary()) * 100}%`;
   } else {
     icon.textContent = "✓";
-    title.textContent = `已与 ${state.pair.mac} 同步`;
-    detail.textContent = `${s.ready} 个视频与字幕已离线就绪`;
+    title.textContent = `已与 ${online.map((m) => m.name).join("、")} 同步`;
+    detail.textContent = state.pairNotice ?? awayNote;
   }
 }
 
+function sourceLabel(item) {
+  if (!item.sources.length) return `来自${macById(item.from)?.short ?? "已断开的电脑"}`;
+  return item.sources.map((m) => m.short).join(" · ");
+}
+
 function cardHtml(item) {
-  const removed = item.state === "removed";
-  const badge = item.state === "ready" ? `<span class="badge ready">已离线</span>`
-    : item.state === "syncing" ? `<span class="badge syncing">镜像中 ${Math.round(item.progress * 100)}%</span>`
+  const removed = item.status === "removed";
+  const badge = item.status === "ready" ? `<span class="badge ready">已离线</span>`
+    : item.status === "syncing" ? `<span class="badge syncing">镜像中 ${Math.round(item.progress * 100)}%</span>`
     : removed ? `<button class="badge remote again" data-act="again" data-id="${item.id}">重新镜像</button>`
-    : `<span class="badge remote">Mac 待镜像</span>`;
+    : item.status === "away" ? `<span class="badge remote">在${item.sources[0].short} · 待连接</span>`
+    : `<span class="badge remote">等待镜像</span>`;
   const open = swipeOpen === item.id;
   return `<div class="swipe ${open ? "reveal" : ""}">
       ${removed ? "" : `<button class="swipe-del" data-act="del" data-id="${item.id}">删除</button>`}
-      <div class="card ${item.state === "ready" ? "" : "locked"}" data-id="${item.id}" data-swipe="${removed ? "" : item.id}"
+      <div class="card ${item.status === "ready" ? "" : "locked"}" data-id="${item.id}" data-swipe="${removed ? "" : item.id}"
         style="transform:translateX(${open ? -84 : 0}px)">
         <div class="thumb" style="background:linear-gradient(135deg,hsl(${item.hue} 35% 34%),hsl(${(item.hue + 50) % 360} 30% 20%))">
           <span class="thumb-dur">${item.dur}</span>
-          ${item.state === "syncing" ? `<span class="thumb-prog" style="width:${item.progress * 100}%"></span>` : ""}
+          ${item.status === "syncing" ? `<span class="thumb-prog" style="width:${item.progress * 100}%"></span>` : ""}
         </div>
         <div class="card-meta">
           <div class="card-title">${item.title}</div>
-          <div class="card-sub">${badge}<span>${item.sentences} 句 · ${item.sizeMb} MB</span></div>
+          <div class="card-sub">${badge}<span>${sourceLabel(item)} · ${item.sizeMb} MB</span></div>
         </div>
       </div>
     </div>`;
@@ -123,147 +132,78 @@ function cardHtml(item) {
 function renderLibrary() {
   renderBanner();
   if (drag) return; // don't rebuild the list under the finger
-  const shown = !state.pair || state.offlineMode
-    ? state.library.filter((x) => x.state === "ready")
-    : state.library;
-  const kept = shown.filter((x) => x.state !== "removed");
-  const removed = shown.filter((x) => x.state === "removed");
+  const lib = phoneLibrary();
+  const shown = state.offlineMode ? lib.filter((x) => x.status === "ready") : lib;
+  const kept = shown.filter((x) => x.status !== "removed");
+  const removed = shown.filter((x) => x.status === "removed");
   if (shown.length === 0) {
     el("libraryList").innerHTML = `<div class="list-empty">
         <div class="list-empty-glyph">⇄</div>
-        <div>配对 Mac 后，媒体库会自动镜像到这里</div>
+        <div>配对电脑后，媒体库会自动镜像到这里</div>
         <button class="primary-btn" data-act="open-pair">扫码配对</button></div>`;
     return;
   }
   el("libraryList").innerHTML = kept.map(cardHtml).join("")
-    + (removed.length ? `<div class="list-sec">仅在 Mac</div>${removed.map(cardHtml).join("")}` : "")
-    + (kept.length ? `<div class="list-hint">左滑删除手机上的副本，Mac 上的不受影响</div>` : "");
+    + (removed.length ? `<div class="list-sec">仅在电脑上</div>${removed.map(cardHtml).join("")}` : "")
+    + (kept.length ? `<div class="list-hint">左滑删除手机上的副本，电脑上的不受影响</div>` : "");
 }
 
 function renderHome() {
   const home = el("homeScreen");
   home.classList.toggle("hidden", !state.background);
   if (!state.background) return;
-  const s = syncStats();
-  const parts = state.library.filter((x) => x.state !== "removed");
-  const pct = parts.reduce((a, x) => a + (x.state === "ready" ? 1 : x.progress), 0) / Math.max(1, parts.length);
-  const text = !state.pair ? "未配对 Mac" : !state.lanConnected || state.offlineMode ? "等待连接 Mac"
-    : s.complete ? `已镜像全部 ${s.wanted} 个` : `后台镜像中 ${s.ready}/${s.wanted}`;
+  const s = syncStats(), online = onlineMacs();
+  const text = !state.pairs.length ? "未配对电脑" : !online.length ? "等待连接电脑"
+    : s.complete ? "已镜像完成" : `后台镜像中 ${s.ready}/${s.wanted - s.away}`;
   home.innerHTML = `<div class="live"><div class="live-app">E</div>
       <div class="grow"><div class="live-title">${text}</div>
-        <div class="live-sub">${state.mac.name} · 局域网</div>
-        ${state.pair && !s.complete ? `<div class="live-bar"><i style="width:${pct * 100}%"></i></div>` : ""}</div></div>
+        <div class="live-sub">${online.map((m) => m.name).join("、") || wifiLabel()} · 局域网</div>
+        ${online.length && !s.complete ? `<div class="live-bar"><i style="width:${overallPct(phoneLibrary()) * 100}%"></i></div>` : ""}</div></div>
     <div class="apps">${"<i></i>".repeat(20)}</div>`;
 }
 
-// ---------- Pair sheet ----------
+// ---------- Pair sheet: manage several Macs ----------
+
+function pairedRow(mac) {
+  const on = reachable(mac);
+  const mine = phoneLibrary().filter((x) => mac.library.includes(x.id) && x.status !== "removed");
+  const ready = mine.filter((x) => x.status === "ready").length;
+  return `<div class="pair-row">
+      <div class="mac-glyph">▣</div>
+      <div class="grow"><div><strong>${mac.name}</strong></div>
+        <div class="sync-detail"><span class="dot ${on ? "on" : ""}"></span>${on ? `已连接 · ${mac.networkName}` : `不在当前网络 · ${mac.networkName}`}
+          · 已有 ${ready}/${mine.length}</div></div>
+      <button class="ghost-btn danger" data-act="unpair" data-id="${mac.id}">断开</button>
+    </div>`;
+}
 
 function renderPairSheet() {
   const body = el("sheetBody");
-  if (state.pair) {
-    el("sheetTitle").textContent = "已配对的 Mac";
-    body.innerHTML = `<div class="sheet-card">
-        <div><strong>${state.pair.mac}</strong> <span class="sync-detail">${state.pair.address}</span></div>
-        <div class="sync-detail">同一局域网内自动在后台镜像 Mac 的媒体库，每次同时传 ${MAX_PARALLEL} 个。</div>
-        <div class="sheet-actions"><button class="ghost-btn danger" data-act="unpair">断开配对</button></div>
-      </div>`;
-  } else if (state.pairFlow === "scan") {
-    el("sheetTitle").textContent = "扫描 Mac 上的二维码";
+  const target = macById(state.viewMac);
+  if (state.pairFlow === "scan") {
+    el("sheetTitle").textContent = "扫描电脑上的二维码";
     body.innerHTML = `<div class="camera"><div class="finder"></div>
-        <div class="sync-detail">Mac：设置 → 手机镜像</div>
-        <button class="primary-btn" data-act="scanned">模拟扫到二维码</button></div>`;
+        <div class="sync-detail">电脑：设置 → 手机镜像（右侧切换要扫的电脑）</div>
+        <button class="primary-btn" data-act="scanned">模拟扫到「${target.name}」</button>
+        <button class="ghost-btn" data-act="cancel-pair">取消</button></div>`;
   } else if (state.pairFlow === "waiting") {
-    el("sheetTitle").textContent = "等待 Mac 确认";
+    el("sheetTitle").textContent = "等待电脑确认";
     body.innerHTML = `<div class="camera"><div class="spinner"></div>
-        <div>在 Mac 上点「允许」</div><div class="pair-code">${state.scannedCode}</div>
+        <div>在「${macById(state.pairingMac).name}」上点「允许」</div><div class="pair-code">${state.scannedCode}</div>
         <button class="ghost-btn" data-act="cancel-pair">取消</button></div>`;
   } else {
-    el("sheetTitle").textContent = "配对 Mac";
-    body.innerHTML = `<div class="sheet-card">
-        <div><strong>扫码配对（局域网）</strong></div>
-        <div class="sync-detail">手机和 Mac 连同一个 Wi-Fi，在 Mac「设置 → 手机镜像」里打开二维码。</div>
-        <div class="sheet-actions"><button class="primary-btn" data-act="scan">打开相机扫码</button></div>
-      </div>`;
+    el("sheetTitle").textContent = "已配对的电脑";
+    const rows = state.macs.filter((m) => isPaired(m.id)).map(pairedRow).join("");
+    body.innerHTML = `${state.pairNotice ? `<div class="sheet-notice">${state.pairNotice}</div>` : ""}
+      ${rows ? `<div class="sheet-card pair-list">${rows}</div>` : `<div class="sync-detail">还没有配对的电脑。</div>`}
+      <div class="sync-detail">连上哪台电脑所在的 Wi-Fi，就自动从哪台镜像。所有电脑的视频都放在同一个媒体库里，同一个视频只传一次。</div>
+      <button class="primary-btn" data-act="scan">＋ 配对新的电脑</button>`;
   }
 }
 
 const sheetOpen = () => !el("pairSheetBackdrop").classList.contains("hidden");
 function openSheet() { renderPairSheet(); el("pairSheetBackdrop").classList.remove("hidden"); }
 function closeSheet() { el("pairSheetBackdrop").classList.add("hidden"); }
-
-// ---------- Player (unchanged behaviour) ----------
-
-function openPlayer(item) {
-  state.activeVideoId = item.id;
-  state.currentSentenceIdx = 0;
-  state.currentTime = 0;
-  state.playing = true;
-  el("playerTitle").textContent = item.title;
-  el("libraryView").classList.remove("active");
-  el("playerView").classList.add("active");
-  startPlayLoop();
-  renderPlayer();
-}
-
-function closePlayer() {
-  stopPlayLoop();
-  state.activeVideoId = null;
-  el("playerView").classList.remove("active");
-  el("libraryView").classList.add("active");
-}
-
-function startPlayLoop() {
-  stopPlayLoop();
-  playTimer = setInterval(() => {
-    if (!state.playing || !state.activeVideoId) return;
-    state.currentTime += 0.25 * state.speeds[state.speedIndex];
-    const cur = SENTENCES[state.currentSentenceIdx];
-    if (state.currentTime >= cur.end) {
-      if (state.loopSentence) state.currentTime = cur.start;
-      else if (state.currentSentenceIdx < SENTENCES.length - 1) state.currentSentenceIdx += 1;
-      else { state.currentSentenceIdx = 0; state.currentTime = 0; }
-    }
-    renderPlayer();
-  }, 250);
-}
-
-function stopPlayLoop() {
-  if (playTimer) { clearInterval(playTimer); playTimer = null; }
-}
-
-function renderPlayer() {
-  const totalSec = SENTENCES[SENTENCES.length - 1].end;
-  const cur = SENTENCES[state.currentSentenceIdx];
-  el("playerOfflineTag").classList.toggle("hidden", !state.offlineMode);
-  el("speedBtn").textContent = `${state.speeds[state.speedIndex].toFixed(1)}×`;
-  el("videoTimeLabel").textContent = `${formatSec(state.currentTime)} / ${formatSec(totalSec)}`;
-  el("ambientScene").classList.toggle("paused", !state.playing);
-  el("playOverlay").classList.toggle("visible", !state.playing);
-  el("playPauseGlyph").textContent = state.playing ? "⏸" : "▶";
-  el("maskBtn").classList.toggle("on", state.masked);
-  el("maskLabel").textContent = state.masked ? "盲听中" : "遮罩";
-  el("loopBtn").classList.toggle("on", state.loopSentence);
-  el("loopLabel").textContent = state.loopSentence ? "循环中" : "顺序";
-  el("timelineFill").style.width = `${(state.currentTime / totalSec) * 100}%`;
-  el("loopHighlight").style.left = `${(cur.start / totalSec) * 100}%`;
-  el("loopHighlight").style.width = `${((cur.end - cur.start) / totalSec) * 100}%`;
-
-  const scroll = el("subtitleScroll");
-  scroll.innerHTML = SENTENCES.map((s, idx) => {
-    const display = state.masked ? "• ".repeat(Math.min(14, s.text.split(" ").length)) : s.text;
-    return `<div class="sub-row ${idx === state.currentSentenceIdx ? "active" : ""}" data-idx="${idx}">
-        <div class="sub-ts">${formatSec(s.start)} – ${formatSec(s.end)}</div><div>${display}</div></div>`;
-  }).join("");
-  const activeEl = scroll.querySelector(".sub-row.active");
-  if (activeEl) activeEl.scrollIntoView({ block: "nearest", behavior: "smooth" });
-}
-
-function jumpSentence(idx) {
-  state.currentSentenceIdx = Math.max(0, Math.min(SENTENCES.length - 1, idx));
-  state.currentTime = SENTENCES[state.currentSentenceIdx].start;
-  state.playing = true;
-  renderPlayer();
-}
 
 // ---------- Events ----------
 
@@ -285,10 +225,11 @@ document.addEventListener("click", (e) => {
     scan: () => startScan(),
     scanned: () => scanSucceeded(),
     "cancel-pair": () => cancelPairing(),
-    unpair: () => { unpairSelf(false); closeSheet(); },
+    unpair: () => unpairMac(id, false),
     "pair-yes": () => { answerPair(true); closeSheet(); },
     "pair-no": () => answerPair(false),
-    "mac-remove": () => removeClient(id),
+    "mac-remove": () => removeClient(state.viewMac, id),
+    "view-mac": () => { state.viewMac = id; },
     "open-pair": () => { openSheet(); startScan(); },
   };
   if (act && acts[act.dataset.act]) {
@@ -298,8 +239,8 @@ document.addEventListener("click", (e) => {
   const card = e.target.closest("#libraryList .card");
   if (card && !justDragged) {
     if (swipeOpen) { swipeOpen = null; return renderAll(); }
-    const item = state.library.find((x) => x.id === card.dataset.id);
-    if (item && item.state === "ready") openPlayer(item);
+    const item = phoneLibrary().find((x) => x.id === card.dataset.id);
+    if (item && item.status === "ready") openPlayer(item);
   }
   const row = e.target.closest(".sub-row");
   if (row) jumpSentence(Number(row.dataset.idx));
@@ -333,29 +274,25 @@ document.addEventListener("pointerup", () => {
   renderAll();
 });
 
+bindPlayer();
 el("offlineToggle").onclick = () => { state.offlineMode = !state.offlineMode; renderAll(); };
-el("pairEntryBtn").onclick = () => { if (!state.pair) startScan(); openSheet(); renderAll(); };
-el("closeSheetBtn").onclick = () => { if (state.pairFlow !== "idle") cancelPairing(); closeSheet(); renderAll(); };
-el("backToLibBtn").onclick = closePlayer;
-el("videoTapArea").onclick = () => { state.playing = !state.playing; renderPlayer(); };
-el("playPauseBtn").onclick = () => { state.playing = !state.playing; renderPlayer(); };
-el("maskBtn").onclick = () => { state.masked = !state.masked; renderPlayer(); };
-el("loopBtn").onclick = () => { state.loopSentence = !state.loopSentence; renderPlayer(); };
-el("speedBtn").onclick = () => { state.speedIndex = (state.speedIndex + 1) % state.speeds.length; renderPlayer(); };
-el("prevSentBtn").onclick = () => jumpSentence(state.currentSentenceIdx - 1);
-el("nextSentBtn").onclick = () => jumpSentence(state.currentSentenceIdx + 1);
-
-el("simLanBtn").onclick = () => { state.lanConnected = !state.lanConnected; renderAll(); };
+el("pairEntryBtn").onclick = () => { if (!state.pairs.length) startScan(); openSheet(); renderAll(); };
+el("closeSheetBtn").onclick = () => { if (state.pairFlow !== "idle") cancelPairing(); state.pairNotice = null; closeSheet(); renderAll(); };
+el("simWifiBtn").onclick = () => {
+  const i = WIFI.findIndex((w) => w.id === state.wifi);
+  state.wifi = WIFI[(i + 1) % WIFI.length].id;
+  // Follow the phone: show the Mac on the new network.
+  if (state.wifi !== "none") state.viewMac = state.wifi;
+  renderAll();
+};
 el("simBgBtn").onclick = () => { state.background = !state.background; renderAll(); };
 el("homeScreen").onclick = () => { state.background = false; renderAll(); };
 el("simClientBtn").onclick = () => { addOtherClient(); renderAll(); };
 el("themeBtn").onclick = () => { state.theme = state.theme === "dark" ? "light" : "dark"; renderAll(); };
 el("simAddMacBtn").onclick = () => {
-  const n = state.library.length + 1;
-  state.library.unshift({
-    id: `mac-new-${n}`, title: `YouTube New Lesson #${n} · Natural English`, dur: "09:18",
-    sizeMb: 36, sentences: 95, hue: (n * 53) % 360, state: "remote", progress: 0
-  });
+  const n = Object.keys(VIDEOS).length + 1, id = `mac-new-${n}`;
+  VIDEOS[id] = { title: `YouTube New Lesson #${n} · Natural English`, dur: "09:18", sizeMb: 36, sentences: 95, hue: (n * 53) % 360 };
+  macById(state.viewMac).library.unshift(id);
   renderAll();
 };
 

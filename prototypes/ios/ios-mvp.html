@@ -4,8 +4,9 @@
   Mac = server, phones = clients (several can pair). Files:
     ios-transport.js  Transport seam (LAN only; TODO(relay) for a custom relay, not in UI)
     ios-sync.js       pairing + background mirror engine
-    ios-mac.js        Mac side panel (QR, pair prompt, client list)
-    ios-mvp.js        phone UI, player, gestures, boot
+    ios-mac.js        Mac side panels (QR, pair prompt, client list), one per Mac
+    ios-player.js     top-bottom player
+    ios-mvp.js        phone UI, pair management, gestures, boot
 -->
 <html lang="zh-CN" data-theme="dark">
 <head>
@@ -18,10 +19,10 @@
   <header class="sim-bar">
     <div class="sim-title">Ear iOS MVP · 交互原型</div>
     <div class="sim-controls">
-      <button id="simLanBtn" class="sim-btn active" type="button">LAN: 已接入家庭 Wi-Fi</button>
+      <button id="simWifiBtn" class="sim-btn active" type="button">手机 Wi-Fi：家里 Wi-Fi</button>
       <button id="simBgBtn" class="sim-btn" type="button">切到后台</button>
-      <button id="simAddMacBtn" class="sim-btn" type="button">+ Mac 新下好 1 个视频</button>
-      <button id="simClientBtn" class="sim-btn" type="button">+ 其他设备配对到 Mac</button>
+      <button id="simAddMacBtn" class="sim-btn" type="button">+ 右侧电脑新下好 1 个视频</button>
+      <button id="simClientBtn" class="sim-btn" type="button">+ 其他设备配对到右侧电脑</button>
       <button id="themeBtn" class="sim-btn" type="button">◐ 黑 / 白</button>
     </div>
   </header>
@@ -115,10 +116,10 @@
 
       <!-- Modal Sheet: Pair (QR scan over LAN) / paired device -->
       <div id="pairSheetBackdrop" class="sheet-backdrop hidden">
-        <div class="sheet" role="dialog" aria-modal="true" aria-label="配对 Mac">
+        <div class="sheet" role="dialog" aria-modal="true" aria-label="已配对的电脑">
           <div class="sheet-handle"></div>
           <div class="sheet-head">
-            <h2 id="sheetTitle">配对 Mac</h2>
+            <h2 id="sheetTitle">已配对的电脑</h2>
             <button id="closeSheetBtn" class="ghost-btn" type="button">关闭</button>
           </div>
           <div id="sheetBody" class="sheet-body"></div>
@@ -131,12 +132,13 @@
       <div class="home-indicator"></div>
     </section>
 
-    <section id="macPanel" class="mac" aria-label="Mac 端（服务端）"></section>
+    <section id="macPanel" class="mac" aria-label="电脑端（服务端）"></section>
   </main>
 
   <script src="./ios-transport.js"></script>
   <script src="./ios-sync.js"></script>
   <script src="./ios-mac.js"></script>
+  <script src="./ios-player.js"></script>
   <script src="./ios-mvp.js"></script>
 </body>
 </html>
