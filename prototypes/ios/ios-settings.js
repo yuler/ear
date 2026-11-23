@@ -1,11 +1,5 @@
-// PROTOTYPE. Settings sheet (appearance, language, background sync, paired computers) and
-// the full-screen pair scanner. Uses globals from ios-mvp.js (state, el, renderAll, …).
-
-const SCAN_DETECT_MS = 1300; // the camera "finds" the QR by itself
-const SCAN_FOUND_MS = 450; // brief highlight before asking the computer
-const SCAN_DONE_MS = 1200; // success screen, then back to the library
-let scanTimer = null;
-let doneTimer = null;
+// PROTOTYPE. Settings sheet: appearance, language, background sync, paired computers.
+// Pairing itself lives in ios-scan.js. Uses globals from ios-mvp.js (state, el, renderAll, …).
 
 // ---------- Settings sheet ----------
 
@@ -42,6 +36,8 @@ function renderSettings() {
     </div>
     <div class="set-title">${t("computers")}</div>
     ${notice ? `<div class="sheet-notice">${notice}</div>` : ""}
+    ${state.perms.localNetwork === "denied" ? `<div class="sheet-notice">${t("permLan")}
+      <button class="link-btn" data-act="grant" data-id="localNetwork">${t("openSettings")}</button></div>` : ""}
     <div class="set-group">
       ${paired.length ? paired.map(pairedRow).join("") : `<div class="set-row set-desc">${t("noComputers")}</div>`}
       <button class="set-row set-action" data-act="open-scan">${t("pairNew")}</button>
@@ -53,71 +49,6 @@ const settingsOpen = () => !el("settingsBackdrop").classList.contains("hidden");
 function openSettings() { state.pairNotice = null; renderSettings(); el("settingsBackdrop").classList.remove("hidden"); }
 function closeSettings() { el("settingsBackdrop").classList.add("hidden"); }
 
-// ---------- Pair scanner (full screen) ----------
-
-function openScan() {
-  closeSettings();
-  clearTimeout(scanTimer);
-  clearTimeout(doneTimer);
-  doneTimer = null;
-  startScan();
-  state.scanFound = false;
-  el("scanView").classList.remove("hidden");
-  renderScan();
-  scanTimer = setTimeout(() => {
-    if (state.pairFlow !== "scan") return;
-    state.scanFound = true;
-    renderAll();
-    scanTimer = setTimeout(() => { scanSucceeded(); renderAll(); }, SCAN_FOUND_MS);
-  }, SCAN_DETECT_MS);
-}
-
-function closeScan() {
-  clearTimeout(scanTimer);
-  clearTimeout(doneTimer);
-  doneTimer = null;
-  if (state.pairFlow === "waiting" || state.pairFlow === "scan") cancelPairing();
-  state.pairFlow = "idle";
-  el("scanView").classList.add("hidden");
-  renderAll();
-}
-
-/** Called by renderAll: draws the scanner for the current pairFlow step. */
-function renderScan() {
-  const view = el("scanView");
-  if (view.classList.contains("hidden")) return;
-  const flow = state.pairFlow;
-  const mac = macById(state.pairingMac ?? state.viewMac);
-  if (flow === "done" && !doneTimer) doneTimer = setTimeout(() => { doneTimer = null; closeScan(); }, SCAN_DONE_MS);
-
-  const finder = `<div class="finder ${state.scanFound || flow === "waiting" || flow === "done" ? "found" : ""} ${flow === "error" ? "bad" : ""}">
-      <b></b><b></b><b></b><b></b>${flow === "scan" && !state.scanFound ? `<span class="scanline"></span>` : ""}</div>`;
-  let card = "";
-  if (flow === "scan") {
-    card = state.scanFound
-      ? `<div class="scan-card"><div class="scan-title">${t("scanFound", mac.name)}</div></div>`
-      : `<div class="scan-card"><div class="scan-title">${t("scanHint")}</div><div class="scan-sub">${t("scanSub")}</div></div>`;
-  } else if (flow === "waiting") {
-    card = `<div class="scan-card"><div class="spinner"></div>
-        <div class="scan-title">${t("waitTitle", mac.name)}</div>
-        <div class="scan-sub">${t("waitCode")}</div><div class="pair-code">${state.scannedCode}</div></div>`;
-  } else if (flow === "done") {
-    card = `<div class="scan-card"><div class="scan-ok">✓</div>
-        <div class="scan-title">${t("doneTitle", mac.name)}</div><div class="scan-sub">${t("doneSub")}</div></div>`;
-  } else if (flow === "error") {
-    card = `<div class="scan-card"><div class="scan-title bad">${noticeText(state.pairNotice)}</div>
-        <button class="primary-btn" data-act="open-scan">${t("retry")}</button></div>`;
-  }
-  const html = `<div class="scan-feed"></div>
-    <button class="scan-cancel" data-act="close-scan">${flow === "done" ? t("close") : t("cancel")}</button>
-    <div class="scan-center">${finder}</div>${card}`;
-  // Rebuild only when the step changes, so entry animations and the spinner keep running.
-  if (view.dataset.html !== html) {
-    view.dataset.html = html;
-    view.innerHTML = html;
-  }
-}
-
 /** Click actions owned by this file (merged into the handler in ios-mvp.js). */
 const SETTINGS_ACTS = {
   "open-settings": () => openSettings(),
@@ -125,7 +56,5 @@ const SETTINGS_ACTS = {
   theme: (id) => { state.settings.theme = id; },
   lang: (id) => { state.settings.lang = id; },
   bgsync: () => { state.settings.backgroundSync = !state.settings.backgroundSync; },
-  unpair: (id) => unpairMac(id, false),
-  "open-scan": () => openScan(),
-  "close-scan": () => closeScan()
+  unpair: (id) => unpairMac(id, false)
 };

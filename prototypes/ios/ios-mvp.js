@@ -1,5 +1,6 @@
-// PROTOTYPE. Phone library mirrored from several paired Macs, swipe-to-delete, background
-// mode, boot. Spec: docs/mobile.md. Engine: ios-sync.js. Settings + scanner: ios-settings.js.
+// PROTOTYPE. Phone library mirrored from several paired Macs, swipe-to-delete with undo,
+// tap-to-prioritize, toasts, background mode, boot. Spec: docs/mobile.md.
+// Engine: ios-sync.js. Settings: ios-settings.js. Pairing + permissions: ios-scan.js.
 // Mac side: ios-mac.js. Player: ios-player.js. Poster → video transition: ios-transition.js.
 
 const VIDEOS = {
@@ -18,7 +19,7 @@ const WIFI = [
   { id: "none", key: "wifiNone" }
 ];
 
-const makeMac = (m) => ({ ...m, code: newPairCode(), codeLeft: PAIR_TTL_SEC, request: false, clients: [] });
+const makeMac = (m) => ({ ...m, code: newPairCode(), codeLeft: PAIR_TTL_SEC, clients: [] });
 
 const state = {
   settings: { theme: "system", lang: "zh", backgroundSync: true },
@@ -34,11 +35,17 @@ const state = {
   viewMac: "home", // which Mac panel is on screen (and whose QR the phone scans)
   pairs: [], // paired Mac ids, in pairing order
   items: {}, // videoId -> { state: syncing|ready|removed, progress, from: macId }
-  pairFlow: "idle", // idle | scan | waiting | done | error
+  perms: { camera: "unknown", localNetwork: "unknown" }, // unknown | granted | denied
+  sysAlert: null, // "camera" | "localNetwork" while iOS asks
+  pairFlow: "idle", // idle | scan | manual | done | error
   pairingMac: null,
+  pairedAgain: false,
   pairNotice: null,
-  scannedCode: null,
+  manualMac: null,
   scanFound: false,
+  priority: [], // video ids tapped before they were local, first = next
+  toast: null, // { text, undo?: () => void, until }
+  swipeLearned: false, // the swipe hint shows until the first swipe
   activeVideoId: null,
   currentSentenceIdx: 2,
   currentTime: 25,
@@ -52,6 +59,41 @@ const state = {
 const el = (id) => document.getElementById(id);
 let swipeOpen = null; // item id whose 删除 is revealed
 let drag = null;
+let toastTimer = null;
+
+function showToast(text, undo) {
+  clearTimeout(toastTimer);
+  state.toast = { text, undo };
+  toastTimer = setTimeout(() => { state.toast = null; renderAll(); }, undo ? 4000 : 2400);
+}
+
+function renderToast() {
+  const node = el("toast");
+  const html = state.toast ? `<span class="grow">${state.toast.text}</span>
+    ${state.toast.undo ? `<button data-act="undo">${t("undo")}</button>` : ""}` : "";
+  if (node.dataset.html === html) return;
+  node.dataset.html = html;
+  node.innerHTML = html;
+  node.classList.toggle("hidden", !state.toast);
+}
+
+/** Delete the phone copy, with a few seconds to undo. */
+function deleteWithUndo(id) {
+  const before = deleteLocal(id);
+  swipeOpen = null;
+  showToast(t("deleted", VIDEOS[id].title), () => restoreLocal(id, before));
+}
+
+/** Tapping a video that is not local yet: say where it stands and move it to the front. */
+function tapNotReady(item) {
+  if (item.status === "syncing") {
+    prioritize(item.id);
+    return showToast(t("syncingTap", Math.round(item.progress * 100)));
+  }
+  prioritize(item.id);
+  if (item.status === "away") return showToast(t("awayTap", item.title, item.sources[0].short));
+  showToast(t("prioritized", item.title));
+}
 
 const posterCss = (v) => `linear-gradient(135deg,hsl(${v.hue} 35% 34%),hsl(${(v.hue + 50) % 360} 30% 20%))`;
 const wifiLabel = () => t(WIFI.find((w) => w.id === state.wifi).key);
@@ -77,7 +119,11 @@ function renderBanner() {
   icon.classList.remove("spinning");
   wrap.classList.add("hidden");
 
-  if (online.length === 0) {
+  if (state.perms.localNetwork === "denied") {
+    icon.textContent = "!";
+    title.textContent = t("lanDenied");
+    detail.innerHTML = `<button class="link-btn" data-act="grant" data-id="localNetwork">${t("openSettings")}</button>`;
+  } else if (online.length === 0) {
     icon.textContent = "○";
     title.textContent = t("offlineNone");
     detail.textContent = noticeText(state.pairNotice) ?? t("offlineDetail", wifiLabel());
@@ -106,6 +152,7 @@ function cardHtml(item) {
     : item.status === "syncing" ? `<span class="badge syncing">${t("badgeSyncing", Math.round(item.progress * 100))}</span>`
     : removed ? `<button class="badge remote again" data-act="again" data-id="${item.id}">${t("mirrorAgain")}</button>`
     : item.status === "away" ? `<span class="badge remote">${t("badgeAway", item.sources[0].short)}</span>`
+    : item.priority ? `<span class="badge syncing">${t("badgePriority")}</span>`
     : `<span class="badge remote">${t("badgeQueued")}</span>`;
   const open = swipeOpen === item.id;
   const hidden = heroHide === item.id ? "visibility:hidden;" : "";
@@ -131,6 +178,11 @@ function renderLibrary() {
   const lib = phoneLibrary();
   const kept = lib.filter((x) => x.status !== "removed");
   const removed = lib.filter((x) => x.status === "removed");
+  if (lib.length === 0 && state.pairs.length) {
+    el("libraryList").innerHTML = `<div class="quick">
+        <div class="quick-qr">▣</div><h3>${t("emptyPaired")}</h3><p>${t("emptyPairedSub")}</p></div>`;
+    return;
+  }
   if (lib.length === 0) {
     // No computer yet: the home screen is just a quick way to pair.
     el("libraryList").innerHTML = `<div class="quick">
@@ -141,7 +193,7 @@ function renderLibrary() {
   }
   el("libraryList").innerHTML = kept.map(cardHtml).join("")
     + (removed.length ? `<div class="list-sec">${t("onlyOnPc")}</div>${removed.map(cardHtml).join("")}` : "")
-    + (kept.length ? `<div class="list-hint">${t("swipeHint")}</div>` : "");
+    + (kept.length && !state.swipeLearned ? `<div class="list-hint">${t("swipeHint")}</div>` : "");
 }
 
 function renderHome() {
@@ -167,15 +219,16 @@ function renderAll() {
   renderHome();
   renderMac();
   renderScan();
+  renderToast();
   if (settingsOpen()) renderSettings();
 }
 
 const ACTS = {
   ...SETTINGS_ACTS,
-  del: (id) => { deleteLocal(id); swipeOpen = null; },
+  ...SCAN_ACTS,
+  del: (id) => deleteWithUndo(id),
+  undo: () => { state.toast?.undo?.(); state.toast = null; },
   again: (id) => mirrorAgain(id),
-  "pair-yes": () => answerPair(true),
-  "pair-no": () => answerPair(false),
   "mac-remove": (id) => removeClient(state.viewMac, id),
   "view-mac": (id) => { state.viewMac = id; }
 };
@@ -193,6 +246,7 @@ document.addEventListener("click", (e) => {
     if (swipeOpen) { swipeOpen = null; return renderAll(); }
     const item = phoneLibrary().find((x) => x.id === card.dataset.id);
     if (item && item.status === "ready") openDetail(item, card.querySelector(".thumb"));
+    else if (item) { tapNotReady(item); renderAll(); }
   }
   const row = e.target.closest(".sub-row");
   if (row) jumpSentence(Number(row.dataset.idx));
@@ -220,10 +274,18 @@ document.addEventListener("pointerup", () => {
   justDragged = moved;
   setTimeout(() => { justDragged = false; }, 0);
   if (moved) {
-    if (dx < -170) { deleteLocal(id); swipeOpen = null; }
+    if (dx < -40) state.swipeLearned = true;
+    if (dx < -170) deleteWithUndo(id);
     else swipeOpen = dx < -40 ? id : null;
   }
   renderAll();
+});
+
+// Manual pairing: the 4-digit code submits itself once complete.
+document.addEventListener("input", (e) => {
+  if (e.target.id !== "codeInput") return;
+  e.target.value = e.target.value.replace(/\D/g, "").slice(0, 4);
+  if (e.target.value.length === 4) submitCode(e.target.value);
 });
 
 bindPlayer();

@@ -7,7 +7,7 @@ const test = require("node:test");
 const vm = require("node:vm");
 
 const FILES = ["ios-transport.js", "ios-i18n.js", "ios-sync.js", "ios-mac.js", "ios-player.js",
-  "ios-transition.js", "ios-settings.js", "ios-mvp.js"];
+  "ios-transition.js", "ios-settings.js", "ios-scan.js", "ios-mvp.js"];
 const sources = FILES.map((f) => fs.readFileSync(path.join(__dirname, f), "utf8"));
 
 function loadPrototype() {
@@ -47,13 +47,15 @@ function loadPrototype() {
       documentElement: { dataset: {} }
     },
     matchMedia: () => ({ matches: false }),
-    setTimeout: (fn) => fn(),
+    setTimeout: () => 0, // timers never fire on their own in these tests
     clearTimeout() {},
     setInterval(fn) { const id = ++nextTimer; timers.set(id, fn); return id; },
     clearInterval(id) { timers.delete(id); }
   });
   for (const src of sources) vm.runInContext(src, context);
   const run = (code) => vm.runInContext(code, context);
+  // Permissions already granted unless a test says otherwise.
+  run("state.perms.camera = 'granted'; state.perms.localNetwork = 'granted';");
   const p = {
     state: run("state"),
     run,
@@ -63,11 +65,11 @@ function loadPrototype() {
     status: (id) => run(`phoneLibrary().find((x) => x.id === ${JSON.stringify(id)})?.status`),
     statuses: () => run("phoneLibrary().map((x) => x.status)").join(","),
     wifi(id) { p.state.wifi = id; },
-    /** Joins the Mac's Wi-Fi, scans its QR, and the Mac allows it. */
+    /** Joins the Mac's Wi-Fi and scans its QR (that alone pairs). */
     pairWith(macId) {
       p.wifi(run(`macById(${JSON.stringify(macId)}).network`));
       p.state.viewMac = macId;
-      run("startScan(); scanSucceeded(); answerPair(true);");
+      run("startScan(); scanSucceeded();");
     },
     /** Ticks until nothing is queued or transferring, or fails after `max` ticks. */
     settle(max = 2000) {
@@ -92,15 +94,13 @@ test("an unpaired phone mirrors nothing", () => {
   assert.equal(p.statuses(), "");
 });
 
-test("pairing needs the Mac to allow it, then that Mac's library mirrors", () => {
+test("scanning the QR pairs at once (no confirm on the computer), then its library mirrors", () => {
   const p = loadPrototype();
+  const code = p.run("macById('home').code");
   p.run("startScan(); scanSucceeded();");
-  assert.equal(p.state.pairFlow, "waiting");
-  assert.equal(p.run("macById('home').request"), true);
-  p.tick();
-  assert.equal(syncingCount(p), 0);
-  p.run("answerPair(true)");
+  assert.equal(p.state.pairFlow, "done");
   assert.equal(p.state.pairs.join(), "home");
+  assert.notEqual(p.run("macById('home').code"), code); // a used code is spent
   assert.equal(p.run("macById('home').clients[0].self"), true);
   p.settle();
   for (const id of HOME) assert.equal(p.status(id), "ready");
@@ -111,17 +111,58 @@ test("scanning a Mac on another Wi-Fi does not pair", () => {
   p.state.viewMac = "office"; // phone is on home Wi-Fi
   p.run("startScan(); scanSucceeded();");
   assert.equal(p.state.pairFlow, "error");
-  assert.equal(p.run("macById('office').request"), false);
+  assert.equal(p.state.pairs.length, 0);
   assert.equal(p.state.pairNotice.key, "notSameWifi");
   assert.match(p.run("noticeText(state.pairNotice)"), /不在同一个 Wi-Fi/);
 });
 
-test("a refused pairing leaves the phone unpaired", () => {
+test("scanning a computer that is already paired is a success, not an error", () => {
   const p = loadPrototype();
-  p.run("startScan(); scanSucceeded(); answerPair(false);");
+  p.pairWith("home");
+  p.pairWith("home");
+  assert.equal(p.state.pairFlow, "done");
+  assert.equal(p.state.pairedAgain, true);
+  assert.equal(p.state.pairs.join(), "home");
+  assert.equal(p.run("macById('home').clients.length"), 1);
+});
+
+test("manual pairing: a nearby computer and its 4-digit code", () => {
+  const p = loadPrototype();
+  assert.equal(p.run("nearbyMacs().map((m) => m.id).join()"), "home");
+  assert.equal(p.run("pairWithCode('home', '0000')"), false);
+  assert.equal(p.state.pairNotice.key, "wrongCode");
   assert.equal(p.state.pairs.length, 0);
-  assert.equal(p.state.pairFlow, "error");
-  assert.equal(p.state.pairNotice.key, "refused");
+  assert.equal(p.run("pairWithCode('office', macById('office').code)"), false); // not on this Wi-Fi
+  assert.equal(p.run("pairWithCode('home', macById('home').code)"), true);
+  assert.equal(p.state.pairs.join(), "home");
+});
+
+test("without Local Network permission nothing is found or mirrored until it is granted", () => {
+  const p = loadPrototype();
+  p.pairWith("home");
+  p.state.perms.localNetwork = "denied";
+  for (let i = 0; i < 50; i++) p.tick();
+  assert.equal(syncingCount(p), 0);
+  assert.equal(p.run("nearbyMacs().length"), 0);
+  p.state.perms.localNetwork = "granted";
+  p.settle();
+  for (const id of HOME) assert.equal(p.status(id), "ready");
+});
+
+test("permission prompts come before the camera: camera first, then Local Network", () => {
+  const p = loadPrototype();
+  p.state.perms.camera = "unknown";
+  p.state.perms.localNetwork = "unknown";
+  p.element("scanView").classList.remove("hidden");
+  p.run("startScan(); nextPermission();");
+  assert.equal(p.state.sysAlert, "camera");
+  p.run("answerPermission(true)");
+  assert.equal(p.state.sysAlert, "localNetwork");
+  p.run("answerPermission(false)");
+  assert.equal(p.state.sysAlert, null);
+  assert.equal(p.state.perms.localNetwork, "denied");
+  p.run("grantInSettings('localNetwork')");
+  assert.equal(p.state.perms.localNetwork, "granted");
 });
 
 test("at most MAX_PARALLEL files transfer at once, across Macs", () => {
@@ -189,14 +230,20 @@ test("a video both Macs have is transferred once", () => {
   assert.equal(p.run("phoneLibrary().filter((x) => x.id === 'krashen-ci').length"), 1);
 });
 
-test("switching Wi-Fi mid-transfer resumes a shared video from the other Mac", () => {
+test("switching Wi-Fi mid-transfer resumes a shared video from the other Mac, keeping its bytes", () => {
   const p = loadPrototype();
   p.pairWith("office");
   p.pairWith("home");
   p.tick();
+  p.tick();
   assert.equal(p.state.items["krashen-ci"].state, "syncing");
   assert.equal(p.state.items["krashen-ci"].from, "home");
+  const done = p.state.items["krashen-ci"].progress;
+  assert.ok(done > 0);
   p.wifi("office");
+  p.tick();
+  assert.equal(p.state.items["krashen-ci"].from, "office");
+  assert.ok(p.state.items["krashen-ci"].progress > done); // resumed, not restarted
   p.settle();
   assert.equal(p.state.items["krashen-ci"].from, "office");
   assert.equal(p.status("krashen-ci"), "ready");
@@ -273,4 +320,54 @@ test("notices follow the interface language", () => {
   p.run("startScan(); scanSucceeded();");
   p.state.settings.lang = "en";
   assert.match(p.run("noticeText(state.pairNotice)"), /not on the same Wi-Fi/);
+});
+
+test("leaving the Wi-Fi keeps partial bytes and resumes from them", () => {
+  const p = loadPrototype();
+  p.pairWith("home");
+  for (let i = 0; i < 3; i++) p.tick();
+  const id = p.run("phoneLibrary().find((x) => x.status === 'syncing').id");
+  const before = p.state.items[id].progress;
+  p.wifi("none");
+  p.tick();
+  assert.equal(p.state.items[id].state, "partial");
+  assert.equal(p.state.items[id].progress, before);
+  assert.equal(p.status(id), "away");
+  p.wifi("home");
+  p.tick();
+  assert.ok(p.state.items[id].progress > before);
+});
+
+test("a tapped video goes first, taking a slot from a non-priority transfer", () => {
+  const p = loadPrototype();
+  p.pairWith("home");
+  p.tick();
+  assert.equal(syncingCount(p), 3);
+  assert.equal(p.status("tokyo-walk"), "queued");
+  p.run("prioritize('tokyo-walk')");
+  p.tick();
+  assert.equal(p.status("tokyo-walk"), "syncing");
+  assert.equal(syncingCount(p), 3);
+  assert.equal(p.run("Object.values(state.items).filter((x) => x.state === 'partial').length"), 1);
+  p.settle();
+  assert.equal(p.state.priority.length, 0);
+});
+
+test("undoing a delete brings the local copy back", () => {
+  const p = loadPrototype();
+  p.pairWith("home");
+  p.settle();
+  p.run("deleteWithUndo('bbc-habits')");
+  assert.equal(p.status("bbc-habits"), "removed");
+  p.run("state.toast.undo()");
+  assert.equal(p.status("bbc-habits"), "ready");
+});
+
+test("a paired computer with no videos shows its own empty state, not the pairing entry", () => {
+  const p = loadPrototype();
+  p.run("macById('home').library = []");
+  p.pairWith("home");
+  p.run("renderLibrary()");
+  assert.match(p.element("libraryList").innerHTML, /电脑上还没有视频/);
+  assert.doesNotMatch(p.element("libraryList").innerHTML, /open-scan/);
 });

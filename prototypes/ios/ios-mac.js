@@ -1,5 +1,6 @@
 // PROTOTYPE. The Mac (server) side, drawn next to the phone: one panel per Mac (home,
-// office), each with its pairing QR, pair prompt and paired-client list.
+// office), each with its pairing QR + code and paired-client list. No confirm prompt:
+// scanning the one-time QR on screen is the proof of presence.
 // Uses the global `state` from ios-mvp.js.
 
 const qrCache = {};
@@ -47,7 +48,7 @@ function clientLine(mac, c) {
 function renderMac() {
   const mac = macById(state.viewMac), t = createTransport(state.transport);
   const tabs = state.macs.map((m) => `<button class="mac-tab ${m.id === mac.id ? "on" : ""}" data-act="view-mac" data-id="${m.id}">
-      ${m.name}${m.request ? " •" : ""}</button>`).join("");
+      ${m.name}</button>`).join("");
   const clients = mac.clients.length === 0
     ? `<div class="mac-empty">还没有配对的设备</div>`
     : mac.clients.map((c) => `
@@ -67,7 +68,8 @@ function renderMac() {
         <div class="mac-qr"><img alt="配对二维码" src="${qrDataUrl(t.pairUrl(mac, mac.code))}"></div>
         <div class="mac-pair-info">
           <div class="mac-h">用手机扫码配对</div>
-          <div class="mac-muted">手机和这台 Mac 连同一个 Wi-Fi。配对后，媒体库会在后台自动镜像到手机。</div>
+          <div class="mac-muted">手机和这台 Mac 连同一个 Wi-Fi，扫码后直接配对，媒体库会在后台自动镜像到手机。</div>
+          <div class="mac-dim">无法扫码时，在手机上输入配对码</div>
           <div class="mac-code">${mac.code}</div>
           <div class="mac-dim">${mmss(mac.codeLeft)} 后刷新 · ${t.address(mac)}</div>
         </div>
@@ -76,11 +78,5 @@ function renderMac() {
       <div class="mac-clients">${clients}</div>
       <div class="mac-sec">这台 Mac 的媒体库 · ${mac.library.length}</div>
       <div class="mac-lib">${mac.library.map((v) => `<span>${VIDEOS[v].title}</span>`).join("")}</div>
-    </div>
-    ${mac.request ? `<div class="mac-scrim"><div class="mac-modal">
-      <div class="mac-h">「这台 iPhone」请求配对</div>
-      <div class="mac-muted">确认手机上显示的配对码是 <b>${state.scannedCode}</b>。允许后，它会在后台镜像这台 Mac 的媒体库。</div>
-      <div class="mac-actions"><button class="ghost-btn" data-act="pair-no">拒绝</button>
-        <button class="primary-btn" data-act="pair-yes">允许</button></div>
-    </div></div>` : ""}`;
+    </div>`;
 }

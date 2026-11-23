@@ -8,8 +8,9 @@
     ios-mac.js        Mac side panels (QR, pair prompt, client list), one per Mac
     ios-player.js     top-bottom player
     ios-transition.js poster → video shared-element transition (as on desktop)
-    ios-settings.js   settings sheet + full-screen pair scanner
-    ios-mvp.js        phone library, gestures, boot
+    ios-settings.js   settings sheet
+    ios-scan.js       pairing: permission prompts, QR scanner, manual code entry
+    ios-mvp.js        phone library, gestures, toasts, boot
     ios-mirror.css    styles for mirror, settings, scanner, transition
 -->
 <html lang="zh-CN" data-theme="dark">
@@ -126,8 +127,11 @@
         </div>
       </div>
 
-      <!-- Full-screen pair scanner -->
+      <!-- Full-screen pairing: permissions, QR scanner, manual code entry -->
       <div id="scanView" class="scan hidden"></div>
+
+      <!-- Toast (with undo after a delete) -->
+      <div id="toast" class="toast hidden" role="status"></div>
 
       <!-- App in background: home screen + Live Activity -->
       <div id="homeScreen" class="home hidden"></div>
@@ -145,6 +149,7 @@
   <script src="./ios-player.js"></script>
   <script src="./ios-transition.js"></script>
   <script src="./ios-settings.js"></script>
+  <script src="./ios-scan.js"></script>
   <script src="./ios-mvp.js"></script>
 </body>
 </html>

@@ -171,3 +171,40 @@
 .screen.under { position: absolute; inset: 0; pointer-events: none; }
 .poster-layer { position: absolute; inset: 0; transition: opacity 500ms ease; }
 .poster-layer.gone { opacity: 0; }
+
+/* ---------- Permissions, manual code, toast ---------- */
+.link-btn { font: inherit; font-size: 13px; font-weight: 500; color: inherit; opacity: 0.8; background: transparent; border: 0;
+  padding: 6px 4px; cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
+.scan .link-btn { color: #fff; }
+.scan-sub.bad { color: #f0a094; }
+.scan-feed.dark { animation: none; filter: none; background: #050506; }
+.scan .finder.off b { border-color: rgba(255, 255, 255, 0.25); }
+.sys-scrim { position: absolute; inset: 0; z-index: 5; display: grid; place-items: center; background: rgba(0, 0, 0, 0.4); }
+.sys-alert { width: 270px; border-radius: 14px; overflow: hidden; background: rgba(242, 242, 247, 0.96); color: #000;
+  text-align: center; animation: card-up 180ms ease-out; }
+.sys-title { font-size: 15px; font-weight: 600; padding: 18px 16px 2px; line-height: 1.3; }
+.sys-msg { font-size: 13px; padding: 4px 16px 16px; line-height: 1.35; }
+.sys-btns { display: flex; border-top: 1px solid rgba(60, 60, 67, 0.3); }
+.sys-btns button { flex: 1; font: inherit; font-size: 16px; color: #0a84ff; background: transparent; border: 0; padding: 11px; cursor: pointer; }
+.sys-btns button + button { border-left: 1px solid rgba(60, 60, 67, 0.3); }
+.manual { position: relative; flex: 1; display: flex; flex-direction: column; align-items: center; gap: 8px;
+  padding: 110px 22px 24px; text-align: center; }
+.manual-list { width: 100%; margin-top: 12px; border-radius: 14px; overflow: hidden; background: rgba(255, 255, 255, 0.08); }
+.manual-item { width: 100%; display: flex; align-items: center; gap: 10px; padding: 13px 14px; border: 0; background: transparent;
+  color: #fff; font: inherit; font-size: 14px; text-align: left; cursor: pointer; }
+.manual-item + .manual-item { border-top: 1px solid rgba(255, 255, 255, 0.1); }
+.manual-item .mac-glyph { background: rgba(255, 255, 255, 0.12); color: #fff; }
+.code-input { width: 200px; margin-top: 14px; padding: 12px; border-radius: 14px; border: 1px solid rgba(255, 255, 255, 0.25);
+  background: rgba(255, 255, 255, 0.06); color: #fff; font: inherit; font-size: 30px; font-weight: 700; letter-spacing: 0.5em;
+  text-align: center; text-indent: 0.5em; outline: none; }
+.code-input:focus { border-color: #fff; }
+.code-input.shake0, .code-input.shake1 { animation: shake 300ms; border-color: #e27a6c; }
+.code-input.shake1 { animation-name: shake-b; }
+@keyframes shake { 25% { transform: translateX(-8px); } 75% { transform: translateX(8px); } }
+@keyframes shake-b { 25% { transform: translateX(-8px); } 75% { transform: translateX(8px); } }
+.toast { position: absolute; left: 14px; right: 14px; bottom: 26px; z-index: 34; display: flex; align-items: center; gap: 10px;
+  padding: 11px 14px; border-radius: 14px; background: var(--paper); color: var(--ground); font-size: 13px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3); animation: card-up 180ms ease-out; }
+.toast.hidden { display: none; }
+.toast button { font: inherit; font-size: 13px; font-weight: 700; color: var(--ground); background: transparent; border: 0; cursor: pointer; }
+.sync-detail .link-btn { padding: 0; font-size: 11px; }
