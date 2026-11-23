@@ -1,5 +1,13 @@
 <!doctype html>
-<html lang="zh-CN">
+<!--
+  PROTOTYPE (throwaway). Ear iOS MVP: library mirrored from the Mac over LAN + player.
+  Mac = server, phones = clients (several can pair). Files:
+    ios-transport.js  Transport seam (LAN only; TODO(relay) for a custom relay, not in UI)
+    ios-sync.js       pairing + background mirror engine
+    ios-mac.js        Mac side panel (QR, pair prompt, client list)
+    ios-mvp.js        phone UI, player, gestures, boot
+-->
+<html lang="zh-CN" data-theme="dark">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -11,9 +19,10 @@
     <div class="sim-title">Ear iOS MVP · 交互原型</div>
     <div class="sim-controls">
       <button id="simLanBtn" class="sim-btn active" type="button">LAN: 已接入家庭 Wi-Fi</button>
-      <button id="simPairBtn" class="sim-btn active" type="button">已配对: MacBook Pro</button>
+      <button id="simBgBtn" class="sim-btn" type="button">切到后台</button>
       <button id="simAddMacBtn" class="sim-btn" type="button">+ Mac 新下好 1 个视频</button>
-      <button id="simAirDropBtn" class="sim-btn" type="button">模拟 AirDrop 配对文件</button>
+      <button id="simClientBtn" class="sim-btn" type="button">+ 其他设备配对到 Mac</button>
+      <button id="themeBtn" class="sim-btn" type="button">◐ 黑 / 白</button>
     </div>
   </header>
 
@@ -38,9 +47,9 @@
           <div class="sync-row">
             <div class="sync-info">
               <span id="syncIcon" class="sync-icon">↻</span>
-              <div>
-                <div id="syncTitle" class="sync-title">正在连接 MacBook Pro…</div>
-                <div id="syncDetail" class="sync-detail">接入同一局域网后自动镜像同步</div>
+              <div class="sync-text">
+                <div id="syncTitle" class="sync-title"></div>
+                <div id="syncDetail" class="sync-detail"></div>
               </div>
             </div>
             <button id="pairEntryBtn" class="ghost-btn" type="button">设备</button>
@@ -104,22 +113,30 @@
         </div>
       </div>
 
-      <!-- Modal Sheet: Pair & LAN Sync -->
+      <!-- Modal Sheet: Pair (QR scan over LAN) / paired device -->
       <div id="pairSheetBackdrop" class="sheet-backdrop hidden">
-        <div class="sheet" role="dialog" aria-modal="true" aria-label="桌面配对与同步">
+        <div class="sheet" role="dialog" aria-modal="true" aria-label="配对 Mac">
           <div class="sheet-handle"></div>
           <div class="sheet-head">
-            <h2>桌面配对 &amp; 镜像</h2>
+            <h2 id="sheetTitle">配对 Mac</h2>
             <button id="closeSheetBtn" class="ghost-btn" type="button">关闭</button>
           </div>
           <div id="sheetBody" class="sheet-body"></div>
         </div>
       </div>
 
+      <!-- App in background: home screen + Live Activity -->
+      <div id="homeScreen" class="home hidden"></div>
+
       <div class="home-indicator"></div>
     </section>
+
+    <section id="macPanel" class="mac" aria-label="Mac 端（服务端）"></section>
   </main>
 
+  <script src="./ios-transport.js"></script>
+  <script src="./ios-sync.js"></script>
+  <script src="./ios-mac.js"></script>
   <script src="./ios-mvp.js"></script>
 </body>
 </html>
