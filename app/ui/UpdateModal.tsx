@@ -79,12 +79,12 @@ function UpdateModalDialog(props: { result: () => UpdateCheckResult }) {
       />
 
       <View
-        style={{ maxHeight: "80%" }}
+        style={{ height: 460, maxHeight: "80%" }}
         class="relative w-full max-w-[540px] flex-col rounded-2xl border border-line bg-background shadow-2xl overflow-hidden z-10"
         accessibilityLabel="Software Update Dialog"
       >
         {/* Header */}
-        <View class="flex-row items-center justify-between border-b border-line px-5 py-4 bg-well/30">
+        <View class="shrink-0 flex-row items-center justify-between border-b border-line px-5 py-4 bg-well/30">
           <View class="flex-row items-center gap-3 min-w-0 flex-1">
             <View class="h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary/15">
               <Icon name="sparkles" size={17} tone="primary" />
@@ -117,7 +117,7 @@ function UpdateModalDialog(props: { result: () => UpdateCheckResult }) {
         </View>
 
         {/* Scrollable Consolidated Release Notes */}
-        <Scroll class="flex-1 p-5">
+        <Scroll class="min-h-0 flex-1 p-5">
           <View class="flex-col gap-3">
             <Text class="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
               更新内容
@@ -178,7 +178,7 @@ function UpdateModalDialog(props: { result: () => UpdateCheckResult }) {
         </Scroll>
 
         {/* Footer Actions */}
-        <View class="flex-row items-center justify-end gap-2.5 border-t border-line bg-well/20 px-5 py-3">
+        <View class="shrink-0 flex-row items-center justify-end gap-2.5 border-t border-line bg-well/20 px-5 py-3">
           <Button
             disabled={isBusy()}
             onPress={dismissGlobalUpdateModal}

@@ -157,8 +157,8 @@ export function SettingsView(props?: {
     <View
       class={
         props?.embedded
-          ? "w-full px-5 pb-4 pt-1"
-          : "mx-auto w-full max-w-[640px] px-6 pb-12 pt-4"
+          ? "w-full flex-col px-5 pb-4 pt-1"
+          : "mx-auto w-full max-w-[640px] flex-col px-6 pb-12 pt-4"
       }
     >
       <Row label={m().settingsDownloadFolder}>

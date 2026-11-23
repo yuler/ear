@@ -83,12 +83,12 @@ function ShortcutsModalDialog(props: { onClose: () => void }) {
 
       {/* Centered Modal Card */}
       <View
-        style={{ maxHeight: "85%" }}
+        style={{ height: 620, maxHeight: "85%" }}
         class="relative w-full max-w-[820px] flex-col rounded-2xl border border-line bg-background shadow-2xl overflow-hidden z-10"
         accessibilityLabel="Keyboard Shortcuts Panel"
       >
         {/* Top Header */}
-        <View class="flex-row items-center justify-between border-b border-line px-5 py-4 bg-well/30">
+        <View class="shrink-0 flex-row items-center justify-between border-b border-line px-5 py-4 bg-well/30">
           <View class="flex-row items-center gap-3">
             <View class="h-8 w-8 items-center justify-center rounded-lg bg-primary/15 text-primary">
               <Icon name="help-circle" size={18} tone="primary" />
@@ -129,7 +129,7 @@ function ShortcutsModalDialog(props: { onClose: () => void }) {
         </View>
 
         {/* Scrollable Shortcut Categories (2 columns on wide screen) */}
-        <Scroll class="flex-1 p-5">
+        <Scroll class="min-h-0 flex-1 p-5">
           <View class="grid grid-cols-1 md:grid-cols-2 gap-4 pb-2">
             <Each of={SHORTCUT_CATEGORIES} key={(cat) => cat.key}>
               {(getCategory) => {
@@ -157,7 +157,7 @@ function ShortcutsModalDialog(props: { onClose: () => void }) {
         </Scroll>
 
         {/* Bottom Footer */}
-        <View class="flex-row items-center justify-between border-t border-line bg-well/20 px-5 py-2.5">
+        <View class="shrink-0 flex-row items-center justify-between border-t border-line bg-well/20 px-5 py-2.5">
           <Text class="text-[11px] text-muted-foreground">
             提示：在 Windows / Linux 上 Mod 键为{" "}
             <Text class="font-semibold text-foreground">Ctrl</Text>，在 macOS 上为{" "}

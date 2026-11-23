@@ -49,11 +49,11 @@ function SettingsModalDialog(props: {
       />
 
       <View
-        style={{ maxHeight: "85%" }}
+        style={{ height: 496, maxHeight: "85%" }}
         class="relative z-10 w-full max-w-[620px] flex-col overflow-hidden rounded-2xl border border-line bg-background shadow-2xl"
         accessibilityLabel={shellT().settings}
       >
-        <View class="flex-row items-center justify-between border-b border-line bg-well/30 px-5 py-3.5">
+        <View class="shrink-0 flex-row items-center justify-between border-b border-line bg-well/30 px-5 py-3.5">
           <View class="flex-row items-center gap-2.5">
             <View class="h-7 w-7 items-center justify-center rounded-lg bg-well">
               <Icon name="settings" size={15} tone="muted-foreground" />
@@ -72,7 +72,7 @@ function SettingsModalDialog(props: {
           </Button>
         </View>
 
-        <Scroll class="flex-1">
+        <Scroll class="min-h-0 flex-1">
           <SettingsView embedded onOpenShortcuts={props.onOpenShortcuts} />
         </Scroll>
       </View>
