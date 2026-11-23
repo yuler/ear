@@ -1,9 +1,11 @@
 import { keymap, Scroll, Text, View } from "nsh";
 import { Button } from "nsh/base";
 import { Icon } from "./Icon";
+import { settings } from "./settings";
 import {
   formatKeystroke,
-  SHORTCUT_CATEGORIES,
+  getShortcutCategories,
+  getShortcutsCopy,
   type ShortcutItem,
 } from "./shortcuts";
 
@@ -25,15 +27,10 @@ function KeycapBadge(props: { keyText: string }) {
 
 function ShortcutRow(props: { item: ShortcutItem }) {
   return (
-    <View class="flex-row items-center justify-between gap-3 py-1.5 border-b border-line/40 last:border-b-0">
-      <View class="min-w-0 flex-1 flex-col">
-        <Text class="text-xs font-medium text-foreground">
-          {props.item.label}
-        </Text>
-        <Text class="text-[10px] text-dim line-clamp-1">
-          {props.item.description}
-        </Text>
-      </View>
+    <View class="flex-row items-center justify-between gap-3 border-b border-line/40 py-2 last:border-b-0">
+      <Text class="min-w-0 flex-1 truncate text-xs font-medium text-foreground">
+        {props.item.label}
+      </Text>
       <View class="shrink-0 flex-row items-center gap-1">
         <Each of={props.item.keys} key={(k) => k}>
           {(k) => <KeycapBadge keyText={k()} />}
@@ -44,6 +41,9 @@ function ShortcutRow(props: { item: ShortcutItem }) {
 }
 
 function ShortcutsModalDialog(props: { onClose: () => void }) {
+  const copy = () => getShortcutsCopy(settings().language);
+  const categories = () => getShortcutCategories(settings().language);
+
   keymap.bind(
     {
       escape: props.onClose,
@@ -83,65 +83,41 @@ function ShortcutsModalDialog(props: { onClose: () => void }) {
 
       {/* Centered Modal Card */}
       <View
-        style={{ height: 620, maxHeight: "85%" }}
-        class="relative w-full max-w-[820px] flex-col rounded-2xl border border-line bg-background shadow-2xl overflow-hidden z-10"
-        accessibilityLabel="Keyboard Shortcuts Panel"
+        style={{ height: 480, maxHeight: "85%" }}
+        class="relative z-10 w-full max-w-[760px] flex-col overflow-hidden rounded-2xl border border-line bg-background shadow-2xl"
+        accessibilityLabel={copy().title}
       >
         {/* Top Header */}
-        <View class="shrink-0 flex-row items-center justify-between border-b border-line px-5 py-4 bg-well/30">
-          <View class="flex-row items-center gap-3">
-            <View class="h-8 w-8 items-center justify-center rounded-lg bg-primary/15 text-primary">
-              <Icon name="help-circle" size={18} tone="primary" />
+        <View class="shrink-0 flex-row items-center justify-between border-b border-line bg-well/30 px-5 py-3.5">
+          <View class="flex-row items-center gap-2.5">
+            <View class="h-7 w-7 items-center justify-center rounded-lg bg-well">
+              <Icon name="help-circle" size={15} tone="muted-foreground" />
             </View>
-            <View class="flex-col">
-              <View class="flex-row items-center gap-2">
-                <Text class="text-base font-bold text-foreground">
-                  快捷键指南
-                </Text>
-                <View class="rounded-full bg-ready/15 px-2 py-0.5">
-                  <Text class="font-mono text-[10px] font-semibold text-ready">
-                    通用全量驱动
-                  </Text>
-                </View>
-              </View>
-              <Text class="text-xs text-muted-foreground">
-                所有核心操作均可通过快捷键直接触发，兼顾 Windows 与 Linux 习惯
-              </Text>
-            </View>
+            <Text class="text-sm font-semibold text-foreground">
+              {copy().title}
+            </Text>
           </View>
 
-          <View class="flex-row items-center gap-2">
-            <View class="hidden items-center gap-1 sm:flex-row">
-              <Text class="font-mono text-[11px] text-dim">按</Text>
-              <KeycapBadge keyText="Esc" />
-              <Text class="font-mono text-[11px] text-dim">或</Text>
-              <KeycapBadge keyText="?" />
-              <Text class="font-mono text-[11px] text-dim">关闭</Text>
-            </View>
-            <Button
-              onPress={props.onClose}
-              class="h-7 w-7 items-center justify-center rounded-lg border border-line bg-well transition hover:bg-accent active:scale-95"
-              accessibilityLabel="Close"
-            >
-              <Icon name="x" size={13} tone="foreground" />
-            </Button>
-          </View>
+          <Button
+            onPress={props.onClose}
+            class="h-7 w-7 items-center justify-center rounded-lg border border-line bg-well transition hover:bg-accent active:scale-95"
+            accessibilityLabel={copy().close}
+          >
+            <Icon name="x" size={13} tone="foreground" />
+          </Button>
         </View>
 
         {/* Scrollable Shortcut Categories (2 columns on wide screen) */}
         <Scroll class="min-h-0 flex-1 p-5">
-          <View class="grid grid-cols-1 md:grid-cols-2 gap-4 pb-2">
-            <Each of={SHORTCUT_CATEGORIES} key={(cat) => cat.key}>
+          <View class="grid grid-cols-1 gap-4 pb-2 md:grid-cols-2">
+            <Each of={categories()} key={(cat) => cat.key}>
               {(getCategory) => {
                 const cat = getCategory();
                 return (
-                  <View class="flex-col rounded-xl border border-line bg-well/20 p-3.5 gap-1.5">
-                    <View class="flex-row items-center justify-between pb-1 border-b border-line/60">
-                      <Text class="text-xs font-bold text-primary tracking-wide">
+                  <View class="flex-col gap-1 rounded-xl border border-line bg-well/20 p-3.5">
+                    <View class="border-b border-line/60 pb-1.5">
+                      <Text class="text-xs font-semibold tracking-wide text-primary">
                         {cat.title}
-                      </Text>
-                      <Text class="text-[10px] text-dim font-mono">
-                        {cat.shortcuts.length} 组快捷键
                       </Text>
                     </View>
                     <View class="flex-col">
@@ -155,24 +131,6 @@ function ShortcutsModalDialog(props: { onClose: () => void }) {
             </Each>
           </View>
         </Scroll>
-
-        {/* Bottom Footer */}
-        <View class="shrink-0 flex-row items-center justify-between border-t border-line bg-well/20 px-5 py-2.5">
-          <Text class="text-[11px] text-muted-foreground">
-            提示：在 Windows / Linux 上 Mod 键为{" "}
-            <Text class="font-semibold text-foreground">Ctrl</Text>，在 macOS 上为{" "}
-            <Text class="font-semibold text-foreground">⌘ (Command)</Text>。
-          </Text>
-          <Button
-            onPress={props.onClose}
-            class="rounded-lg bg-primary px-3 py-1 active:opacity-90"
-            accessibilityLabel="Done"
-          >
-            <Text class="text-xs font-semibold text-primary-foreground">
-              知道了
-            </Text>
-          </Button>
-        </View>
       </View>
     </View>
   );

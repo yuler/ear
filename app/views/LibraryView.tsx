@@ -19,7 +19,7 @@ import type { ViewTransitionRect } from "./viewTransition";
 
 export { formatEntryDescription, isAudioEntry };
 
-const DISCOVER_PREVIEW_LIMIT = 4;
+const DISCOVER_PREVIEW_LIMIT = 12;
 
 /** Asks before deleting; resolves true when the user confirmed. */
 export async function confirmDelete(entry: LibraryEntry): Promise<boolean> {
@@ -194,16 +194,20 @@ export function LibraryView(props: {
         </View>
 
         <If when={discoverPreview().length > 0 && Boolean(props.onSelectDiscoverItem)}>
-          <View style={POSTER_GRID_STYLE}>
-            {discoverPreview().map((item) => (
-              <DiscoverCard
-                item={item}
-                onPress={(it, rect) => props.onSelectDiscoverItem?.(it, rect)}
-                isDownloaded={() => downloadedIds().has(item.videoId)}
-                download={() => downloadFor(item.videoId)}
-              />
-            ))}
-          </View>
+          <Scroll horizontal class="w-full" style={{ height: 186 }}>
+            <View class="flex-row gap-3 pb-2">
+              {discoverPreview().map((item) => (
+                <View class="w-[220px] shrink-0">
+                  <DiscoverCard
+                    item={item}
+                    onPress={(it, rect) => props.onSelectDiscoverItem?.(it, rect)}
+                    isDownloaded={() => downloadedIds().has(item.videoId)}
+                    download={() => downloadFor(item.videoId)}
+                  />
+                </View>
+              ))}
+            </View>
+          </Scroll>
         </If>
       </View>
     </If>

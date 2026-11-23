@@ -1,35 +1,51 @@
-import { keymap } from "nsh";
 import { expect, open, test } from "nsh/test";
 import {
   formatKeystroke,
+  getShortcutCategories,
+  getShortcutsCopy,
   SHORTCUT_CATEGORIES,
 } from "./shortcuts";
 import { ShortcutsModal } from "./ShortcutsModal";
 
-test("SHORTCUT_CATEGORIES covers the global, list and player domains", () => {
+test("SHORTCUT_CATEGORIES covers the global, list and player domains in both locales", () => {
   expect(SHORTCUT_CATEGORIES.map((c) => c.key)).toEqual(["global", "list", "player"]);
   const global = SHORTCUT_CATEGORIES[0].shortcuts.map((s) => s.keystroke);
   expect(global).toContain("mod+1");
   expect(global).toContain("mod+2");
   expect(global).not.toContain("mod+3");
 
-  for (const cat of SHORTCUT_CATEGORIES) {
-    expect(cat.title.length > 0).toBe(true);
-    expect(cat.description.length > 0).toBe(true);
-    expect(cat.shortcuts.length > 0).toBe(true);
-    for (const sc of cat.shortcuts) {
-      expect(Boolean(sc.id)).toBe(true);
-      expect(Boolean(sc.label)).toBe(true);
-      expect(Boolean(sc.description)).toBe(true);
-      expect(sc.keys.length > 0).toBe(true);
+  for (const locale of ["en", "zh"] as const) {
+    const categories = getShortcutCategories(locale);
+    expect(categories.map((c) => c.key)).toEqual(["global", "list", "player"]);
+    expect(getShortcutsCopy(locale).title.length > 0).toBe(true);
+    for (const cat of categories) {
+      expect(cat.title.length > 0).toBe(true);
+      expect(cat.shortcuts.length > 0).toBe(true);
+      for (const sc of cat.shortcuts) {
+        expect(Boolean(sc.id)).toBe(true);
+        expect(Boolean(sc.label)).toBe(true);
+        expect(sc.keys.length > 0).toBe(true);
+      }
     }
   }
 });
 
-test("formatKeystroke formats mod, shift and platform combinations safely", () => {
-  expect(typeof formatKeystroke("mod+1")).toBe("string");
-  expect(typeof formatKeystroke("shift+/")).toBe("string");
-  expect(typeof formatKeystroke("escape")).toBe("string");
+test("formatKeystroke adapts to macOS vs Linux / Windows automatically", () => {
+  expect(formatKeystroke("mod+1", "macos")).toBe("⌘1");
+  expect(formatKeystroke("mod+l", "macos")).toBe("⌘L");
+  expect(formatKeystroke("mod+,", "macos")).toBe("⌘,");
+  expect(formatKeystroke("alt+1", "macos")).toBe("⌥1");
+  expect(formatKeystroke("Backspace", "macos")).toBe("⌫");
+  expect(formatKeystroke("Delete", "macos")).toBe("⌦");
+
+  expect(formatKeystroke("mod+1", "linux")).toBe("Ctrl+1");
+  expect(formatKeystroke("mod+l", "linux")).toBe("Ctrl+L");
+  expect(formatKeystroke("mod+,", "linux")).toBe("Ctrl+,");
+  expect(formatKeystroke("alt+1", "linux")).toBe("Alt+1");
+  expect(formatKeystroke("Backspace", "linux")).toBe("Backspace");
+  expect(formatKeystroke("Delete", "linux")).toBe("Del");
+  expect(formatKeystroke("shift+/", "linux")).toBe("?");
+  expect(formatKeystroke("escape", "linux")).toBe("Esc");
 });
 
 test("ShortcutsModal traps Space, Enter, Delete, Backspace without affecting background state", async () => {
@@ -37,8 +53,8 @@ test("ShortcutsModal traps Space, Enter, Delete, Backspace without affecting bac
 
   // Open shortcuts modal with '?'
   await app.keyboard.press("shift+/");
-  await app.waitFor("快捷键指南");
-  expect(app.texts().some((t) => t.includes("快捷键指南"))).toBe(true);
+  await app.waitFor("Keyboard Shortcuts");
+  expect(app.texts().some((t) => t.includes("Keyboard Shortcuts"))).toBe(true);
 
   // Pressing Space, Enter, Delete, Backspace while modal is open should not crash or trigger background actions
   await app.keyboard.press("space");
@@ -48,11 +64,11 @@ test("ShortcutsModal traps Space, Enter, Delete, Backspace without affecting bac
   await app.keyboard.press("o");
 
   // Modal remains open and stable
-  expect(app.texts().some((t) => t.includes("快捷键指南"))).toBe(true);
+  expect(app.texts().some((t) => t.includes("Keyboard Shortcuts"))).toBe(true);
 
   // Press Escape to close modal
   await app.keyboard.press("escape");
-  expect(app.texts().every((t) => t !== "快捷键指南")).toBe(true);
+  expect(app.texts().every((t) => t !== "Keyboard Shortcuts")).toBe(true);
 });
 
 test("Overlay hierarchy: guide-over-player Escape closes only modal, and player prevents background deletion", async () => {
@@ -76,8 +92,8 @@ test("Overlay hierarchy: guide-over-player Escape closes only modal, and player 
 
   // 4. Open Shortcuts guide over the active player via keyboard shortcut '?'
   await app.keyboard.press("shift+/");
-  await app.waitFor("快捷键指南");
-  expect(app.texts().some((t) => t.includes("快捷键指南"))).toBe(true);
+  await app.waitFor("Keyboard Shortcuts");
+  expect(app.texts().some((t) => t.includes("Keyboard Shortcuts"))).toBe(true);
   expect(app.texts().some((t) => t.includes("Player is Active"))).toBe(true);
 
   // 5. While modal is open over player, Delete and Enter must not affect underlying state
@@ -89,7 +105,7 @@ test("Overlay hierarchy: guide-over-player Escape closes only modal, and player 
   // 6. Press Escape: MUST close only the modal, keeping player open!
   await app.keyboard.press("escape");
   await app.waitFor("Player is Active");
-  expect(app.texts().every((t) => t !== "快捷键指南")).toBe(true);
+  expect(app.texts().every((t) => t !== "Keyboard Shortcuts")).toBe(true);
   expect(app.texts().some((t) => t.includes("Player is Active"))).toBe(true);
 
   // 7. Press Escape again: closes player, returning to library
@@ -172,13 +188,13 @@ test("Keyboard shortcuts trigger modal via shift+/ and switch Library / Discover
   const app = await open("../App.tsx");
 
   await app.keyboard.press("shift+/");
-  await app.waitFor("快捷键指南");
-  expect(app.texts().some((t) => t.includes("全局导航"))).toBe(true);
-  expect(app.texts().some((t) => t.includes("列表与卡片漫游"))).toBe(true);
-  expect(app.texts().some((t) => t.includes("视频播放与精听"))).toBe(true);
+  await app.waitFor("Keyboard Shortcuts");
+  expect(app.texts().some((t) => t.includes("Navigation"))).toBe(true);
+  expect(app.texts().some((t) => t.includes("Library & Cards"))).toBe(true);
+  expect(app.texts().some((t) => t.includes("Player & Listening"))).toBe(true);
 
   await app.keyboard.press("escape");
-  expect(app.texts().every((t) => t !== "快捷键指南")).toBe(true);
+  expect(app.texts().every((t) => t !== "Keyboard Shortcuts")).toBe(true);
 
   // Starts on Library; mod+2 opens Discover page.
   await app.waitFor("Your library is empty");

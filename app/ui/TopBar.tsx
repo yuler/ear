@@ -1,4 +1,4 @@
-import { keymap, platform, Text, View, type InputRef } from "nsh";
+import { platform, Text, View, type InputRef } from "nsh";
 import { Button, Input, Popover } from "nsh/base";
 import { titleBar } from "nsh/desktop";
 import type { ClipboardVideoPreview } from "../clipboard";
@@ -6,6 +6,7 @@ import { globalUpdateAvailable } from "../updater";
 import { ClipboardCard } from "./ClipboardCard";
 import { Icon } from "./Icon";
 import { shellT } from "./shellI18n";
+import { formatKeystroke } from "./shortcuts";
 import { macTitleBarInsets } from "./titleBarInsets";
 
 export type AppPage = "library" | "discover";
@@ -93,7 +94,7 @@ export function TopBar(props: {
             </Button>
           </If>
           <View class="rounded border border-line px-1.5 py-0.5" accessibilityLabel={t().focusLink}>
-            <Text class="font-mono text-[10px] text-dim">{keymap.label("mod+l")}</Text>
+            <Text class="font-mono text-[10px] text-dim">{formatKeystroke("mod+l")}</Text>
           </View>
         </View>
       </If>

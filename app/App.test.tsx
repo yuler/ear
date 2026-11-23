@@ -66,11 +66,11 @@ test("Settings opens as a modal over Library, stacks Shortcuts modal, and Escape
   expect(has(app.texts(), "Your library is empty")).toBe(true);
 
   await app.press(`label:${MESSAGES.en.settingsShortcuts}`);
-  await app.waitFor("快捷键指南");
+  await app.waitFor("Keyboard Shortcuts");
 
   // First Escape closes Shortcuts only, keeping Settings modal open.
   await app.keyboard.press("escape");
-  expect(app.texts().every((t) => t !== "快捷键指南")).toBe(true);
+  expect(app.texts().every((t) => t !== "Keyboard Shortcuts")).toBe(true);
   expect(has(app.texts(), MESSAGES.en.settingsDownloadFolder)).toBe(true);
 
   // Second Escape closes Settings modal.
