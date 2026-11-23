@@ -1,0 +1,173 @@
+/* PROTOTYPE. Mirror, settings, scanner and transition styles (base styles: ios-mvp.css). */
+
+/* ---------- LAN mirror additions ---------- */
+.stage { gap: 36px; align-items: flex-start; flex-wrap: wrap; }
+.grow { flex: 1; min-width: 0; }
+.sync-text { min-width: 0; }
+.danger { color: var(--danger) !important; }
+
+/* Swipe-to-delete rows */
+.swipe { position: relative; border-radius: 14px; overflow: hidden; flex-shrink: 0; }
+.swipe-del { position: absolute; top: 0; right: 0; bottom: 0; width: 84px; border: 0; background: var(--danger);
+  color: #fff; font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; visibility: hidden; }
+.swipe.reveal .swipe-del { visibility: visible; }
+.swipe .card { position: relative; width: 100%; transition: transform 200ms ease; touch-action: pan-y; user-select: none; }
+.swipe .card.dragging { transition: none; }
+.card.locked { opacity: 1; }
+.card.locked .thumb, .card.locked .card-title { opacity: 0.6; }
+.thumb-prog { position: absolute; left: 0; bottom: 0; height: 3px; background: #fff; }
+.badge.again { border: 0; font: inherit; font-size: 10px; font-weight: 600; cursor: pointer; }
+.list-sec { font-size: 11px; color: var(--faint); padding: 8px 2px 0; }
+.list-hint { font-size: 11px; color: var(--dim); text-align: center; padding: 6px 0 10px; }
+.list-empty { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px;
+  color: var(--faint); font-size: 13px; text-align: center; padding: 0 30px; }
+.list-empty .primary-btn { flex: none; width: 100%; padding: 11px; }
+.list-empty-glyph { width: 56px; height: 56px; border-radius: 16px; background: var(--raised); display: grid; place-items: center;
+  font-size: 22px; color: var(--paper); }
+
+/* Pair sheet: camera + waiting */
+.camera { display: flex; flex-direction: column; align-items: center; gap: 12px; padding: 8px 0 4px; color: var(--paper); }
+.camera .primary-btn { flex: none; width: 100%; }
+.finder { width: 170px; height: 170px; border-radius: 18px; background: #000; border: 2px solid rgba(255, 255, 255, 0.85);
+  position: relative; overflow: hidden; }
+.finder::after { content: ""; position: absolute; left: 0; right: 0; height: 2px; background: rgba(255, 255, 255, 0.85);
+  animation: scanline 1.6s ease-in-out infinite alternate; }
+@keyframes scanline { from { top: 8%; } to { top: 92%; } }
+.spinner { width: 28px; height: 28px; border-radius: 50%; border: 3px solid var(--line); border-top-color: var(--paper);
+  animation: spin 1s linear infinite; }
+.pair-code { font-size: 26px; font-weight: 700; letter-spacing: 0.2em; font-variant-numeric: tabular-nums; }
+
+/* Background: home screen + Live Activity */
+.home { position: absolute; inset: 0; z-index: 25; padding: 52px 16px 16px; display: flex; flex-direction: column; gap: 22px;
+  background: linear-gradient(160deg, #3b4a6b, #1d2233 60%, #12141c); cursor: pointer; }
+.home.hidden { display: none; }
+.live { display: flex; gap: 10px; align-items: center; padding: 12px 14px; border-radius: 22px; background: rgba(18, 18, 18, 0.92); color: #fff; }
+.live-app { width: 32px; height: 32px; border-radius: 9px; background: #fafafa; color: #0a0a0a; display: grid; place-items: center; font-weight: 800; }
+.live-title { font-size: 13px; font-weight: 600; }
+.live-sub { font-size: 11px; opacity: 0.7; }
+.live-bar { height: 3px; margin-top: 6px; border-radius: 2px; background: rgba(255, 255, 255, 0.2); overflow: hidden; }
+.live-bar i { display: block; height: 100%; background: #fff; transition: width 200ms linear; }
+.apps { display: grid; grid-template-columns: repeat(4, 1fr); gap: 18px; padding: 4px 8px; }
+.apps i { aspect-ratio: 1; border-radius: 15px; background: rgba(255, 255, 255, 0.14); }
+
+/* Mac (server) panel */
+.mac { position: relative; width: 460px; border-radius: 14px; border: 1px solid var(--frame); background: var(--ground);
+  overflow: hidden; box-shadow: 0 28px 80px var(--shadow); font-size: 13px; }
+.mac-head { display: flex; align-items: center; gap: 10px; height: 40px; padding: 0 14px; border-bottom: 1px solid var(--line);
+  color: var(--faint); font-size: 12px; font-weight: 600; }
+.mac-lights { display: flex; gap: 6px; }
+.mac-lights i { width: 10px; height: 10px; border-radius: 50%; background: var(--dim); opacity: 0.6; }
+.mac-body { padding: 16px; display: flex; flex-direction: column; gap: 10px; }
+.mac-pair { display: flex; gap: 16px; padding: 14px; border: 1px solid var(--line); border-radius: 12px; background: var(--panel); }
+.mac-qr { width: 124px; height: 124px; padding: 8px; border-radius: 8px; background: #fff; flex-shrink: 0; }
+.mac-qr img { width: 100%; height: 100%; display: block; image-rendering: pixelated; }
+.mac-pair-info { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
+.mac-h { font-size: 14px; font-weight: 600; }
+.mac-muted { color: var(--faint); font-size: 12px; line-height: 1.5; }
+.mac-dim { color: var(--dim); font-size: 11px; font-variant-numeric: tabular-nums; }
+.mac-code { margin-top: auto; font-size: 22px; font-weight: 700; letter-spacing: 0.2em; font-variant-numeric: tabular-nums; }
+.mac-sec { font-size: 11px; font-weight: 600; color: var(--faint); margin-top: 6px; }
+.mac-clients { border: 1px solid var(--line); border-radius: 12px; background: var(--panel); }
+.mac-empty { padding: 14px; color: var(--faint); }
+.mac-client { display: flex; align-items: center; gap: 10px; padding: 10px 14px; }
+.mac-client + .mac-client { border-top: 1px solid var(--line); }
+.mac-glyph { width: 28px; height: 28px; border-radius: 8px; background: var(--raised); display: grid; place-items: center; color: var(--faint); }
+.mac-cname { font-weight: 600; }
+.mac-you { font-size: 10px; font-weight: 500; color: var(--faint); border: 1px solid var(--line); border-radius: 5px; padding: 0 4px; margin-left: 4px; }
+.mac-cline { font-size: 12px; color: var(--faint); }
+.mac-x { font: inherit; font-size: 11px; color: var(--danger); background: transparent; border: 1px solid var(--line);
+  border-radius: 7px; padding: 3px 8px; cursor: pointer; }
+.dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; margin-right: 5px; vertical-align: 1px; background: var(--dim); }
+.dot.on { background: var(--ready); }
+.dot.bg { background: var(--amber); }
+.mac-scrim { position: absolute; inset: 0; display: grid; place-items: center; background: rgba(0, 0, 0, 0.45); }
+.mac-modal { width: 300px; padding: 16px; border-radius: 14px; border: 1px solid var(--line); background: var(--panel); }
+.mac-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 12px; }
+.mac-actions .primary-btn { flex: none; padding: 7px 16px; }
+
+/* ---------- Several paired Macs ---------- */
+.mac-tabs { display: flex; gap: 4px; padding: 6px; background: var(--raised); border-bottom: 1px solid var(--line); }
+.mac-tab { flex: 1; font: inherit; font-size: 12px; padding: 6px 8px; border-radius: 8px; border: 0; background: transparent;
+  color: var(--faint); cursor: pointer; }
+.mac-tab.on { background: var(--ground); color: var(--paper); font-weight: 600; box-shadow: 0 1px 2px rgba(0, 0, 0, 0.15); }
+.mac-net { font-weight: 500; color: var(--dim); }
+.mac-lib { display: flex; flex-direction: column; gap: 4px; padding: 10px 14px; border: 1px solid var(--line); border-radius: 12px;
+  background: var(--panel); color: var(--faint); font-size: 12px; }
+.pair-list { padding: 0; }
+.pair-row { display: flex; align-items: center; gap: 10px; padding: 10px 12px; }
+.pair-row + .pair-row { border-top: 1px solid var(--line); }
+.sheet-notice { font-size: 12px; color: var(--amber); background: var(--amber-soft); border-radius: 10px; padding: 8px 10px; }
+.sheet-body > .primary-btn { flex: none; width: 100%; padding: 11px; }
+
+/* ---------- Header gear + quick pair ---------- */
+.gear-btn { width: 36px; height: 36px; border-radius: 50%; border: 1px solid var(--line); background: var(--panel);
+  color: var(--paper); font-size: 17px; cursor: pointer; display: grid; place-items: center; }
+.quick { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px;
+  padding: 0 28px 40px; text-align: center; }
+.quick-qr { width: 88px; height: 88px; border-radius: 24px; background: var(--raised); display: grid; place-items: center;
+  font-size: 34px; color: var(--paper); }
+.quick h3 { margin: 4px 0 0; font-size: 19px; }
+.quick p { margin: 0; font-size: 13px; line-height: 1.5; color: var(--faint); }
+.quick .primary-btn { flex: none; width: 100%; padding: 13px; border-radius: 14px; font-size: 15px; margin-top: 8px; }
+
+/* ---------- Settings sheet ---------- */
+.sheet { max-height: 86%; overflow-y: auto; }
+.set-group { border-radius: 14px; background: var(--raised); overflow: hidden; }
+.set-row { display: flex; align-items: center; gap: 10px; padding: 11px 12px; min-height: 48px; color: var(--paper);
+  width: 100%; border: 0; background: transparent; font: inherit; text-align: left; }
+.set-row + .set-row { border-top: 1px solid var(--line); }
+.set-label { font-size: 14px; font-weight: 500; color: var(--paper); }
+.set-desc { font-size: 11px; color: var(--faint); margin-top: 2px; }
+.set-title { font-size: 12px; font-weight: 600; color: var(--faint); margin: 8px 2px -2px; }
+.set-action { color: var(--paper); font-weight: 600; justify-content: center; cursor: pointer; }
+.set-foot { font-size: 11px; line-height: 1.5; color: var(--dim); padding: 0 2px; }
+.seg { display: flex; gap: 2px; padding: 2px; border-radius: 9px; background: var(--ground); border: 1px solid var(--line); }
+.seg button { font: inherit; font-size: 12px; padding: 4px 9px; border-radius: 7px; border: 0; background: transparent;
+  color: var(--faint); cursor: pointer; }
+.seg button.on { background: var(--paper); color: var(--ground); font-weight: 600; }
+.switch { width: 46px; height: 28px; border-radius: 14px; border: 0; background: var(--line); position: relative; cursor: pointer; flex-shrink: 0;
+  transition: background 160ms; }
+.switch i { position: absolute; top: 3px; left: 3px; width: 22px; height: 22px; border-radius: 50%; background: #fff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3); transition: transform 160ms; }
+.switch.on { background: var(--ready); }
+.switch.on i { transform: translateX(18px); }
+
+/* ---------- Full-screen scanner ---------- */
+.scan { position: absolute; inset: 0; z-index: 35; background: #000; color: #fff; display: flex; flex-direction: column;
+  animation: scan-in 220ms ease-out; }
+.scan.hidden { display: none; }
+@keyframes scan-in { from { opacity: 0; transform: scale(1.04); } to { opacity: 1; transform: none; } }
+.scan-feed { position: absolute; inset: 0; background:
+  radial-gradient(circle at 30% 30%, #3a3a44 0, transparent 45%), radial-gradient(circle at 70% 75%, #2b3340 0, transparent 50%), #0b0b0e;
+  filter: blur(6px); animation: drift 9s ease-in-out infinite alternate; }
+.scan-cancel { position: absolute; top: 50px; left: 16px; z-index: 2; font: inherit; font-size: 14px; color: #fff;
+  background: rgba(255, 255, 255, 0.14); border: 0; border-radius: 999px; padding: 6px 14px; cursor: pointer; }
+.scan-center { position: relative; flex: 1; display: grid; place-items: center; }
+.scan .finder { width: 220px; height: 220px; border: 0; border-radius: 0; background: rgba(255, 255, 255, 0.04); overflow: visible; transition: transform 200ms; }
+.scan .finder::after { display: none; }
+.scan .finder b { position: absolute; width: 34px; height: 34px; border: 4px solid #fff; transition: border-color 200ms; }
+.scan .finder b:nth-child(1) { top: 0; left: 0; border-right: 0; border-bottom: 0; border-top-left-radius: 14px; }
+.scan .finder b:nth-child(2) { top: 0; right: 0; border-left: 0; border-bottom: 0; border-top-right-radius: 14px; }
+.scan .finder b:nth-child(3) { bottom: 0; left: 0; border-right: 0; border-top: 0; border-bottom-left-radius: 14px; }
+.scan .finder b:nth-child(4) { bottom: 0; right: 0; border-left: 0; border-top: 0; border-bottom-right-radius: 14px; }
+.scan .finder.found { transform: scale(0.92); }
+.scan .finder.found b { border-color: #6fd08c; }
+.scan .finder.bad b { border-color: #e27a6c; }
+.scanline { position: absolute; left: 12px; right: 12px; height: 2px; background: rgba(255, 255, 255, 0.85);
+  box-shadow: 0 0 12px rgba(255, 255, 255, 0.8); animation: scanline 1.3s ease-in-out infinite alternate; }
+.scan-card { position: relative; margin: 0 16px 34px; padding: 16px; border-radius: 20px; background: rgba(28, 28, 30, 0.92);
+  display: flex; flex-direction: column; align-items: center; gap: 6px; text-align: center; animation: card-up 220ms ease-out; }
+@keyframes card-up { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
+.scan-title { font-size: 15px; font-weight: 600; }
+.scan-title.bad { color: #f0a094; }
+.scan-sub { font-size: 12px; color: rgba(255, 255, 255, 0.6); }
+.scan-ok { width: 44px; height: 44px; border-radius: 50%; background: #3f9d5d; display: grid; place-items: center; font-size: 22px; }
+.scan-card .primary-btn { flex: none; width: 100%; margin-top: 6px; background: #fff; color: #000; }
+.scan-card .spinner { border-color: rgba(255, 255, 255, 0.2); border-top-color: #fff; }
+
+/* ---------- Poster → video transition ---------- */
+.hero { position: absolute; z-index: 32; pointer-events: none; overflow: hidden; border-radius: 8px;
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.35); background-size: cover; }
+.screen.under { position: absolute; inset: 0; pointer-events: none; }
+.poster-layer { position: absolute; inset: 0; transition: opacity 500ms ease; }
+.poster-layer.gone { opacity: 0; }

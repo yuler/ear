@@ -29,6 +29,9 @@ const mmss = (s) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
 function selfLine(mac) {
   const mine = phoneLibrary().filter((x) => mac.library.includes(x.id) && x.status !== "removed");
   const ready = mine.filter((x) => x.status === "ready").length;
+  if (isPaired(mac.id) && state.wifi === mac.network && pausedInBackground()) {
+    return `<span class="dot bg"></span>后台 · 后台同步已关闭 · 已有 ${ready}/${mine.length}`;
+  }
   if (!reachable(mac)) return `<span class="dot"></span>不在此网络 · 已有 ${ready}/${mine.length}`;
   const where = state.background ? `<span class="dot bg"></span>后台` : `<span class="dot on"></span>在线`;
   return ready === mine.length ? `${where} · 已镜像全部 ${mine.length} 个` : `${where} · 镜像中 ${ready}/${mine.length}`;

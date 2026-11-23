@@ -4,9 +4,13 @@
   Mac = server, phones = clients (several can pair). Files:
     ios-transport.js  Transport seam (LAN only; TODO(relay) for a custom relay, not in UI)
     ios-sync.js       pairing + background mirror engine
+    ios-i18n.js       phone UI strings (zh / en)
     ios-mac.js        Mac side panels (QR, pair prompt, client list), one per Mac
     ios-player.js     top-bottom player
-    ios-mvp.js        phone UI, pair management, gestures, boot
+    ios-transition.js poster → video shared-element transition (as on desktop)
+    ios-settings.js   settings sheet + full-screen pair scanner
+    ios-mvp.js        phone library, gestures, boot
+    ios-mirror.css    styles for mirror, settings, scanner, transition
 -->
 <html lang="zh-CN" data-theme="dark">
 <head>
@@ -14,6 +18,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Ear iOS MVP · 原型预览</title>
   <link rel="stylesheet" href="./ios-mvp.css" />
+  <link rel="stylesheet" href="./ios-mirror.css" />
 </head>
 <body>
   <header class="sim-bar">
@@ -23,7 +28,6 @@
       <button id="simBgBtn" class="sim-btn" type="button">切到后台</button>
       <button id="simAddMacBtn" class="sim-btn" type="button">+ 右侧电脑新下好 1 个视频</button>
       <button id="simClientBtn" class="sim-btn" type="button">+ 其他设备配对到右侧电脑</button>
-      <button id="themeBtn" class="sim-btn" type="button">◐ 黑 / 白</button>
     </div>
   </header>
 
@@ -36,12 +40,9 @@
         <div class="top-header">
           <div>
             <h1>Ear</h1>
-            <p class="subtitle">Local Listening Mirror</p>
+            <p class="subtitle" data-i18n="subtitle">Local Listening Mirror</p>
           </div>
-          <button id="offlineToggle" class="offline-pill" type="button" aria-pressed="false">
-            <span class="dot"></span>
-            <span id="offlineLabel">Offline Mode</span>
-          </button>
+          <button class="gear-btn" type="button" data-act="open-settings" aria-label="设置">⚙</button>
         </div>
 
         <div id="syncBanner" class="sync-banner">
@@ -53,7 +54,6 @@
                 <div id="syncDetail" class="sync-detail"></div>
               </div>
             </div>
-            <button id="pairEntryBtn" class="ghost-btn" type="button">设备</button>
           </div>
           <div id="syncProgressWrap" class="sync-progress-wrap hidden">
             <div id="syncProgressBar" class="sync-progress-bar"></div>
@@ -66,10 +66,9 @@
       <!-- View 2: Top-Bottom Player -->
       <div id="playerView" class="screen">
         <div class="player-nav">
-          <button id="backToLibBtn" class="nav-btn" type="button">‹ 返回</button>
+          <button id="backToLibBtn" class="nav-btn" type="button" data-i18n="back">‹ 返回</button>
           <div id="playerTitle" class="player-title">Video Title</div>
           <div class="player-nav-right">
-            <span id="playerOfflineTag" class="mini-badge hidden">Offline</span>
             <button id="speedBtn" class="speed-pill" type="button">1.0× </button>
           </div>
         </div>
@@ -78,6 +77,7 @@
         <div class="video-stage" id="videoTapArea">
           <div class="video-canvas">
             <div class="ambient-scene" id="ambientScene"></div>
+            <div class="poster-layer" id="posterLayer"></div>
             <div class="video-caption-chip" id="videoTimeLabel">00:12 / 02:45</div>
             <div id="playOverlay" class="play-overlay">▶</div>
           </div>
@@ -98,7 +98,7 @@
           </button>
           <button id="prevSentBtn" class="ctrl-btn" type="button" title="上一句">
             <span class="ctrl-glyph">⏮</span>
-            <span class="ctrl-label">上一句</span>
+            <span class="ctrl-label" data-i18n="prev">上一句</span>
           </button>
           <button id="playPauseBtn" class="ctrl-btn primary" type="button" title="播放或暂停">
             <span class="ctrl-glyph" id="playPauseGlyph">⏸</span>
@@ -109,22 +109,25 @@
           </button>
           <button id="nextSentBtn" class="ctrl-btn" type="button" title="下一句">
             <span class="ctrl-glyph">⏭</span>
-            <span class="ctrl-label">下一句</span>
+            <span class="ctrl-label" data-i18n="next">下一句</span>
           </button>
         </div>
       </div>
 
-      <!-- Modal Sheet: Pair (QR scan over LAN) / paired device -->
-      <div id="pairSheetBackdrop" class="sheet-backdrop hidden">
-        <div class="sheet" role="dialog" aria-modal="true" aria-label="已配对的电脑">
+      <!-- Settings sheet: appearance, language, background sync, paired computers -->
+      <div id="settingsBackdrop" class="sheet-backdrop hidden">
+        <div class="sheet" role="dialog" aria-modal="true">
           <div class="sheet-handle"></div>
           <div class="sheet-head">
-            <h2 id="sheetTitle">已配对的电脑</h2>
-            <button id="closeSheetBtn" class="ghost-btn" type="button">关闭</button>
+            <h2 data-i18n="settings">设置</h2>
+            <button class="ghost-btn" type="button" data-act="close-settings" data-i18n="close">完成</button>
           </div>
-          <div id="sheetBody" class="sheet-body"></div>
+          <div id="settingsBody" class="sheet-body"></div>
         </div>
       </div>
+
+      <!-- Full-screen pair scanner -->
+      <div id="scanView" class="scan hidden"></div>
 
       <!-- App in background: home screen + Live Activity -->
       <div id="homeScreen" class="home hidden"></div>
@@ -136,9 +139,12 @@
   </main>
 
   <script src="./ios-transport.js"></script>
+  <script src="./ios-i18n.js"></script>
   <script src="./ios-sync.js"></script>
   <script src="./ios-mac.js"></script>
   <script src="./ios-player.js"></script>
+  <script src="./ios-transition.js"></script>
+  <script src="./ios-settings.js"></script>
   <script src="./ios-mvp.js"></script>
 </body>
 </html>

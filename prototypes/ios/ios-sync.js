@@ -14,8 +14,10 @@ const TICK_MS = 200;
 const newPairCode = () => String(Math.floor(1000 + Math.random() * 9000));
 const macById = (id) => state.macs.find((m) => m.id === id);
 const isPaired = (macId) => state.pairs.includes(macId);
-/** A paired Mac the phone can reach right now (same Wi-Fi, not in Offline Mode). */
-const reachable = (mac) => isPaired(mac.id) && !state.offlineMode && state.wifi === mac.network;
+/** Background sync off + app in background: mirroring waits until Ear is open again. */
+const pausedInBackground = () => state.background && !state.settings.backgroundSync;
+/** A paired Mac the phone can reach right now (same Wi-Fi, not paused). */
+const reachable = (mac) => isPaired(mac.id) && state.wifi === mac.network && !pausedInBackground();
 const local = (videoId) => state.items[videoId];
 
 /** Macs (paired) that have `videoId`. */
@@ -49,6 +51,8 @@ function syncStats() {
 }
 
 // Pairing (phone side) ------------------------------------------------------
+// pairFlow: idle → scan → waiting (Mac asks the user) → done | error. Notices are
+// { key, name } so the UI can translate them (ios-i18n.js).
 
 function startScan() {
   state.pairFlow = "scan";
@@ -58,19 +62,19 @@ function startScan() {
 /** The phone scans the QR of the Mac on screen; only works on that Mac's Wi-Fi. */
 function scanSucceeded() {
   const mac = macById(state.viewMac);
+  state.pairingMac = mac.id;
   if (state.wifi !== mac.network) {
-    state.pairFlow = "idle";
-    state.pairNotice = `手机和「${mac.name}」不在同一个 Wi-Fi`;
+    state.pairFlow = "error";
+    state.pairNotice = { key: "notSameWifi", name: mac.name };
     return;
   }
   if (isPaired(mac.id)) {
-    state.pairFlow = "idle";
-    state.pairNotice = `已经配对过「${mac.name}」`;
+    state.pairFlow = "error";
+    state.pairNotice = { key: "alreadyPaired", name: mac.name };
     return;
   }
   state.pairFlow = "waiting";
   state.scannedCode = mac.code;
-  state.pairingMac = mac.id;
   mac.request = true;
 }
 
@@ -87,12 +91,12 @@ function answerPair(allow, macId = state.pairingMac) {
   const mac = macById(macId);
   if (!mac) return;
   mac.request = false;
-  state.pairingMac = null;
-  state.pairFlow = "idle";
   if (!allow) {
-    state.pairNotice = `「${mac.name}」拒绝了配对`;
+    state.pairFlow = "error";
+    state.pairNotice = { key: "refused", name: mac.name };
     return;
   }
+  state.pairFlow = "done";
   state.pairs.push(mac.id);
   state.pairNotice = null;
   mac.clients.unshift({ id: "self", name: "这台 iPhone", self: true });
@@ -109,7 +113,7 @@ function unpairMac(macId, byMac) {
   for (const [vid, it] of Object.entries(state.items)) {
     if (it.state === "syncing" && it.from === macId) delete state.items[vid];
   }
-  state.pairNotice = byMac ? `已被「${mac.name}」移除` : null;
+  state.pairNotice = byMac ? { key: "removedByPc", name: mac.name } : null;
 }
 
 /** Another client (simulated) pairs to a Mac: shows the multi-client server. */

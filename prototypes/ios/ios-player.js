@@ -1,5 +1,6 @@
 // PROTOTYPE. Top-bottom player: pinned 16:9 video, scrolling subtitles, blind mask,
-// single-sentence loop, speed. Uses the globals `state` and `el` from ios-mvp.js.
+// single-sentence loop, speed. Uses the globals `state`, `el`, `posterCss` from ios-mvp.js.
+// Opened through the poster → video transition in ios-transition.js.
 
 const SENTENCES = [
   { start: 0, end: 12, text: "When you acquire a second language, comprehension always comes first." },
@@ -24,6 +25,13 @@ function openPlayer(item) {
   state.currentTime = 0;
   state.playing = true;
   el("playerTitle").textContent = item.title;
+  // The poster covers the video until "playback" starts, so the hero lands on the same image.
+  const poster = posterCss(item);
+  el("ambientScene").dataset.poster = poster;
+  const layer = el("posterLayer");
+  layer.style.background = poster;
+  layer.classList.remove("gone");
+  setTimeout(() => layer.classList.add("gone"), 700);
   el("libraryView").classList.remove("active");
   el("playerView").classList.add("active");
   startPlayLoop();
@@ -59,16 +67,15 @@ function stopPlayLoop() {
 function renderPlayer() {
   const totalSec = SENTENCES[SENTENCES.length - 1].end;
   const cur = SENTENCES[state.currentSentenceIdx];
-  el("playerOfflineTag").classList.toggle("hidden", !state.offlineMode);
   el("speedBtn").textContent = `${state.speeds[state.speedIndex].toFixed(1)}×`;
   el("videoTimeLabel").textContent = `${formatSec(state.currentTime)} / ${formatSec(totalSec)}`;
   el("ambientScene").classList.toggle("paused", !state.playing);
   el("playOverlay").classList.toggle("visible", !state.playing);
   el("playPauseGlyph").textContent = state.playing ? "⏸" : "▶";
   el("maskBtn").classList.toggle("on", state.masked);
-  el("maskLabel").textContent = state.masked ? "盲听中" : "遮罩";
+  el("maskLabel").textContent = state.masked ? t("masking") : t("mask");
   el("loopBtn").classList.toggle("on", state.loopSentence);
-  el("loopLabel").textContent = state.loopSentence ? "循环中" : "顺序";
+  el("loopLabel").textContent = state.loopSentence ? t("looping") : t("sequential");
   el("timelineFill").style.width = `${(state.currentTime / totalSec) * 100}%`;
   el("loopHighlight").style.left = `${(cur.start / totalSec) * 100}%`;
   el("loopHighlight").style.width = `${((cur.end - cur.start) / totalSec) * 100}%`;
@@ -91,7 +98,7 @@ function jumpSentence(idx) {
 }
 
 function bindPlayer() {
-  el("backToLibBtn").onclick = closePlayer;
+  el("backToLibBtn").onclick = closeDetail;
   el("videoTapArea").onclick = () => { state.playing = !state.playing; renderPlayer(); };
   el("playPauseBtn").onclick = () => { state.playing = !state.playing; renderPlayer(); };
   el("maskBtn").onclick = () => { state.masked = !state.masked; renderPlayer(); };

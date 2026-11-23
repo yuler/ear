@@ -6,7 +6,8 @@ const path = require("node:path");
 const test = require("node:test");
 const vm = require("node:vm");
 
-const FILES = ["ios-transport.js", "ios-sync.js", "ios-mac.js", "ios-player.js", "ios-mvp.js"];
+const FILES = ["ios-transport.js", "ios-i18n.js", "ios-sync.js", "ios-mac.js", "ios-player.js",
+  "ios-transition.js", "ios-settings.js", "ios-mvp.js"];
 const sources = FILES.map((f) => fs.readFileSync(path.join(__dirname, f), "utf8"));
 
 function loadPrototype() {
@@ -15,7 +16,8 @@ function loadPrototype() {
   let nextTimer = 0;
   function element(id) {
     if (!elements.has(id)) {
-      const classes = new Set();
+      // Overlays start hidden, as in the HTML.
+      const classes = new Set(["scanView", "settingsBackdrop", "homeScreen"].includes(id) ? ["hidden"] : []);
       elements.set(id, {
         textContent: "", innerHTML: "", style: {}, dataset: {},
         setAttribute() {},
@@ -39,11 +41,14 @@ function loadPrototype() {
     document: {
       getElementById: element,
       addEventListener() {},
+      querySelector: () => null,
+      querySelectorAll: () => [],
       createElement: () => canvas,
       documentElement: { dataset: {} }
     },
     matchMedia: () => ({ matches: false }),
     setTimeout: (fn) => fn(),
+    clearTimeout() {},
     setInterval(fn) { const id = ++nextTimer; timers.set(id, fn); return id; },
     clearInterval(id) { timers.delete(id); }
   });
@@ -90,6 +95,7 @@ test("an unpaired phone mirrors nothing", () => {
 test("pairing needs the Mac to allow it, then that Mac's library mirrors", () => {
   const p = loadPrototype();
   p.run("startScan(); scanSucceeded();");
+  assert.equal(p.state.pairFlow, "waiting");
   assert.equal(p.run("macById('home').request"), true);
   p.tick();
   assert.equal(syncingCount(p), 0);
@@ -104,16 +110,18 @@ test("scanning a Mac on another Wi-Fi does not pair", () => {
   const p = loadPrototype();
   p.state.viewMac = "office"; // phone is on home Wi-Fi
   p.run("startScan(); scanSucceeded();");
-  assert.equal(p.state.pairFlow, "idle");
+  assert.equal(p.state.pairFlow, "error");
   assert.equal(p.run("macById('office').request"), false);
-  assert.match(p.state.pairNotice, /不在同一个 Wi-Fi/);
+  assert.equal(p.state.pairNotice.key, "notSameWifi");
+  assert.match(p.run("noticeText(state.pairNotice)"), /不在同一个 Wi-Fi/);
 });
 
 test("a refused pairing leaves the phone unpaired", () => {
   const p = loadPrototype();
   p.run("startScan(); scanSucceeded(); answerPair(false);");
   assert.equal(p.state.pairs.length, 0);
-  assert.match(p.state.pairNotice, /拒绝/);
+  assert.equal(p.state.pairFlow, "error");
+  assert.equal(p.state.pairNotice.key, "refused");
 });
 
 test("at most MAX_PARALLEL files transfer at once, across Macs", () => {
@@ -127,7 +135,11 @@ test("at most MAX_PARALLEL files transfer at once, across Macs", () => {
 });
 
 const interruptions = [
-  { name: "offline mode", pause: (p) => p.click("offlineToggle"), resume: (p) => p.click("offlineToggle") },
+  {
+    name: "background with background sync off",
+    pause(p) { p.state.settings.backgroundSync = false; p.state.background = true; },
+    resume(p) { p.state.background = false; }
+  },
   { name: "leaving the Wi-Fi", pause: (p) => p.wifi("none"), resume: (p) => p.wifi("home") },
   { name: "unpair", pause: (p) => p.run("unpairMac('home', false)"), resume: (p) => p.pairWith("home") },
   { name: "removed on the Mac", pause: (p) => p.run("removeClient('home', 'self')"), resume: (p) => p.pairWith("home") }
@@ -236,4 +248,29 @@ test("several clients pair to the same Mac", () => {
   p.run("removeClient('home', 'iPad mini')");
   assert.equal(p.run("macById('home').clients.map((c) => c.name).join()"), "这台 iPhone,Pixel 8");
   assert.equal(p.state.pairs.join(), "home");
+});
+
+test("background sync on keeps mirroring while the app is in the background", () => {
+  const p = loadPrototype();
+  p.pairWith("home");
+  p.state.background = true;
+  p.settle();
+  for (const id of HOME) assert.equal(p.status(id), "ready");
+});
+
+test("a successful pairing ends in the done step, ready for the scanner to close", () => {
+  const p = loadPrototype();
+  p.pairWith("home");
+  assert.equal(p.state.pairFlow, "done");
+  p.run("closeScan()");
+  assert.equal(p.state.pairFlow, "idle");
+  assert.equal(p.state.pairs.join(), "home");
+});
+
+test("notices follow the interface language", () => {
+  const p = loadPrototype();
+  p.state.viewMac = "office";
+  p.run("startScan(); scanSucceeded();");
+  p.state.settings.lang = "en";
+  assert.match(p.run("noticeText(state.pairNotice)"), /not on the same Wi-Fi/);
 });
