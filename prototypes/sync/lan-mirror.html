@@ -1,0 +1,40 @@
+<!doctype html>
+<!--
+  PROTOTYPE (throwaway): LAN mirror between Ear desktop (server) and phones (clients).
+  Question: what should pairing + background mirroring look like on PC and phone?
+  Files: lan-mirror.css (styles), transport.js (Transport seam, LAN only; relay TODO),
+  mirror.js (in-memory state + mirror engine), lan-mirror.js (rendering + gestures).
+  Open this file directly in a browser. No persistence.
+-->
+<html lang="zh-CN" data-theme="dark">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Ear 原型 · 局域网镜像</title>
+<link rel="stylesheet" href="lan-mirror.css" />
+</head>
+<body>
+  <header class="proto-bar">
+    <span class="proto-tag">PROTOTYPE</span>
+    <span class="proto-title">局域网镜像：电脑是服务端，手机扫码配对后自动后台镜像</span>
+    <span class="grow"></span>
+    <button id="add-pc-video" class="pbtn">电脑新增一个视频</button>
+    <button id="add-phone" class="pbtn">+ 添加手机</button>
+    <button id="theme" class="pbtn" title="切换黑白模式">◐ 黑 / 白</button>
+  </header>
+
+  <main class="stage">
+    <section id="pc" class="pc"></section>
+    <section id="phones" class="phones"></section>
+  </main>
+
+  <details class="state-panel">
+    <summary>state</summary>
+    <pre id="state"></pre>
+  </details>
+
+  <script src="transport.js"></script>
+  <script src="mirror.js"></script>
+  <script src="lan-mirror.js"></script>
+</body>
+</html>
