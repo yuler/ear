@@ -30,6 +30,7 @@
   "capabilities": {
     "statusBar": true,
     "clipboard": true,
+    "homeDir": true,
     "network": {
       "hosts": [
         "*.youtube.com",

@@ -15,6 +15,7 @@ import type { Appearance, DefaultQuality, EarLocale } from "../store";
 import { t, type I18nMessages } from "../ui/i18n";
 import { Icon } from "../ui/Icon";
 import { settings, updateSettings } from "../ui/settings";
+import { MirrorSettingsCard } from "./MirrorSettingsCard";
 
 type Option<T> = { value: T; label: string };
 
@@ -227,6 +228,10 @@ export function SettingsView(props?: {
           thumbClass="h-4 w-4 rounded-full bg-background transition checked:translate-x-4"
         />
       </Row>
+
+      <View class="border-b border-line py-4">
+        <MirrorSettingsCard />
+      </View>
 
       <Row
         label={m().settingsVersion}

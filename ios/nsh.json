@@ -1,0 +1,29 @@
+{
+  "name": "Ear",
+  "id": "dev.yuler.ear",
+  "version": "0.0.0",
+  "build": 1,
+  "icon": "icon.png",
+  "appearance": "system",
+  "theme": "theme.json",
+  "schemes": ["ear"],
+  "ios": {
+    "infoPlist": {
+      "NSLocalNetworkUsageDescription": "Ear connects to Ear on your Mac or PC over the same Wi-Fi to mirror downloaded videos and captions for offline listening.",
+      "NSAppTransportSecurity": {
+        "NSAllowsLocalNetworking": true
+      }
+    }
+  },
+  "capabilities": {
+    "statusBar": true,
+    "clipboard": true,
+    "network": {
+      "hosts": ["*"]
+    },
+    "fs": {
+      "read": ["${dataDir}"],
+      "write": ["${dataDir}"]
+    }
+  }
+}
