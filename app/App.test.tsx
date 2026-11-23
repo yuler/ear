@@ -56,7 +56,7 @@ test("a clipboard link pops a card with quality, subtitle options and Download, 
   await app.waitUntil(() => app.texts().every((t) => !t.toLowerCase().includes("subtitles")));
 });
 
-test("Settings opens as a modal over Library, stacks Shortcuts modal, and Escape closes layer by layer", async () => {
+test("Settings opens as a modal over Library, closes when opening Shortcuts, and Escape returns to Library", async () => {
   const app = await open("./App.tsx");
   await app.waitFor("Your library is empty");
 
@@ -67,14 +67,12 @@ test("Settings opens as a modal over Library, stacks Shortcuts modal, and Escape
 
   await app.press(`label:${MESSAGES.en.settingsShortcuts}`);
   await app.waitFor("Keyboard Shortcuts");
+  // Settings modal closes when navigating to Keyboard Shortcuts.
+  expect(has(app.texts(), MESSAGES.en.settingsDownloadFolder)).toBe(false);
 
-  // First Escape closes Shortcuts only, keeping Settings modal open.
+  // Escape closes Shortcuts and returns directly to Library.
   await app.keyboard.press("escape");
   expect(app.texts().every((t) => t !== "Keyboard Shortcuts")).toBe(true);
-  expect(has(app.texts(), MESSAGES.en.settingsDownloadFolder)).toBe(true);
-
-  // Second Escape closes Settings modal.
-  await app.keyboard.press("escape");
   expect(has(app.texts(), MESSAGES.en.settingsDownloadFolder)).toBe(false);
   expect(has(app.texts(), "Your library is empty")).toBe(true);
 });

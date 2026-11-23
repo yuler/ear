@@ -125,21 +125,6 @@ const CATEGORIES_BY_LOCALE: Record<EarLocale, ShortcutCategory[]> = {
       ],
     },
     {
-      key: "list",
-      title: "Library & Cards",
-      shortcuts: [
-        { id: "list-arrows", keystroke: "arrows", label: "Move focus", keys: ["↑", "↓", "←", "→"] },
-        { id: "list-enter", keystroke: "enter", label: "Open item", keys: ["Enter"] },
-        { id: "list-open-folder", keystroke: "o", label: "Open folder", keys: ["O"] },
-        {
-          id: "list-delete",
-          keystroke: "delete",
-          label: "Delete item",
-          keys: ["Delete", "Backspace"],
-        },
-      ],
-    },
-    {
       key: "player",
       title: "Player & Listening",
       shortcuts: [
@@ -161,6 +146,21 @@ const CATEGORIES_BY_LOCALE: Record<EarLocale, ShortcutCategory[]> = {
           keystroke: "alt+1 / 2 / 3",
           label: "Sentence length",
           keys: ["alt+1", "alt+2", "alt+3"],
+        },
+      ],
+    },
+    {
+      key: "list",
+      title: "Library & Cards",
+      shortcuts: [
+        { id: "list-arrows", keystroke: "arrows", label: "Move focus", keys: ["↑", "↓", "←", "→"] },
+        { id: "list-enter", keystroke: "enter", label: "Open item", keys: ["Enter"] },
+        { id: "list-open-folder", keystroke: "o", label: "Open folder", keys: ["O"] },
+        {
+          id: "list-delete",
+          keystroke: "delete",
+          label: "Delete item",
+          keys: ["Delete", "Backspace"],
         },
       ],
     },
@@ -189,21 +189,6 @@ const CATEGORIES_BY_LOCALE: Record<EarLocale, ShortcutCategory[]> = {
       ],
     },
     {
-      key: "list",
-      title: "列表与卡片",
-      shortcuts: [
-        { id: "list-arrows", keystroke: "arrows", label: "移动焦点", keys: ["↑", "↓", "←", "→"] },
-        { id: "list-enter", keystroke: "enter", label: "打开播放", keys: ["Enter"] },
-        { id: "list-open-folder", keystroke: "o", label: "打开所在目录", keys: ["O"] },
-        {
-          id: "list-delete",
-          keystroke: "delete",
-          label: "删除条目",
-          keys: ["Delete", "Backspace"],
-        },
-      ],
-    },
-    {
       key: "player",
       title: "播放与精听",
       shortcuts: [
@@ -225,6 +210,21 @@ const CATEGORIES_BY_LOCALE: Record<EarLocale, ShortcutCategory[]> = {
           keystroke: "alt+1 / 2 / 3",
           label: "分句长度",
           keys: ["alt+1", "alt+2", "alt+3"],
+        },
+      ],
+    },
+    {
+      key: "list",
+      title: "列表与卡片",
+      shortcuts: [
+        { id: "list-arrows", keystroke: "arrows", label: "移动焦点", keys: ["↑", "↓", "←", "→"] },
+        { id: "list-enter", keystroke: "enter", label: "打开播放", keys: ["Enter"] },
+        { id: "list-open-folder", keystroke: "o", label: "打开所在目录", keys: ["O"] },
+        {
+          id: "list-delete",
+          keystroke: "delete",
+          label: "删除条目",
+          keys: ["Delete", "Backspace"],
         },
       ],
     },

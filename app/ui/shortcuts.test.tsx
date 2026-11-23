@@ -7,8 +7,8 @@ import {
 } from "./shortcuts";
 import { ShortcutsModal } from "./ShortcutsModal";
 
-test("SHORTCUT_CATEGORIES covers the global, list and player domains in both locales", () => {
-  expect(SHORTCUT_CATEGORIES.map((c) => c.key)).toEqual(["global", "list", "player"]);
+test("SHORTCUT_CATEGORIES covers the global, player and list domains in both locales", () => {
+  expect(SHORTCUT_CATEGORIES.map((c) => c.key)).toEqual(["global", "player", "list"]);
   const global = SHORTCUT_CATEGORIES[0].shortcuts.map((s) => s.keystroke);
   expect(global).toContain("mod+1");
   expect(global).toContain("mod+2");
@@ -16,7 +16,7 @@ test("SHORTCUT_CATEGORIES covers the global, list and player domains in both loc
 
   for (const locale of ["en", "zh"] as const) {
     const categories = getShortcutCategories(locale);
-    expect(categories.map((c) => c.key)).toEqual(["global", "list", "player"]);
+    expect(categories.map((c) => c.key)).toEqual(["global", "player", "list"]);
     expect(getShortcutsCopy(locale).title.length > 0).toBe(true);
     for (const cat of categories) {
       expect(cat.title.length > 0).toBe(true);

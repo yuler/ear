@@ -6,6 +6,7 @@ import {
   formatKeystroke,
   getShortcutCategories,
   getShortcutsCopy,
+  type ShortcutCategory,
   type ShortcutItem,
 } from "./shortcuts";
 
@@ -40,9 +41,28 @@ function ShortcutRow(props: { item: ShortcutItem }) {
   );
 }
 
+function CategoryCard(props: { category: ShortcutCategory }) {
+  return (
+    <View class="flex-col gap-1 rounded-xl border border-line bg-well/20 p-3.5">
+      <View class="border-b border-line/60 pb-1.5">
+        <Text class="text-xs font-semibold tracking-wide text-primary">
+          {props.category.title}
+        </Text>
+      </View>
+      <View class="flex-col">
+        <Each of={props.category.shortcuts} key={(item) => item.id}>
+          {(getItem) => <ShortcutRow item={getItem()} />}
+        </Each>
+      </View>
+    </View>
+  );
+}
+
 function ShortcutsModalDialog(props: { onClose: () => void }) {
   const copy = () => getShortcutsCopy(settings().language);
   const categories = () => getShortcutCategories(settings().language);
+  const byKey = (key: ShortcutCategory["key"]) =>
+    categories().find((c) => c.key === key);
 
   keymap.bind(
     {
@@ -83,8 +103,8 @@ function ShortcutsModalDialog(props: { onClose: () => void }) {
 
       {/* Centered Modal Card */}
       <View
-        style={{ height: 480, maxHeight: "85%" }}
-        class="relative z-10 w-full max-w-[760px] flex-col overflow-hidden rounded-2xl border border-line bg-background shadow-2xl"
+        style={{ height: 620, maxHeight: "90%" }}
+        class="relative z-10 w-full max-w-[880px] flex-col overflow-hidden rounded-2xl border border-line bg-background shadow-2xl"
         accessibilityLabel={copy().title}
       >
         {/* Top Header */}
@@ -107,28 +127,22 @@ function ShortcutsModalDialog(props: { onClose: () => void }) {
           </Button>
         </View>
 
-        {/* Scrollable Shortcut Categories (2 columns on wide screen) */}
+        {/* Scrollable Shortcut Categories (2 balanced columns on wide screen) */}
         <Scroll class="min-h-0 flex-1 p-5">
-          <View class="grid grid-cols-1 gap-4 pb-2 md:grid-cols-2">
-            <Each of={categories()} key={(cat) => cat.key}>
-              {(getCategory) => {
-                const cat = getCategory();
-                return (
-                  <View class="flex-col gap-1 rounded-xl border border-line bg-well/20 p-3.5">
-                    <View class="border-b border-line/60 pb-1.5">
-                      <Text class="text-xs font-semibold tracking-wide text-primary">
-                        {cat.title}
-                      </Text>
-                    </View>
-                    <View class="flex-col">
-                      <Each of={cat.shortcuts} key={(item) => item.id}>
-                        {(getItem) => <ShortcutRow item={getItem()} />}
-                      </Each>
-                    </View>
-                  </View>
-                );
-              }}
-            </Each>
+          <View class="flex-col gap-4 pb-2 md:flex-row md:items-start">
+            <View class="flex-1 flex-col gap-4">
+              <If when={byKey("global")}>
+                {(cat) => <CategoryCard category={cat()} />}
+              </If>
+              <If when={byKey("list")}>
+                {(cat) => <CategoryCard category={cat()} />}
+              </If>
+            </View>
+            <View class="flex-1 flex-col gap-4">
+              <If when={byKey("player")}>
+                {(cat) => <CategoryCard category={cat()} />}
+              </If>
+            </View>
           </View>
         </Scroll>
       </View>

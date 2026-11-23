@@ -73,6 +73,11 @@ function App() {
     if (globalUpdateModalOpen()) return;
     showShortcutsModal.set(!showShortcutsModal());
   };
+  const openShortcutsFromSettings = () => {
+    if (globalUpdateModalOpen()) return;
+    showSettingsModal.set(false);
+    showShortcutsModal.set(true);
+  };
   const focusLink = () => setTimeout(() => urlInputRef?.focus(), 50);
 
   setupWindowChrome();
@@ -341,7 +346,7 @@ function App() {
       <SettingsModal
         open={showSettingsModal}
         onClose={() => showSettingsModal.set(false)}
-        onOpenShortcuts={toggleShortcutsModal}
+        onOpenShortcuts={openShortcutsFromSettings}
       />
 
       <ShortcutsModal
