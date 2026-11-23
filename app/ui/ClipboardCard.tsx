@@ -1,4 +1,4 @@
-import { createMotion, effect, Image, LayoutAnimation, Text, View } from "nsh";
+import { createMotion, effect, Image, LayoutAnimation, signal, Text, View } from "nsh";
 import { Button } from "nsh/base";
 import { QUALITY_IDS } from "../appPreview";
 import type { ClipboardVideoPreview } from "../clipboard";
@@ -8,6 +8,7 @@ import {
   cleanCaptionTrackName,
   formatBytes,
   isAutoCaptionTrack,
+  selectDisplayCaptionTracks,
 } from "../youtube/parse";
 import type { CaptionTrack, VideoQualityOption } from "../youtube/types";
 import { Icon } from "./Icon";
@@ -75,10 +76,30 @@ export function ClipboardCard(props: {
     return filtered.length > 0 ? filtered : FALLBACK_QUALITIES;
   };
 
-  const tracks = (): readonly CaptionTrack[] => {
+  const expandedVideoId = signal<string | null>(null);
+  const isExpanded = () => expandedVideoId() === props.preview().videoId;
+
+  const rawTracks = (): readonly CaptionTrack[] => {
     const list = props.preview().captionTracks;
     return list && list.length > 0 ? list : FALLBACK_TRACKS;
   };
+
+  const trackDisplay = () =>
+    selectDisplayCaptionTracks(rawTracks(), {
+      selectedTrackId: props.selectedTrackId(),
+      title: props.preview().title,
+      includeAll: isExpanded(),
+    });
+
+  const tracks = (): readonly CaptionTrack[] => trackDisplay().visible;
+  const hiddenTrackCount = () => trackDisplay().hiddenCount;
+  const canCollapseTracks = () =>
+    isExpanded() &&
+    selectDisplayCaptionTracks(rawTracks(), {
+      selectedTrackId: props.selectedTrackId(),
+      title: props.preview().title,
+      includeAll: false,
+    }).hiddenCount > 0;
 
   const manualTrackCount = () =>
     tracks().filter((t) => !isAutoCaptionTrack(t)).length;
@@ -166,7 +187,7 @@ export function ClipboardCard(props: {
             <If when={!isParsing()}>
               <View class="rounded bg-well px-2 py-0.5">
                 <Text class="font-mono text-[10px] text-muted-foreground">
-                  人工字幕 {manualTrackCount()} · CC 机翻 {ccTrackCount()}
+                  人工字幕 {manualTrackCount()} · 原始 CC {ccTrackCount()}
                 </Text>
               </View>
             </If>
@@ -320,6 +341,28 @@ export function ClipboardCard(props: {
                   </Button>
                 );
               })}
+              <If when={hiddenTrackCount() > 0}>
+                <Button
+                  onPress={() => expandedVideoId.set(props.preview().videoId)}
+                  class="rounded-md border border-dashed border-line px-2 py-1 transition hover:bg-well active:bg-accent"
+                  accessibilityLabel={shellT().moreSubtitles(hiddenTrackCount())}
+                >
+                  <Text class="font-mono text-[11px] text-muted-foreground">
+                    {shellT().moreSubtitles(hiddenTrackCount())}
+                  </Text>
+                </Button>
+              </If>
+              <If when={canCollapseTracks()}>
+                <Button
+                  onPress={() => expandedVideoId.set(null)}
+                  class="rounded-md border border-dashed border-line px-2 py-1 transition hover:bg-well active:bg-accent"
+                  accessibilityLabel={shellT().fewerSubtitles}
+                >
+                  <Text class="font-mono text-[11px] text-muted-foreground">
+                    {shellT().fewerSubtitles}
+                  </Text>
+                </Button>
+              </If>
             </View>
           </If>
         </View>

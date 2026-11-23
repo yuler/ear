@@ -26,6 +26,8 @@ export interface ShellMessages {
   manual: string;
   auto: string;
   noSubtitles: string;
+  moreSubtitles: (n: number) => string;
+  fewerSubtitles: string;
   download: string;
   dismiss: string;
 
@@ -92,6 +94,8 @@ const EN: ShellMessages = {
   manual: "manual",
   auto: "auto",
   noSubtitles: "None",
+  moreSubtitles: (n) => `+${n} more`,
+  fewerSubtitles: "Less",
   download: "Download",
   dismiss: "Dismiss",
 
@@ -155,6 +159,8 @@ const ZH: ShellMessages = {
   manual: "人工",
   auto: "自动",
   noSubtitles: "无",
+  moreSubtitles: (n) => `+${n} 更多`,
+  fewerSubtitles: "收起",
   download: "下载",
   dismiss: "关闭",
 

@@ -11,8 +11,8 @@ import { macTitleBarInsets } from "./titleBarInsets";
 
 export type AppPage = "library" | "discover";
 
-/** The bar's height: the macOS hidden title bar's, traffic lights centered in it. */
-export const TOP_BAR_HEIGHT = 44;
+/** The bar's height: slightly roomier for the larger search bar. */
+export const TOP_BAR_HEIGHT = 48;
 
 /**
  * The window's top bar, on every page: optional back button on Discover,
@@ -51,10 +51,10 @@ export function TopBar(props: {
     isDiscover() ? props.activeDownloadCount() : 0;
 
   const field = (
-    <View class="h-8 w-full flex-row items-center gap-2 rounded-lg border border-line bg-well px-2.5">
+    <View class="h-9 w-full flex-row items-center gap-2.5 rounded-xl border border-line bg-well px-3">
       <Icon
         name={props.isLink() || Boolean(props.preview()) ? "link" : "search"}
-        size={13}
+        size={15}
         tone="muted-foreground"
       />
       <Input
@@ -71,26 +71,26 @@ export function TopBar(props: {
         class="min-w-0 flex-1 border-0 bg-transparent px-0 py-0.5 text-sm text-foreground placeholder:text-dim"
       />
       <If when={props.parsing()}>
-        <Icon name="loader" size={13} tone="muted-foreground" class="animate-spin" />
+        <Icon name="loader" size={14} tone="muted-foreground" class="animate-spin" />
       </If>
       <If when={!props.parsing() && props.url().length > 0}>
         <Button
           onPress={props.onClearUrl}
-          class="h-4 w-4 items-center justify-center rounded-full bg-dim/40 active:bg-dim/60"
+          class="h-4.5 w-4.5 items-center justify-center rounded-full bg-dim/40 active:bg-dim/60"
           accessibilityLabel={t().clearLink}
         >
-          <Icon name="x" size={9} tone="foreground" />
+          <Icon name="x" size={10} tone="foreground" />
         </Button>
       </If>
       <If when={props.url().length === 0}>
-        <View class="flex-row items-center gap-1">
+        <View class="flex-row items-center gap-1.5">
           <If when={props.showClipboardButton()}>
             <Button
               onPress={props.onReadClipboard}
               class="h-6 w-6 items-center justify-center rounded-md active:bg-accent"
               accessibilityLabel={t().readClipboard}
             >
-              <Icon name="clipboard" size={12} tone="muted-foreground" />
+              <Icon name="clipboard" size={13} tone="muted-foreground" />
             </Button>
           </If>
           <View class="rounded border border-line px-1.5 py-0.5" accessibilityLabel={t().focusLink}>
@@ -106,46 +106,44 @@ export function TopBar(props: {
       desktop={{ windowDrag: platform.os === "macos" }}
       style={{
         height: TOP_BAR_HEIGHT,
-        paddingLeft: insets().left > 0 ? insets().left + 8 : 12,
-        paddingRight: titleBar().right ? titleBar().right + 8 : 12,
+        paddingLeft: insets().left > 0 ? insets().left + 8 : 16,
+        paddingRight: titleBar().right ? titleBar().right + 8 : 16,
       }}
       class="shrink-0 flex-row items-center gap-3 border-b border-line bg-background"
     >
-      <View class="min-w-8 shrink-0 flex-row items-center">
-        <If when={isDiscover()}>
-          <Button
-            onPress={() => props.onSelectPage("library")}
-            class="h-7 flex-row items-center gap-1 rounded-md px-2 transition hover:bg-well active:bg-accent"
-            accessibilityLabel={t().backToLibrary}
-          >
-            <Icon name="chevron-left" size={14} tone="muted-foreground" />
-            <Text class="text-sm font-medium text-foreground">{t().library}</Text>
-            <If when={downloadBadge() > 0}>
-              <View
-                class="ml-0.5 min-w-[18px] items-center rounded-full bg-brand px-1.5"
-                accessibilityLabel={t().activeDownloads(downloadBadge())}
-              >
-                <Text class="font-mono text-[10px] font-semibold tabular-nums text-brand-foreground">
-                  {downloadBadge()}
-                </Text>
-              </View>
-            </If>
-          </Button>
-        </If>
-      </View>
+      <If when={isDiscover()}>
+        <Button
+          onPress={() => props.onSelectPage("library")}
+          class="h-8 shrink-0 flex-row items-center gap-1 rounded-md px-2 transition hover:bg-well active:bg-accent"
+          accessibilityLabel={t().backToLibrary}
+        >
+          <Icon name="chevron-left" size={14} tone="muted-foreground" />
+          <Text class="text-sm font-medium text-foreground">{t().library}</Text>
+          <If when={downloadBadge() > 0}>
+            <View
+              class="ml-0.5 min-w-[18px] items-center rounded-full bg-brand px-1.5"
+              accessibilityLabel={t().activeDownloads(downloadBadge())}
+            >
+              <Text class="font-mono text-[10px] font-semibold tabular-nums text-brand-foreground">
+                {downloadBadge()}
+              </Text>
+            </View>
+          </If>
+        </Button>
+      </If>
 
-      <View class="min-w-0 flex-1 items-center">
-        <View class="w-full max-w-[560px]">
+      <View class="min-w-0 flex-1 flex-row items-center">
+        <View class="w-full max-w-[760px]">
           <Popover
             open={Boolean(props.preview())}
             placement="bottom"
-            align="center"
+            align="start"
             offset={6}
             closeOnPressOutside={false}
             onOpenChange={(e) => {
               if (!e.open && e.reason === "cancel") props.onDismissPreview();
             }}
-            popupClass="w-[360px] sm:w-[660px] rounded-xl border border-line bg-popover shadow-2xl"
+            popupClass="w-[360px] sm:w-[700px] lg:w-[860px] rounded-xl border border-line bg-popover shadow-2xl"
             trigger={field}
           >
             <If when={props.preview()}>

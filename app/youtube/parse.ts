@@ -186,6 +186,91 @@ export function preferBestCaptionTrack(
   return preferEnglishTrack(tracks);
 }
 
+const CORE_CAPTION_LANGUAGES = new Set(["en", "ja", "zh"]);
+
+function baseLanguageCode(languageCode: string): string {
+  return languageCode.trim().toLowerCase().split(/[-_]/)[0] ?? "";
+}
+
+function isJapaneseTitle(title?: string): boolean {
+  return (
+    Boolean(title) &&
+    (/[\u3040-\u309F\u30A0-\u30FF]/.test(title!) ||
+      /japanese|jlpt|日本語|聴解/i.test(title!))
+  );
+}
+
+/**
+ * Order caption tracks with manual tracks first, then original CC (ASR),
+ * prioritizing the video's primary language and common learning languages
+ * (`en`, `ja`, `zh`), and filter out obscure translation tracks by default.
+ */
+export function selectDisplayCaptionTracks(
+  tracks: readonly CaptionTrack[],
+  options: {
+    selectedTrackId?: string | null;
+    title?: string;
+    includeAll?: boolean;
+  } = {},
+): {
+  visible: CaptionTrack[];
+  hiddenCount: number;
+  total: number;
+} {
+  if (tracks.length === 0) return { visible: [], hiddenCount: 0, total: 0 };
+
+  const preferJa = isJapaneseTitle(options.title);
+  const autoBaseLangs = new Set(
+    tracks
+      .filter((t) => isAutoCaptionTrack(t))
+      .map((t) => baseLanguageCode(t.languageCode))
+      .filter(Boolean),
+  );
+
+  const langRank = (t: CaptionTrack): number => {
+    const base = baseLanguageCode(t.languageCode);
+    if (preferJa) {
+      if (base === "ja") return 0;
+      if (base === "en") return 1;
+      if (base === "zh") return 2;
+    } else {
+      if (base === "en") return 0;
+      if (base === "ja") return 1;
+      if (base === "zh") return 2;
+    }
+    if (autoBaseLangs.has(base)) return 3;
+    return 4;
+  };
+
+  const sorted = [...tracks].sort((a, b) => {
+    const aAuto = isAutoCaptionTrack(a) ? 1 : 0;
+    const bAuto = isAutoCaptionTrack(b) ? 1 : 0;
+    if (aAuto !== bAuto) return aAuto - bAuto;
+    return langRank(a) - langRank(b);
+  });
+
+  if (options.includeAll || sorted.length <= 4) {
+    return { visible: sorted, hiddenCount: 0, total: sorted.length };
+  }
+
+  const isPrimaryTrack = (t: CaptionTrack): boolean => {
+    if (options.selectedTrackId && captionTrackId(t) === options.selectedTrackId) {
+      return true;
+    }
+    if (isAutoCaptionTrack(t)) return true;
+    const base = baseLanguageCode(t.languageCode);
+    return CORE_CAPTION_LANGUAGES.has(base) || autoBaseLangs.has(base);
+  };
+
+  const primary = sorted.filter(isPrimaryTrack);
+  const visible = primary.length > 0 ? primary : sorted.slice(0, 4);
+  return {
+    visible,
+    hiddenCount: Math.max(0, sorted.length - visible.length),
+    total: sorted.length,
+  };
+}
+
 /**
  * Parse a YouTube video via the Rust `ear parse` binary with real-time
  * progress callbacks.

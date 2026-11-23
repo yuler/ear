@@ -8,6 +8,7 @@ import {
   loadLessonFromParsed,
   preferBestCaptionTrack,
   preferEnglishTrack,
+  selectDisplayCaptionTracks,
   videoPosterUrl,
 } from "./parse";
 import {
@@ -400,4 +401,44 @@ test("loadLessonFromParsed selects Japanese track when title is Japanese", async
   } finally {
     setEarSpawnHook(null);
   }
+});
+
+test("selectDisplayCaptionTracks prioritizes manual & original CC and filters obscure translations", () => {
+  const tracks = [
+    { languageCode: "ar", name: "Arabic", baseUrl: "", vssId: ".ar", isAuto: false },
+    { languageCode: "en", name: "English (auto-generated)", baseUrl: "", vssId: "a.en", kind: "asr", isAuto: true },
+    { languageCode: "zh-Hans", name: "Chinese (Simplified)", baseUrl: "", vssId: ".zh-Hans", isAuto: false },
+    { languageCode: "vi", name: "Vietnamese", baseUrl: "", vssId: ".vi", isAuto: false },
+    { languageCode: "en", name: "English", baseUrl: "", vssId: ".en", isAuto: false },
+    { languageCode: "fr", name: "French", baseUrl: "", vssId: ".fr", isAuto: false },
+    { languageCode: "ja", name: "Japanese", baseUrl: "", vssId: ".ja", isAuto: false },
+  ];
+
+  // Collapsed: keeps manual en/ja/zh + original CC (a.en), hides obscure translations.
+  const filtered = selectDisplayCaptionTracks(tracks);
+  expect(filtered.visible.map((t) => t.vssId)).toEqual([".en", ".ja", ".zh-Hans", "a.en"]);
+  expect(filtered.hiddenCount).toBe(3);
+
+  // Selected obscure track stays visible even when collapsed.
+  const withSelected = selectDisplayCaptionTracks(tracks, { selectedTrackId: ".fr" });
+  expect(withSelected.visible.map((t) => t.vssId)).toEqual([".en", ".ja", ".zh-Hans", ".fr", "a.en"]);
+  expect(withSelected.hiddenCount).toBe(2);
+
+  // Video in non-core language keeps its manual + original CC.
+  const spanishVideo = [
+    { languageCode: "ar", name: "Arabic", baseUrl: "", vssId: ".ar", isAuto: false },
+    { languageCode: "de", name: "German", baseUrl: "", vssId: ".de", isAuto: false },
+    { languageCode: "es", name: "Spanish", baseUrl: "", vssId: ".es", isAuto: false },
+    { languageCode: "es", name: "Spanish (auto-generated)", baseUrl: "", vssId: "a.es", kind: "asr", isAuto: true },
+    { languageCode: "tr", name: "Turkish", baseUrl: "", vssId: ".tr", isAuto: false },
+  ];
+  const esFiltered = selectDisplayCaptionTracks(spanishVideo);
+  expect(esFiltered.visible.map((t) => t.vssId)).toEqual([".es", "a.es"]);
+  expect(esFiltered.hiddenCount).toBe(3);
+
+  // Expanded: shows all sorted with manual first, original CC after.
+  const all = selectDisplayCaptionTracks(tracks, { includeAll: true });
+  expect(all.hiddenCount).toBe(0);
+  expect(all.visible.length).toBe(7);
+  expect(all.visible[all.visible.length - 1]!.vssId).toBe("a.en");
 });
