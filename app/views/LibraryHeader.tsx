@@ -99,7 +99,7 @@ export function LibraryHeader(props: {
               size={12}
               tone={props.selectionMode() ? "brand" : "muted-foreground"}
             />
-            <ShortcutHint keys="s" active={props.selectionMode()} />
+            <ShortcutHint keys="x" active={props.selectionMode()} />
           </Button>
         </If>
 

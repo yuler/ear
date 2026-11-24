@@ -15,7 +15,7 @@ import {
 } from "../ui/ActiveDownloadRow";
 import { SHELL_MESSAGES } from "../ui/shellI18n";
 import { LibraryBatchBar } from "./LibraryBatchBar";
-import { LibraryCard } from "./LibraryCards";
+import { LibraryCard, libraryCardChrome } from "./LibraryCards";
 import { LibraryHeader } from "./LibraryHeader";
 import {
   buildDiscoverContextMenu,
@@ -266,6 +266,21 @@ test("multi-select helpers toggle, select-all, deselect-all, and prune deleted I
   expect([...pruned].sort()).toEqual(["v1", "v2"]);
 });
 
+test("LibraryCard uses a blue wash for selection and a neutral ring for keyboard focus", () => {
+  const focusOnly = libraryCardChrome(false, true);
+  const checkedOnly = libraryCardChrome(true, false);
+  const both = libraryCardChrome(true, true);
+
+  expect(focusOnly.includes("ring-foreground")).toBe(true);
+  expect(focusOnly.includes("bg-brand-soft")).toBe(false);
+  expect(focusOnly.includes("ring-brand")).toBe(false);
+  expect(checkedOnly.includes("bg-brand-soft")).toBe(true);
+  expect(checkedOnly.includes("ring-foreground")).toBe(false);
+  expect(checkedOnly.includes("ring-brand")).toBe(false);
+  expect(both.includes("ring-foreground")).toBe(true);
+  expect(both.includes("bg-brand-soft")).toBe(true);
+});
+
 test("LibraryCard omits per-card overflow button in favor of top-level multi-select activation", () => {
   const card = LibraryCard({
     entry: mockEntry({ videoId: "v1" }),
@@ -300,9 +315,9 @@ test("videoOrientation and entryMediaAspect distinguish portrait, landscape, aud
   expect(videoOrientation(unknown)).toBe(null);
   expect(videoOrientation(audio)).toBe(null);
 
-  expect(LibraryCard({ entry: portrait, onOpen: () => {}, onMenu: () => {} })).toBeDefined();
-  expect(LibraryCard({ entry: landscape, onOpen: () => {}, onMenu: () => {} })).toBeDefined();
-  expect(LibraryCard({ entry: audio, onOpen: () => {}, onMenu: () => {} })).toBeDefined();
+  expect(LibraryCard({ entry: portrait, onOpen: () => {} })).toBeDefined();
+  expect(LibraryCard({ entry: landscape, onOpen: () => {} })).toBeDefined();
+  expect(LibraryCard({ entry: audio, onOpen: () => {} })).toBeDefined();
 });
 
 test("summarizeDownloads aggregates speed, max ETA, and running/paused flags for Downloading block", () => {
@@ -387,6 +402,9 @@ test("buildLibraryContextMenu and buildDiscoverContextMenu provide right-click a
     "trash",
   ]);
   expect(normalActions.at(-1)?.destructive).toBe(true);
+  expect(normalActions.find((i) => i.label === "Multi-select")?.shortcut).toBe(
+    "x",
+  );
 
   const selectItems = buildLibraryContextMenu({
     entry,
@@ -512,7 +530,7 @@ test("storage helpers shorten home paths and format disk capacities", () => {
   });
 });
 
-test("Library multi-select uses single-key S/A, keeps batch bar buttons permanently mounted, and shows download path + free space under Library header", async () => {
+test("Library multi-select uses X to check the focused item, keeps batch bar buttons permanently mounted, and shows download path + free space under Library header", async () => {
   const app = await open("../ui/overlayFixture.tsx", { width: 1000, height: 700 });
 
   // Download folder and disk capacity appear tightly below the Library title
@@ -522,12 +540,13 @@ test("Library multi-select uses single-key S/A, keeps batch bar buttons permanen
   expect(app.shows("label:Portrait video")).toBe(true);
   expect(app.shows("label:Landscape video")).toBe(true);
 
-  // Press 's' to activate multi-select mode
-  await app.keyboard.press("s");
+  // X checks the focused card (the first card when nothing is focused yet)
+  await app.keyboard.press("x");
   await app.waitFor("Select all");
+  expect(app.texts().some((t) => t === "X")).toBe(true);
   expect(app.texts().some((t) => t === "A")).toBe(true);
   expect(app.texts().some((t) => t.includes("Ctrl+A"))).toBe(false);
-  expect(app.texts().some((t) => t === "0")).toBe(true);
+  expect(app.texts().some((t) => t === "1")).toBe(true);
   // Download folder + disk capacity stay visible under Library without layout jump
   expect(app.texts().some((t) => t.includes("/tmp/ear-downloads"))).toBe(true);
   expect(app.texts().some((t) => t.includes("120 GB free / 500 GB"))).toBe(true);

@@ -44,6 +44,7 @@ function UpdateModalDialog(props: { result: () => UpdateCheckResult }) {
       left: () => {},
       right: () => {},
       o: () => {},
+      x: () => {},
       r: () => {},
       m: () => {},
       b: () => {},

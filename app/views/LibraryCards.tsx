@@ -30,6 +30,15 @@ export const POSTER_GRID_STYLE = {
   gap: 16,
 } as const;
 
+/** Selection is a blue wash. The keyboard cursor is a neutral ring. */
+export function libraryCardChrome(checked: boolean, focused: boolean): string {
+  const surface = checked
+    ? "bg-brand-soft/70 hover:bg-brand-soft"
+    : "hover:bg-well";
+  const ring = focused ? "ring-2 ring-foreground" : "";
+  return `group relative w-full rounded-lg transition ${surface} ${ring}`.trim();
+}
+
 /** A finished Library entry: poster, title and one meta line. */
 export function LibraryCard(props: {
   entry: LibraryEntry;
@@ -59,19 +68,12 @@ export function LibraryCard(props: {
     props.onOpen(entry(), rect);
   };
 
-  const cardHighlight = () => {
-    if (props.selectionMode && props.checked) {
-      return "bg-brand-soft/60 ring-2 ring-brand";
-    }
-    if (props.selected) {
-      return "bg-well ring-2 ring-brand";
-    }
-    return "";
-  };
-
   const card = (
     <View
-      class={`group relative w-full rounded-lg transition hover:bg-well ${cardHighlight()}`}
+      class={libraryCardChrome(
+        Boolean(props.selectionMode && props.checked),
+        Boolean(props.selected),
+      )}
     >
       <Button
         onPress={() => void handlePress()}

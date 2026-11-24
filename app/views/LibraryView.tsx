@@ -160,7 +160,21 @@ export function LibraryView(props: {
   };
 
   const toggleEntrySelection = (entry: LibraryEntry) => {
-    selectedIds.set(toggleSelectedId(selectedIds(), entry.videoId));
+    const next = toggleSelectedId(selectedIds(), entry.videoId);
+    selectedIds.set(next);
+    if (next.size > 0) selectionMode.set(true);
+  };
+
+  /** Gmail / Linear: X checks the focused row and drops the bar when none remain. */
+  const toggleFocusedSelection = () => {
+    if (props.disabled?.() || props.previewOpen?.()) return;
+    if (entries().length === 0) return;
+    if (focusedIndex() < 0) focusedIndex.set(0);
+    const entry = focused();
+    if (!entry) return;
+    const next = toggleSelectedId(selectedIds(), entry.videoId);
+    selectedIds.set(next);
+    selectionMode.set(next.size > 0);
   };
 
   const toggleSelectAll = () => {
@@ -283,18 +297,8 @@ export function LibraryView(props: {
       right: () => move(1),
       up: () => move(-1),
       left: () => move(-1),
-      enter: withFocused((e) => {
-        if (selectionMode()) toggleEntrySelection(e);
-        else props.onOpenEntry(e);
-      }),
-      space: withFocused((e) => {
-        if (selectionMode()) toggleEntrySelection(e);
-      }),
-      s: () => {
-        if (props.disabled?.() || props.previewOpen?.()) return;
-        if (selectionMode()) exitSelectionMode();
-        else if (entries().length > 0) enterSelectionMode();
-      },
+      enter: withFocused((e) => props.onOpenEntry(e)),
+      x: toggleFocusedSelection,
       o: () => {
         if (props.disabled?.()) return;
         if (selectionMode()) {

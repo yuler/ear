@@ -105,7 +105,7 @@ export function buildLibraryContextMenu(
     {
       label: t.multiSelect,
       icon: "list-checks",
-      shortcut: "s",
+      shortcut: "x",
       onSelect: opts.onEnterSelect,
     },
     opts.canDelete ? { type: "separator" } : null,
