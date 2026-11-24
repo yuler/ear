@@ -9,16 +9,20 @@ import { DiscoverCard } from "./discover/DiscoverCard";
 import type { DiscoverItem } from "./discover/types";
 import { LibraryBatchBar } from "./LibraryBatchBar";
 import { LibraryCard, POSTER_GRID_STYLE } from "./LibraryCards";
+import { LibraryHeader, mediaFilterLabel } from "./LibraryHeader";
 import {
   areAllVisibleSelected,
   completedEntries,
   filterActiveDownloads,
+  filterDownloadsByMediaType,
+  filterEntriesByMediaType,
   filterLibraryEntries,
   formatEntryDescription,
   isAudioEntry,
   pruneSelectedIds,
   toggleSelectAllIds,
   toggleSelectedId,
+  type LibraryMediaFilter,
 } from "./libraryViewHelpers";
 import type { ViewTransitionRect } from "./viewTransition";
 
@@ -96,18 +100,26 @@ export function LibraryView(props: {
 }) {
   const query = () => (props.searchQuery?.() ?? "").trim();
   const isSearching = () => query().length > 0;
+  const mediaFilter = signal<LibraryMediaFilter>("all");
+  const isMediaFiltered = () => mediaFilter() !== "all";
+  const isFiltered = () => isSearching() || isMediaFiltered();
 
   const allDownloads = () => props.activeDownloads?.() ?? [];
   const allEntries = () => completedEntries(props.savedEntries(), allDownloads());
-  const downloads = () =>
-    isSearching() ? filterActiveDownloads(allDownloads(), query()) : allDownloads();
-  const entries = () =>
-    isSearching() ? filterLibraryEntries(allEntries(), query()) : allEntries();
+  const downloads = () => {
+    const byType = filterDownloadsByMediaType(allDownloads(), mediaFilter());
+    return isSearching() ? filterActiveDownloads(byType, query()) : byType;
+  };
+  const entries = () => {
+    const byType = filterEntriesByMediaType(allEntries(), mediaFilter());
+    return isSearching() ? filterLibraryEntries(byType, query()) : byType;
+  };
 
   const totalCount = () => allEntries().length + allDownloads().length;
   const visibleCount = () => entries().length + downloads().length;
   const isEmpty = () => totalCount() === 0;
   const isSearchEmpty = () => isSearching() && visibleCount() === 0;
+  const isFilterEmpty = () => !isSearching() && isMediaFiltered() && visibleCount() === 0;
 
   const selectionMode = signal(false);
   const selectedIds = signal<Set<string>>(new Set());
@@ -358,6 +370,22 @@ export function LibraryView(props: {
     </If>
   );
 
+  const libraryHeader = (
+    <LibraryHeader
+      visibleCount={visibleCount}
+      totalCount={totalCount}
+      isFiltered={isFiltered}
+      mediaFilter={mediaFilter}
+      onSelectMediaFilter={(filter) => mediaFilter.set(filter)}
+      canSelect={() => entries().length > 0}
+      selectionMode={selectionMode}
+      onToggleSelectionMode={() => {
+        if (selectionMode()) exitSelectionMode();
+        else enterSelectionMode();
+      }}
+    />
+  );
+
   return (
     <View class="relative min-h-0 flex-1 flex-col">
       <If when={visibleCount() > 0}>
@@ -367,48 +395,7 @@ export function LibraryView(props: {
               selectionMode() ? "pb-24" : "pb-6"
             }`}
           >
-            <View class="flex-row items-center justify-between px-1">
-              <View class="flex-row items-center gap-2">
-                <Text class="text-sm font-semibold text-foreground">
-                  {shellT().library}
-                </Text>
-                <Text class="font-mono text-xs tabular-nums text-dim">
-                  {isSearching()
-                    ? `${visibleCount()} / ${totalCount()}`
-                    : `${totalCount()}`}
-                </Text>
-              </View>
-
-              <If when={entries().length > 0}>
-                <Button
-                  onPress={() => {
-                    if (selectionMode()) exitSelectionMode();
-                    else enterSelectionMode();
-                  }}
-                  class={`flex-row items-center gap-1.5 rounded-md border px-2.5 py-1 transition ${
-                    selectionMode()
-                      ? "border-brand/40 bg-brand-soft hover:opacity-90"
-                      : "border-line bg-well/60 hover:bg-well active:bg-accent"
-                  }`}
-                  accessibilityLabel={
-                    selectionMode() ? shellT().done : shellT().select
-                  }
-                >
-                  <Icon
-                    name="check-square"
-                    size={13}
-                    tone={selectionMode() ? "brand" : "muted-foreground"}
-                  />
-                  <Text
-                    class={`text-xs font-medium ${
-                      selectionMode() ? "text-brand" : "text-muted-foreground"
-                    }`}
-                  >
-                    {selectionMode() ? shellT().done : shellT().select}
-                  </Text>
-                </Button>
-              </If>
-            </View>
+            {libraryHeader}
 
             <View style={POSTER_GRID_STYLE}>
               <Each of={downloads()} key={(t) => t.videoId}>
@@ -441,17 +428,8 @@ export function LibraryView(props: {
 
       <If when={visibleCount() === 0}>
         <View class="mx-auto min-h-0 w-full max-w-[1440px] flex-1 flex-col px-4 pt-2 pb-4">
-          <If when={isSearching()}>
-            <View class="shrink-0 flex-row items-center justify-between px-1">
-              <View class="flex-row items-center gap-2">
-                <Text class="text-sm font-semibold text-foreground">
-                  {shellT().library}
-                </Text>
-                <Text class="font-mono text-xs tabular-nums text-dim">
-                  {`0 / ${totalCount()}`}
-                </Text>
-              </View>
-            </View>
+          <If when={!isEmpty()}>
+            {libraryHeader}
           </If>
 
           <View class="flex-1 items-center justify-center">
@@ -472,6 +450,28 @@ export function LibraryView(props: {
                     </Text>
                   </Button>
                 </If>
+              </View>
+            </If>
+
+            <If when={isFilterEmpty()}>
+              <View class="items-center justify-center gap-2.5">
+                <Icon
+                  name={mediaFilter() === "audio" ? "headphones" : "film"}
+                  size={22}
+                  tone="muted-foreground"
+                />
+                <Text class="text-center text-sm font-medium text-foreground">
+                  {shellT().libraryFilterEmpty(mediaFilterLabel(mediaFilter()))}
+                </Text>
+                <Button
+                  onPress={() => mediaFilter.set("all")}
+                  class="mt-1 rounded-md border border-line px-3 py-1.5 transition hover:bg-well active:bg-accent"
+                  accessibilityLabel={shellT().showAll}
+                >
+                  <Text class="text-xs font-medium text-foreground">
+                    {shellT().showAll}
+                  </Text>
+                </Button>
               </View>
             </If>
 

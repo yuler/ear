@@ -170,8 +170,10 @@ export function SentenceRow(props: SentenceRowProps) {
       onMouseEnter={() => hovered.set(true)}
       onMouseLeave={() => hovered.set(false)}
       style={getSentence3DStyle(diff())}
-      class={`cursor-pointer rounded-lg px-4 py-2.5 ${
-        active() ? "bg-accent" : "hover:bg-muted/40"
+      class={`cursor-pointer rounded-lg border-l-2 px-4 py-2.5 ${
+        active()
+          ? "border-brand bg-brand-soft/60"
+          : "border-transparent hover:bg-muted/40"
       }`}
     >
       <View onPress={handleTextPress} selectable class="select-text">

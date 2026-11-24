@@ -54,7 +54,8 @@ export function computePlayerLayout(
   height: number,
 ): PlayerLayout {
   const w = Math.max(0, width);
-  const availH = Math.max(0, height - PLAYER_HEADER_H);
+  // Header is a floating transparent-gradient overlay, so the full height is available.
+  const availH = Math.max(0, height);
 
   if (mode === "side") {
     const subtitleWidth = Math.min(sideSubtitleWidth(w), w);

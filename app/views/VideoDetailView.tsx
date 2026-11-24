@@ -190,7 +190,7 @@ export function VideoDetailView(props: VideoDetailViewProps) {
         accessibilityLabel={ctl.paused() ? m().play : m().pause}
       >
         <If when={ctl.paused()}>
-          <View class="h-14 w-14 items-center justify-center rounded-full border border-white/30 bg-black/65 shadow-xl backdrop-blur-sm transition hover:scale-105 active:scale-95">
+          <View class="h-14 w-14 items-center justify-center rounded-full border border-white/25 bg-brand/90 shadow-xl backdrop-blur-sm transition hover:scale-105 hover:bg-brand active:scale-95">
             <Icon name="play" size={22} color="#ffffff" />
           </View>
         </If>
@@ -319,15 +319,10 @@ export function VideoDetailView(props: VideoDetailViewProps) {
       </View>
 
       <View
-        class={`h-full flex-1 flex-col overflow-hidden transition-opacity duration-300 ease-out ${
+        class={`relative h-full flex-1 flex-col overflow-hidden transition-opacity duration-300 ease-out ${
           shown() ? "opacity-100" : "pointer-events-none opacity-0"
         }`}
       >
-        <VideoDetailHeader
-          title={() => entry().title}
-          onBack={handleClose}
-          language={language}
-        />
         {/* One tree for both modes so the <Video> never remounts on a switch. */}
         <View class={`min-h-0 flex-1 ${side() ? "flex-row" : "flex-col"}`}>
           <View
@@ -343,6 +338,13 @@ export function VideoDetailView(props: VideoDetailViewProps) {
           </View>
           {subtitles}
         </View>
+        <VideoDetailHeader
+          title={() => entry().title}
+          onBack={handleClose}
+          language={language}
+          paused={ctl.paused}
+          overVideo={() => !side()}
+        />
       </View>
     </View>
   );

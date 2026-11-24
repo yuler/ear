@@ -16,12 +16,12 @@ import {
 } from "./sentencePlayer";
 import type { SentenceLengthMode } from "../youtube/captions";
 import { VideoDetailView } from "./VideoDetailView";
+import { shouldShowPlayerHeader } from "./VideoDetailHeader";
 import { getSentence3DStyle, SentenceRow } from "./SentenceRow";
 import {
   computePlayerLayout,
   nextLayoutMode,
   PLAYER_CONTROLS_H,
-  PLAYER_HEADER_H,
   PLAYER_SIDE_PAD,
   subtitleTextSize,
 } from "./playerLayout";
@@ -278,15 +278,15 @@ test("Player layout: aspect ratio switches mode with hysteresis, sizes follow th
   const wide = computePlayerLayout("side", 1600, 700);
   expect(wide.subtitleWidth).toBe(520);
   expect(wide.mainWidth).toBe(1080);
-  const maxH = 700 - PLAYER_HEADER_H - PLAYER_CONTROLS_H - PLAYER_SIDE_PAD * 2;
+  const maxH = 700 - PLAYER_CONTROLS_H - PLAYER_SIDE_PAD * 2;
   expect(wide.videoWidth).toBe(Math.floor(Math.min(1080 - PLAYER_SIDE_PAD * 2, (maxH * 16) / 9)));
   expect(wide.videoHeight).toBe(Math.floor((wide.videoWidth * 9) / 16));
   expect(computePlayerLayout("side", 900, 500).subtitleWidth).toBe(360);
 
-  // Stacked: video height = min(width * 9/16, 55% of the height under the header).
+  // Stacked: video height = min(width * 9/16, 55% of window height; header is a floating overlay).
   const small = computePlayerLayout("stacked", 800, 560);
   expect(small.videoWidth).toBe(800);
-  expect(small.videoHeight).toBe(Math.floor((560 - PLAYER_HEADER_H) * 0.55));
+  expect(small.videoHeight).toBe(Math.floor(560 * 0.55));
   const tall = computePlayerLayout("stacked", 800, 1400);
   expect(tall.videoHeight).toBe(450);
 
@@ -294,6 +294,13 @@ test("Player layout: aspect ratio switches mode with hysteresis, sizes follow th
   expect(subtitleTextSize(360)).toBe("sm");
   expect(subtitleTextSize(600)).toBe("md");
   expect(subtitleTextSize(1200)).toBe("lg");
+});
+
+test("VideoDetailHeader hides while playing unless hovered or focused", () => {
+  expect(shouldShowPlayerHeader(false, false, false)).toBe(false);
+  expect(shouldShowPlayerHeader(false, true, false)).toBe(true);
+  expect(shouldShowPlayerHeader(false, false, true)).toBe(true);
+  expect(shouldShowPlayerHeader(true, false, false)).toBe(true);
 });
 
 test("Smooth continuous playback: streams forward without seek halts", () => {

@@ -124,7 +124,7 @@ export function ClipboardCard(props: {
           <Icon
             name={isBusy() ? "loader" : props.preview().source === "discover" ? "compass" : "clipboard"}
             size={13}
-            tone={isBusy() ? "amber" : "muted-foreground"}
+            tone={isBusy() ? "brand" : "muted-foreground"}
             class={isBusy() ? "animate-spin" : ""}
           />
           <Text class="text-xs font-medium text-muted-foreground">
@@ -138,7 +138,7 @@ export function ClipboardCard(props: {
 
           <If when={isBusy()}>
             <View class="flex-row items-center gap-1.5 rounded-md border border-line bg-well/90 px-2 py-0.5">
-              <Text class="font-mono text-xs font-bold text-[#2f7cf6]">❯</Text>
+              <Text class="font-mono text-xs font-bold text-brand">❯</Text>
               <Text class="font-mono text-[11px] text-muted-foreground">
                 ear parse: {props.parseMessage?.() || "fetching metadata…"}
               </Text>
@@ -205,7 +205,7 @@ export function ClipboardCard(props: {
         <View class="shrink-0 items-end justify-center gap-1.5 sm:pl-2">
           <Button
             onPress={() => props.onDownload(props.preview())}
-            class="flex-row items-center gap-1.5 rounded-lg bg-[#2f7cf6] px-4 py-2.5 shadow-[0_0_14px_rgba(47,124,246,0.4)] ring-2 ring-[#2f7cf6]/60 transition active:opacity-90"
+            class="flex-row items-center gap-1.5 rounded-lg bg-brand px-4 py-2.5 shadow-[0_0_14px_rgba(47,124,246,0.4)] ring-2 ring-brand/60 transition active:opacity-90"
             accessibilityLabel={shellT().download}
           >
             <Icon name="download" size={14} color="#ffffff" />
@@ -255,7 +255,7 @@ export function ClipboardCard(props: {
                     onPress={() => props.onSelectQuality(q.id)}
                     class={`flex-row items-center gap-1.5 rounded-md border px-2.5 py-1 transition ${
                       selected()
-                        ? "border-[#2f7cf6] bg-[#2f7cf6]/15"
+                        ? "border-brand bg-brand-soft"
                         : "border-line bg-well hover:bg-accent active:bg-accent"
                     }`}
                   >
@@ -312,7 +312,7 @@ export function ClipboardCard(props: {
                     onPress={() => props.onSelectTrack(id)}
                     class={`flex-row items-center gap-1.5 rounded-md border px-2.5 py-1 transition ${
                       selected()
-                        ? "border-[#2f7cf6] bg-[#2f7cf6]/15"
+                        ? "border-brand bg-brand-soft"
                         : "border-line bg-well hover:bg-accent active:bg-accent"
                     }`}
                   >
@@ -327,12 +327,12 @@ export function ClipboardCard(props: {
                     </Text>
                     <View
                       class={`rounded px-1.5 py-0.5 ${
-                        isManual ? "bg-ready-soft" : "bg-amber-soft"
+                        isManual ? "bg-brand-soft" : "bg-well"
                       }`}
                     >
                       <Text
                         class={`font-mono text-[10px] font-semibold ${
-                          isManual ? "text-ready" : "text-amber"
+                          isManual ? "text-brand" : "text-muted-foreground"
                         }`}
                       >
                         {badge.shortLabel}

@@ -113,8 +113,8 @@ export function LibraryCard(props: {
               {formatEntryDescription(entry)}
             </Text>
             <If when={issue !== null}>
-              <View class="shrink-0 rounded bg-amber-soft px-1.5 py-0.5">
-                <Text class="text-[10px] font-medium text-amber">
+              <View class="shrink-0 rounded bg-brand-soft px-1.5 py-0.5">
+                <Text class="text-[10px] font-medium text-brand">
                   {issue === "auto"
                     ? shellT().autoSubtitles
                     : shellT().noSubtitlesBadge}
@@ -136,17 +136,6 @@ export function LibraryCard(props: {
             <Icon name="check" size={12} color="#ffffff" />
           </If>
         </View>
-      </If>
-      <If when={!props.selectionMode}>
-        <Button
-          onPress={() => props.onMenu(entry)}
-          class={`absolute top-3 right-3 h-6 w-6 items-center justify-center rounded-md bg-black/70 transition active:bg-black/90 ${
-            props.selected ? "opacity-100" : "opacity-0 group-hover:opacity-100"
-          }`}
-          accessibilityLabel={shellT().moreActions}
-        >
-          <Text class="text-sm font-bold leading-none text-white">⋯</Text>
-        </Button>
       </If>
     </View>
   );

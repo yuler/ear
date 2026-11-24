@@ -70,7 +70,7 @@ export function DiscoverCard(props: {
         </If>
         <If when={Boolean(props.isDownloaded?.()) && !task()}>
           <View
-            class="absolute top-1.5 right-1.5 h-6 w-6 items-center justify-center rounded-full bg-ready"
+            class="absolute top-1.5 right-1.5 h-6 w-6 items-center justify-center rounded-full bg-brand"
             accessibilityLabel={shellT().downloaded}
           >
             <Icon name="check" size={12} color="#ffffff" />

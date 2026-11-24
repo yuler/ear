@@ -37,9 +37,8 @@ export type VideoPlayerControlsProps = {
 const BTN =
   "h-8 min-w-7 flex-row items-center justify-center gap-1 rounded-lg px-1.5 transition active:scale-95";
 
-function toggleClass(on: boolean, tone: "neutral" | "brand" | "amber" = "neutral"): string {
+function toggleClass(on: boolean, tone: "neutral" | "brand" = "neutral"): string {
   if (!on) return `${BTN} border border-transparent hover:bg-well`;
-  if (tone === "amber") return `${BTN} border border-amber/50 bg-amber-soft`;
   if (tone === "brand") return `${BTN} border border-brand/50 bg-brand-soft`;
   return `${BTN} border border-line bg-well`;
 }
@@ -49,11 +48,10 @@ function IconButton(props: {
   label: string;
   onPress: () => void;
   active?: boolean;
-  tone?: "neutral" | "brand" | "amber";
+  tone?: "neutral" | "brand";
 }) {
   const iconTone = () => {
     if (!props.active) return "muted-foreground" as const;
-    if (props.tone === "amber") return "amber" as const;
     if (props.tone === "brand") return "brand" as const;
     return "foreground" as const;
   };
@@ -107,7 +105,7 @@ function SeekBar(props: VideoPlayerControlsProps) {
         </View>
         <View
           style={{ left: `${percent()}%` }}
-          class="pointer-events-none absolute -ml-1.5 h-3 w-3 rounded-full border border-black/20 bg-foreground shadow-sm transition-transform group-hover:scale-125"
+          class="pointer-events-none absolute -ml-1.5 h-3 w-3 rounded-full border border-white/80 bg-brand shadow-sm transition-transform group-hover:scale-125"
         />
       </View>
       <Text class="font-mono text-xs tabular-nums text-muted-foreground">
@@ -184,7 +182,7 @@ export function VideoPlayerControls(props: VideoPlayerControlsProps) {
               label={props.muted?.() ? m().unmute : m().mute}
               onPress={() => props.onToggleMute?.()}
               active={Boolean(props.muted?.())}
-              tone="amber"
+              tone="brand"
             />
           </If>
         </View>
@@ -207,18 +205,18 @@ export function VideoPlayerControls(props: VideoPlayerControlsProps) {
 
           <Button
             onPress={props.onToggleMask}
-            class={toggleClass(props.maskAll(), "amber")}
+            class={toggleClass(props.maskAll(), "brand")}
             accessibilityLabel={m().toggleSubtitlesMask}
             tooltip={<Text class="text-xs">{m().toggleSubtitlesMask}</Text>}
           >
             <Icon
               name={props.maskAll() ? "eye-off" : "eye"}
               size={14}
-              tone={props.maskAll() ? "amber" : "muted-foreground"}
+              tone={props.maskAll() ? "brand" : "muted-foreground"}
             />
             <Text
               class={`hidden text-xs font-medium md:flex ${
-                props.maskAll() ? "text-amber" : "text-muted-foreground"
+                props.maskAll() ? "text-brand" : "text-muted-foreground"
               }`}
             >
               {props.maskAll() ? m().masked : m().captions}
@@ -228,18 +226,18 @@ export function VideoPlayerControls(props: VideoPlayerControlsProps) {
           <If when={Boolean(props.onToggleBlocker)}>
             <Button
               onPress={() => props.onToggleBlocker?.()}
-              class={toggleClass(Boolean(props.blockerEnabled?.()), "amber")}
+              class={toggleClass(Boolean(props.blockerEnabled?.()), "brand")}
               accessibilityLabel={m().toggleSubtitleBlocker}
               tooltip={<Text class="text-xs">{m().toggleSubtitleBlocker}</Text>}
             >
               <Icon
                 name="subtitle-block"
                 size={14}
-                tone={props.blockerEnabled?.() ? "amber" : "muted-foreground"}
+                tone={props.blockerEnabled?.() ? "brand" : "muted-foreground"}
               />
               <Text
                 class={`hidden text-xs font-medium md:flex ${
-                  props.blockerEnabled?.() ? "text-amber" : "text-muted-foreground"
+                  props.blockerEnabled?.() ? "text-brand" : "text-muted-foreground"
                 }`}
               >
                 {m().subtitleBlocker}
@@ -253,7 +251,9 @@ export function VideoPlayerControls(props: VideoPlayerControlsProps) {
                 <Button
                   onPress={() => props.onChangeSentenceLength(l().mode)}
                   class={`h-7 justify-center rounded-md px-1.5 transition ${
-                    props.sentenceLength() === l().mode ? "bg-raised shadow-xs" : "hover:bg-accent"
+                    props.sentenceLength() === l().mode
+                      ? "bg-brand-soft shadow-xs"
+                      : "hover:bg-accent"
                   }`}
                   accessibilityLabel={l().desc()}
                   selected={props.sentenceLength() === l().mode}
@@ -261,7 +261,7 @@ export function VideoPlayerControls(props: VideoPlayerControlsProps) {
                   <Text
                     class={`text-xs ${
                       props.sentenceLength() === l().mode
-                        ? "font-medium text-foreground"
+                        ? "font-medium text-brand"
                         : "text-muted-foreground"
                     }`}
                   >

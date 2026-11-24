@@ -60,8 +60,8 @@ function MiniSlider(props: {
           }}
           trackClass="h-5 justify-center cursor-pointer select-none"
           indicatorClass="h-1.5 w-full rounded-full bg-white/20 overflow-hidden"
-          rangeClass="h-full rounded-full bg-amber"
-          thumbClass="size-3.5 rounded-full border border-black/40 bg-amber shadow-md transition-transform hover:scale-125"
+          rangeClass="h-full rounded-full bg-brand"
+          thumbClass="size-3.5 rounded-full border border-black/40 bg-brand shadow-md transition-transform hover:scale-125"
         />
       </View>
       <Text class="min-w-[28px] font-mono text-[10px] text-white/90 select-none tabular-nums">
@@ -235,7 +235,7 @@ export function SubtitleBlocker(props: {
         <View
           class={`pointer-events-auto absolute items-center justify-center select-none transition-colors ${
             isHovered() || dragMode() !== null
-              ? `border-l border-r border-amber/80 ${
+              ? `border-l border-r border-brand/80 ${
                   isNearTop()
                     ? "border-t border-b-0 rounded-t-lg rounded-bl-lg rounded-br-none"
                     : "border-b border-t-0 rounded-b-lg rounded-tl-lg rounded-tr-none"
@@ -291,19 +291,19 @@ export function SubtitleBlocker(props: {
               <View
                 class={`pointer-events-none flex-row items-center gap-1.5 rounded-full px-3 py-1 select-none backdrop-blur-sm transition-all ${
                   dragMode() === "move"
-                    ? "scale-105 border border-amber/90 bg-black/80 text-amber shadow-lg"
+                    ? "scale-105 border border-brand/90 bg-black/80 text-brand shadow-lg"
                     : "border border-white/20 bg-black/40 text-white/75"
                 }`}
               >
                 <Icon
                   name="move"
                   size={12}
-                  tone={dragMode() === "move" ? "amber" : "faint"}
+                  tone={dragMode() === "move" ? "brand" : "faint"}
                 />
                 <Text
                   class={`font-mono text-[11px] tracking-wide select-none ${
                     dragMode() === "move"
-                      ? "font-semibold text-amber"
+                      ? "font-semibold text-brand"
                       : "text-white/75"
                   }`}
                 >
@@ -317,13 +317,13 @@ export function SubtitleBlocker(props: {
             {/* Blocker border segment stopping cleanly at the toolbar junction */}
             <If when={!isNearTop()}>
               <View
-                class="pointer-events-none absolute top-0 left-0 rounded-tl-lg border-t border-amber/80"
+                class="pointer-events-none absolute top-0 left-0 rounded-tl-lg border-t border-brand/80"
                 style={{ right: getToolbarWidth() }}
               />
             </If>
             <If when={isNearTop()}>
               <View
-                class="pointer-events-none absolute bottom-0 left-0 rounded-bl-lg border-b border-amber/80"
+                class="pointer-events-none absolute bottom-0 left-0 rounded-bl-lg border-b border-brand/80"
                 style={{ right: getToolbarWidth() }}
               />
             </If>
@@ -332,8 +332,8 @@ export function SubtitleBlocker(props: {
             <View
               class={`pointer-events-auto absolute z-40 flex-row items-center justify-between gap-2 px-3 py-1.5 backdrop-blur-md select-none ${
                 isNearTop()
-                  ? "rounded-b-xl rounded-t-none border-l border-r border-b border-t-0 border-amber/80 bg-black/85"
-                  : "rounded-t-xl rounded-b-none border-l border-r border-t border-b-0 border-amber/80 bg-black/85"
+                  ? "rounded-b-xl rounded-t-none border-l border-r border-b border-t-0 border-brand/80 bg-black/85"
+                  : "rounded-t-xl rounded-b-none border-l border-r border-t border-b-0 border-brand/80 bg-black/85"
               }`}
               style={{
                 right: 0,
@@ -390,7 +390,7 @@ export function SubtitleBlocker(props: {
               }
               {...nHandler.panHandlers}
             >
-              <View class="h-1.5 w-14 rounded-full border border-black/50 bg-amber shadow-md transition-all group-hover:h-2 group-hover:scale-110" />
+              <View class="h-1.5 w-14 rounded-full border border-black/50 bg-brand shadow-md transition-all group-hover:h-2 group-hover:scale-110" />
             </View>
 
             <View
@@ -402,7 +402,7 @@ export function SubtitleBlocker(props: {
               }
               {...sHandler.panHandlers}
             >
-              <View class="h-1.5 w-14 rounded-full border border-black/50 bg-amber shadow-md transition-all group-hover:h-2 group-hover:scale-110" />
+              <View class="h-1.5 w-14 rounded-full border border-black/50 bg-brand shadow-md transition-all group-hover:h-2 group-hover:scale-110" />
             </View>
 
             <View
@@ -410,7 +410,7 @@ export function SubtitleBlocker(props: {
               style={{ left: -10, top: 12, bottom: 12, width: 20, cursor: "ew-resize" }}
               {...wHandler.panHandlers}
             >
-              <View class="h-12 w-1.5 rounded-full border border-black/50 bg-amber shadow-md transition-all group-hover:w-2 group-hover:scale-110" />
+              <View class="h-12 w-1.5 rounded-full border border-black/50 bg-brand shadow-md transition-all group-hover:w-2 group-hover:scale-110" />
             </View>
 
             <View
@@ -418,7 +418,7 @@ export function SubtitleBlocker(props: {
               style={{ right: -10, top: 12, bottom: 12, width: 20, cursor: "ew-resize" }}
               {...eHandler.panHandlers}
             >
-              <View class="h-12 w-1.5 rounded-full border border-black/50 bg-amber shadow-md transition-all group-hover:w-2 group-hover:scale-110" />
+              <View class="h-12 w-1.5 rounded-full border border-black/50 bg-brand shadow-md transition-all group-hover:w-2 group-hover:scale-110" />
             </View>
 
             <View
@@ -426,7 +426,7 @@ export function SubtitleBlocker(props: {
               style={{ top: -10, left: -10, width: 22, height: 22, cursor: "nwse-resize" }}
               {...nwHandler.panHandlers}
             >
-              <View class="size-3.5 rounded-full border border-black/50 bg-amber shadow-md transition-transform group-hover:scale-125" />
+              <View class="size-3.5 rounded-full border border-black/50 bg-brand shadow-md transition-transform group-hover:scale-125" />
             </View>
 
             <If when={isNearTop()}>
@@ -435,7 +435,7 @@ export function SubtitleBlocker(props: {
                 style={{ top: -10, right: -10, width: 22, height: 22, cursor: "nesw-resize" }}
                 {...neHandler.panHandlers}
               >
-                <View class="size-3.5 rounded-full border border-black/50 bg-amber shadow-md transition-transform group-hover:scale-125" />
+                <View class="size-3.5 rounded-full border border-black/50 bg-brand shadow-md transition-transform group-hover:scale-125" />
               </View>
             </If>
 
@@ -444,7 +444,7 @@ export function SubtitleBlocker(props: {
               style={{ bottom: -10, left: -10, width: 22, height: 22, cursor: "nesw-resize" }}
               {...swHandler.panHandlers}
             >
-              <View class="size-3.5 rounded-full border border-black/50 bg-amber shadow-md transition-transform group-hover:scale-125" />
+              <View class="size-3.5 rounded-full border border-black/50 bg-brand shadow-md transition-transform group-hover:scale-125" />
             </View>
 
             <If when={!isNearTop()}>
@@ -453,7 +453,7 @@ export function SubtitleBlocker(props: {
                 style={{ bottom: -10, right: -10, width: 22, height: 22, cursor: "nwse-resize" }}
                 {...seHandler.panHandlers}
               >
-                <View class="size-3.5 rounded-full border border-black/50 bg-amber shadow-md transition-transform group-hover:scale-125" />
+                <View class="size-3.5 rounded-full border border-black/50 bg-brand shadow-md transition-transform group-hover:scale-125" />
               </View>
             </If>
           </If>

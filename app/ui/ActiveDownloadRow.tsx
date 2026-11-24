@@ -14,9 +14,8 @@ export function taskPercent(task: DownloadTaskProgress): number {
 export function PosterProgress(props: { task: () => DownloadTaskProgress }) {
   const color = () => {
     const stage = props.task().stage;
-    if (stage === "paused") return "bg-amber";
+    if (stage === "paused") return "bg-brand/60";
     if (stage === "error") return "bg-destructive";
-    if (stage === "done") return "bg-ready";
     return "bg-brand";
   };
   return (
@@ -118,10 +117,10 @@ export function ActiveDownloadCard(props: {
             style={{ left: `${percent()}%` }}
             class={`pointer-events-none absolute inset-y-0 w-[2px] -translate-x-1/2 shadow-[0_0_8px_#ffffff] ${
               isPaused()
-                ? "bg-amber"
+                ? "bg-brand/70"
                 : isError()
                   ? "bg-destructive"
-                  : "bg-white"
+                  : "bg-brand"
             }`}
           />
         </If>
@@ -131,9 +130,9 @@ export function ActiveDownloadCard(props: {
           <View
             class={`h-8 w-8 items-center justify-center rounded-full backdrop-blur-sm ${
               isDone()
-                ? "bg-ready/85"
+                ? "bg-brand/90"
                 : isPaused()
-                  ? "bg-amber/85"
+                  ? "bg-brand/70"
                   : isError()
                     ? "bg-destructive/85"
                     : "bg-black/60"
