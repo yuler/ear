@@ -47,6 +47,7 @@ export function LibraryBatchBar(props: {
 
   const count = () => props.selectedCount();
   const hasSelection = () => count() > 0;
+  const canOpenFolder = () => count() === 1 && Boolean(props.onOpenFolder);
   const deleteKey = platform.os === "macos" ? "backspace" : "delete";
 
   return (
@@ -59,7 +60,7 @@ export function LibraryBatchBar(props: {
         <View class="flex-row items-center gap-1.5 pr-1 pl-1.5">
           <View class="min-w-[22px] items-center justify-center rounded-full bg-brand px-1.5 py-0.5">
             <Text class="font-mono text-[11px] font-semibold tabular-nums text-brand-foreground">
-              {count()}
+              {String(count())}
             </Text>
           </View>
           <Text class="text-xs font-medium text-foreground">
@@ -69,14 +70,25 @@ export function LibraryBatchBar(props: {
 
         <View class="mx-1 h-4 w-px bg-line" />
 
-        <If when={count() === 1 && Boolean(props.onOpenFolder)}>
+        <If when={Boolean(props.onOpenFolder)}>
           <Button
-            onPress={() => props.onOpenFolder?.()}
-            class="flex-row items-center gap-1.5 rounded-full px-3 py-1.5 transition hover:bg-well active:bg-accent"
+            disabled={!canOpenFolder()}
+            onPress={() => {
+              if (canOpenFolder()) props.onOpenFolder?.();
+            }}
+            class={`flex-row items-center gap-1.5 rounded-full px-3 py-1.5 transition ${
+              canOpenFolder()
+                ? "hover:bg-well active:bg-accent"
+                : "opacity-40"
+            }`}
             accessibilityLabel={t().openFolder}
           >
             <Icon name="folder" size={13} tone="muted-foreground" />
-            <Text class="text-xs font-medium text-foreground">
+            <Text
+              class={`text-xs font-medium ${
+                canOpenFolder() ? "text-foreground" : "text-muted-foreground"
+              }`}
+            >
               {t().openFolder}
             </Text>
             <ToolbarKeycap keys="o" />
@@ -86,7 +98,9 @@ export function LibraryBatchBar(props: {
         <If when={props.canDelete}>
           <Button
             disabled={!hasSelection()}
-            onPress={props.onDeleteSelected}
+            onPress={() => {
+              if (hasSelection()) props.onDeleteSelected();
+            }}
             class={`flex-row items-center gap-1.5 rounded-full px-3 py-1.5 transition ${
               hasSelection()
                 ? "bg-danger-soft hover:opacity-90 active:opacity-80"

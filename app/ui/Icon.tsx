@@ -14,6 +14,7 @@ import folder from "./icons/folder.svg";
 import headphones from "./icons/headphones.svg";
 import helpCircle from "./icons/help-circle.svg";
 import link from "./icons/link.svg";
+import listChecks from "./icons/list-checks.svg";
 import loader from "./icons/loader.svg";
 import move from "./icons/move.svg";
 import music from "./icons/music.svg";
@@ -46,6 +47,7 @@ const ICONS = {
   headphones,
   "help-circle": helpCircle,
   link,
+  "list-checks": listChecks,
   loader,
   move,
   music,

@@ -1,5 +1,6 @@
 import { signal } from "nsh";
-import { expect, test } from "nsh/test";
+import { expect, open, test } from "nsh/test";
+import { displayDownloadPath, formatDiskSize } from "../library/storage";
 import type { LibraryEntry } from "../library/types";
 import {
   ActiveDownloadRow,
@@ -424,4 +425,79 @@ test("buildLibraryContextMenu and buildDiscoverContextMenu provide right-click a
       onExit: () => {},
     }),
   ).toBeDefined();
+});
+
+test("storage helpers shorten home paths and format disk capacities", () => {
+  expect(displayDownloadPath("/home/alice/Downloads", "/home/alice")).toBe("~/Downloads");
+  expect(displayDownloadPath("/home/alice", "/home/alice")).toBe("~");
+  expect(displayDownloadPath("/mnt/media", "/home/alice")).toBe("/mnt/media");
+  expect(formatDiskSize(2 * 1024 ** 4)).toBe("2.00 TB");
+  expect(formatDiskSize(256 * 1024 ** 3)).toBe("256 GB");
+  expect(formatDiskSize(48.5 * 1024 ** 3)).toBe("48.5 GB");
+  expect(formatDiskSize(512 * 1024 ** 2)).toBe("512 MB");
+  expect(formatDiskSize(null)).toBe("");
+});
+
+test("Library multi-select uses single-key S/A, keeps batch bar buttons permanently mounted, and shows storage footer", async () => {
+  const app = await open("../ui/overlayFixture.tsx", { width: 1000, height: 700 });
+
+  // Storage footer displays download folder and disk capacity at bottom of Library
+  await app.waitFor("/tmp/ear-downloads");
+  expect(app.texts().some((t) => t.includes("120 GB free / 500 GB"))).toBe(true);
+
+  // Press 's' to activate multi-select mode
+  await app.keyboard.press("s");
+  await app.waitFor("Select all");
+  expect(app.texts().some((t) => t === "A")).toBe(true);
+  expect(app.texts().some((t) => t.includes("Ctrl+A"))).toBe(false);
+  expect(app.texts().some((t) => t === "0")).toBe(true);
+  // Both Open folder and Delete stay permanently mounted at 0 selections
+  expect(app.shows("label:Open folder")).toBe(true);
+  expect(app.shows("label:Delete selected")).toBe(true);
+
+  // Press single key 'a' to select all 3 entries
+  await app.keyboard.press("a");
+  await app.waitFor("Deselect all");
+  expect(app.texts().filter((t) => t === "3").length).toBeGreaterThanOrEqual(2);
+  expect(app.shows("label:Open folder")).toBe(true);
+  expect(app.shows("label:Delete selected")).toBe(true);
+
+  // Press single key 'a' again to deselect all
+  await app.keyboard.press("a");
+  await app.waitFor("Select all");
+  expect(app.texts().some((t) => t === "0")).toBe(true);
+
+  // Backward-compatible Mod+A also toggles select all
+  await app.keyboard.press("mod+a");
+  await app.waitFor("Deselect all");
+
+  // Escape exits multi-select and restores storage footer
+  await app.keyboard.press("escape");
+  await app.waitFor("/tmp/ear-downloads");
+  expect(app.shows("label:Delete selected")).toBe(false);
+});
+
+test("Library context menu advertises single-key 'a' for Select All in selection mode", () => {
+  const items = buildLibraryContextMenu({
+    entry: mockEntry({ videoId: "v1" }),
+    selectionMode: true,
+    checked: false,
+    selectedCount: 0,
+    allVisibleSelected: false,
+    canDelete: true,
+    messages: SHELL_MESSAGES.en,
+    onPlay: () => {},
+    onOpenFolder: () => {},
+    onCopyLink: () => {},
+    onEnterSelect: () => {},
+    onToggleItemSelect: () => {},
+    onToggleSelectAll: () => {},
+    onDeleteItem: () => {},
+    onDeleteSelected: () => {},
+  });
+  const selectAllItem = items.find(
+    (i): i is { label: string; shortcut?: string } =>
+      Boolean(i && "label" in i && i.label === "Select all"),
+  );
+  expect(selectAllItem?.shortcut).toBe("a");
 });

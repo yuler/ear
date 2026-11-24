@@ -20,6 +20,8 @@ import { installAppMenu, setupWindowChrome } from "./appWindow";
 import { isLinkText, type ClipboardVideoPreview } from "./clipboard";
 import { isDevMode } from "./env";
 import { deleteEntry, listEntriesSafe } from "./library/index";
+import { mediaRoot, openDirectory } from "./library/paths";
+import { queryDiskSpace, type DiskSpaceInfo } from "./library/storage";
 import type { LibraryEntry } from "./library/types";
 import { DevRibbon } from "./ui/DevRibbon";
 import { initSettings, settings } from "./ui/settings";
@@ -55,7 +57,9 @@ function App() {
   const transitionOriginRect = signal<ViewTransitionRect | null>(null);
   const showSettingsModal = signal(false);
   const showShortcutsModal = signal(false);
+  const diskSpace = signal<DiskSpaceInfo | null>(null);
   let urlInputRef: InputRef | null = null;
+  const downloadFolder = () => mediaRoot(settings().downloadFolder);
 
   const preview = createPreviewController(url);
   const downloads = createDownloadController({
@@ -99,6 +103,20 @@ function App() {
     if (lifecycle() === "active" && settings().clipboardAuto) {
       void preview.checkClipboard();
     }
+  });
+
+  effect(() => {
+    const dir = downloadFolder();
+    // Re-query when library entry count changes or window becomes active.
+    const _count = savedEntries().length;
+    const _state = lifecycle();
+    let cancelled = false;
+    void queryDiskSpace(dir).then((info) => {
+      if (!cancelled) diskSpace.set(info);
+    });
+    return () => {
+      cancelled = true;
+    };
   });
 
   // Refresh the library for downloads the CLI runs in the background.
@@ -305,6 +323,9 @@ function App() {
           onOpenDiscover={() => selectPage("discover")}
           onOpenEntry={(entry, rect) => void openEntry(entry, rect)}
           onOpenFolder={(entry) => void revealEntry(entry)}
+          downloadFolder={downloadFolder}
+          diskSpace={diskSpace}
+          onOpenDownloadFolder={() => void openDirectory(downloadFolder())}
           onDeleteEntry={(entry) => void deleteLibraryEntry(entry)}
           onDeleteEntries={(entries) => void deleteLibraryEntries(entries)}
           onPauseDownload={downloads.pause}

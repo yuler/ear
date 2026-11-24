@@ -71,7 +71,7 @@ export function LibraryHeader(props: {
           }
         >
           <Icon
-            name="check-square"
+            name="list-checks"
             size={12}
             tone={props.selectionMode() ? "brand" : "muted-foreground"}
           />
@@ -99,7 +99,7 @@ export function LibraryHeader(props: {
           >
             {props.allSelected() ? shellT().deselectAll : shellT().selectAll}
           </Text>
-          <ShortcutHint keys="mod+a" active={props.allSelected()} />
+          <ShortcutHint keys="a" active={props.allSelected()} />
         </Button>
       </If>
     </View>
