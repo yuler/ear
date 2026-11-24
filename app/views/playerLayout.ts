@@ -9,8 +9,8 @@ export type SubtitleTextSize = "sm" | "md" | "lg";
 
 /** Fixed header height (points). */
 export const PLAYER_HEADER_H = 44;
-/** Fixed control bar height under the video (points). */
-export const PLAYER_CONTROLS_H = 84;
+/** Overlay control bar height inside the bottom of the video (points). */
+export const PLAYER_CONTROLS_H = 76;
 /** Padding around the video column in side-by-side mode (points). */
 export const PLAYER_SIDE_PAD = 16;
 
@@ -61,7 +61,8 @@ export function computePlayerLayout(
     const subtitleWidth = Math.min(sideSubtitleWidth(w), w);
     const mainWidth = Math.max(0, w - subtitleWidth);
     const maxW = Math.max(0, mainWidth - PLAYER_SIDE_PAD * 2);
-    const maxH = Math.max(0, availH - PLAYER_CONTROLS_H - PLAYER_SIDE_PAD * 2);
+    // Controls overlay inside the bottom of the video box, so full height is available.
+    const maxH = Math.max(0, availH - PLAYER_SIDE_PAD * 2);
     const videoWidth = Math.floor(Math.min(maxW, (maxH * 16) / 9));
     const videoHeight = Math.floor((videoWidth * 9) / 16);
     return { mode, mainWidth, subtitleWidth, videoWidth, videoHeight };

@@ -17,11 +17,11 @@ import {
 import type { SentenceLengthMode } from "../youtube/captions";
 import { VideoDetailView } from "./VideoDetailView";
 import { shouldShowPlayerHeader } from "./VideoDetailHeader";
+import { shouldShowPlayerControls } from "./VideoPlayerControls";
 import { getSentence3DStyle, SentenceRow } from "./SentenceRow";
 import {
   computePlayerLayout,
   nextLayoutMode,
-  PLAYER_CONTROLS_H,
   PLAYER_SIDE_PAD,
   subtitleTextSize,
 } from "./playerLayout";
@@ -274,11 +274,11 @@ test("Player layout: aspect ratio switches mode with hysteresis, sizes follow th
   expect(nextLayoutMode("stacked", 1200, 750)).toBe("stacked"); // 1.6
   expect(nextLayoutMode("side", 1200, 750)).toBe("side"); // 1.6
 
-  // Side: subtitle column 38% of width clamped to 360..520, video 16:9 fits the left column.
+  // Side: subtitle column 38% of width clamped to 360..520, video 16:9 fits the full left column (controls overlay inside video).
   const wide = computePlayerLayout("side", 1600, 700);
   expect(wide.subtitleWidth).toBe(520);
   expect(wide.mainWidth).toBe(1080);
-  const maxH = 700 - PLAYER_CONTROLS_H - PLAYER_SIDE_PAD * 2;
+  const maxH = 700 - PLAYER_SIDE_PAD * 2;
   expect(wide.videoWidth).toBe(Math.floor(Math.min(1080 - PLAYER_SIDE_PAD * 2, (maxH * 16) / 9)));
   expect(wide.videoHeight).toBe(Math.floor((wide.videoWidth * 9) / 16));
   expect(computePlayerLayout("side", 900, 500).subtitleWidth).toBe(360);
@@ -301,6 +301,13 @@ test("VideoDetailHeader hides while playing unless hovered or focused", () => {
   expect(shouldShowPlayerHeader(false, true, false)).toBe(true);
   expect(shouldShowPlayerHeader(false, false, true)).toBe(true);
   expect(shouldShowPlayerHeader(true, false, false)).toBe(true);
+});
+
+test("VideoPlayerControls hides while playing unless hovered or focused", () => {
+  expect(shouldShowPlayerControls(false, false, false)).toBe(false);
+  expect(shouldShowPlayerControls(false, true, false)).toBe(true);
+  expect(shouldShowPlayerControls(false, false, true)).toBe(true);
+  expect(shouldShowPlayerControls(true, false, false)).toBe(true);
 });
 
 test("Smooth continuous playback: streams forward without seek halts", () => {

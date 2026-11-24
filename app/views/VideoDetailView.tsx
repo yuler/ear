@@ -32,7 +32,7 @@ import {
 } from "./playerLayout";
 import { SentenceList } from "./SentenceList";
 import { VideoDetailHeader } from "./VideoDetailHeader";
-import { VideoPlayerControls } from "./VideoPlayerControls";
+import { shouldShowPlayerControls, VideoPlayerControls } from "./VideoPlayerControls";
 import {
   calculateFallbackOriginRect,
   calculateTargetRect,
@@ -64,8 +64,8 @@ function initialWindowSize(): { width: number; height: number } {
 }
 
 /**
- * Full-screen player page: fixed header, video with a fixed control bar under it,
- * and the subtitle list. Side-by-side or stacked by window aspect ratio.
+ * Full-screen player page: floating header, video with YouTube-style bottom overlay
+ * controls, and the subtitle list. Side-by-side or stacked by window aspect ratio.
  */
 export function VideoDetailView(props: VideoDetailViewProps) {
   const entry = () => props.entry();
@@ -90,6 +90,36 @@ export function VideoDetailView(props: VideoDetailViewProps) {
   const phase = signal<TransitionPhase>("initial");
   const closing = signal(false);
   let targetBoxRef: ViewNodeMeasureTarget | null = null;
+
+  // YouTube-style controls auto-hide: reveal on hover/activity, hide after 2.4s idle while playing.
+  const videoHovered = signal(false);
+  const controlsHovered = signal(false);
+  let controlsIdleTimer: ReturnType<typeof setTimeout> | null = null;
+
+  const clearControlsTimer = () => {
+    if (controlsIdleTimer) {
+      clearTimeout(controlsIdleTimer);
+      controlsIdleTimer = null;
+    }
+  };
+
+  const scheduleControlsHide = () => {
+    clearControlsTimer();
+    controlsIdleTimer = setTimeout(() => {
+      if (!untracked(controlsHovered)) {
+        videoHovered.set(false);
+      }
+    }, 2400);
+  };
+
+  const revealControls = () => {
+    videoHovered.set(true);
+    if (!untracked(controlsHovered)) {
+      scheduleControlsHide();
+    }
+  };
+
+  effect(() => () => clearControlsTimer());
 
   // Auto-scroll: keep the active row ~35% down the subtitle viewport.
   let scrollNode: ScrollRef | null = null;
@@ -142,11 +172,20 @@ export function VideoDetailView(props: VideoDetailViewProps) {
   );
 
   const shown = () => phase() === "settled" || phase() === "entering";
+  const controlsVisible = () =>
+    shouldShowPlayerControls(ctl.paused(), videoHovered() || controlsHovered());
 
   const videoBox = (
     <View
       ref={(node) => {
         targetBoxRef = node;
+      }}
+      onMouseEnter={revealControls}
+      onMouseMove={revealControls}
+      onMouseLeave={() => {
+        clearControlsTimer();
+        videoHovered.set(false);
+        controlsHovered.set(false);
       }}
       style={{
         width: layout().videoWidth,
@@ -183,7 +222,7 @@ export function VideoDetailView(props: VideoDetailViewProps) {
           class="pointer-events-none absolute inset-0 h-full w-full object-contain"
         />
       </If>
-      {/* Click video surface to play/pause; sits below SubtitleBlocker (z-10) */}
+      {/* Click video surface to play/pause; sits below SubtitleBlocker (z-10) and Controls (z-20) */}
       <Button
         onPress={ctl.togglePlay}
         class="absolute inset-0 items-center justify-center cursor-pointer"
@@ -203,11 +242,6 @@ export function VideoDetailView(props: VideoDetailViewProps) {
           onToggleEnabled={ctl.toggleBlocker}
         />
       </If>
-    </View>
-  );
-
-  const controls = (
-    <View style={{ width: layout().videoWidth }} class="shrink-0">
       <VideoPlayerControls
         paused={ctl.paused}
         onTogglePlay={ctl.togglePlay}
@@ -231,6 +265,17 @@ export function VideoDetailView(props: VideoDetailViewProps) {
         blockerEnabled={audioOnly() ? undefined : ctl.blockerEnabled}
         onToggleBlocker={audioOnly() ? undefined : ctl.toggleBlocker}
         language={language}
+        visible={controlsVisible}
+        compact={() => layout().videoWidth < 680}
+        onControlsMouseEnter={() => {
+          clearControlsTimer();
+          controlsHovered.set(true);
+          videoHovered.set(true);
+        }}
+        onControlsMouseLeave={() => {
+          controlsHovered.set(false);
+          scheduleControlsHide();
+        }}
       />
     </View>
   );
@@ -334,7 +379,6 @@ export function VideoDetailView(props: VideoDetailViewProps) {
             class={`shrink-0 items-center ${side() ? "justify-center" : ""}`}
           >
             {videoBox}
-            {controls}
           </View>
           {subtitles}
         </View>
