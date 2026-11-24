@@ -507,6 +507,13 @@ test("Library multi-select uses single-key S/A, keeps batch bar buttons permanen
   await app.keyboard.press("escape");
   await app.waitFor("/tmp/ear-downloads");
   expect(app.shows("label:Delete selected")).toBe(false);
+
+  // Async dimension backfill updates mounted LibraryCard reactively (without remounting)
+  // and passes the fresh portrait dimensions when the card is clicked
+  await app.press("Backfill v3 Portrait");
+  await app.press("label:Open Video v3");
+  await app.waitFor("Dims:720x1280");
+  expect(app.texts().includes("Dims:720x1280")).toBe(true);
 });
 
 test("Library context menu advertises single-key 'a' for Select All in selection mode", () => {

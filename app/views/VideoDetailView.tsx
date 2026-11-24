@@ -410,10 +410,20 @@ export function VideoDetailView(props: VideoDetailViewProps) {
       onLayout={(e) => {
         const { width, height } = e.bounds.size;
         if (width <= 0 || height <= 0) return;
-        size.set({ width, height });
-        autoMode.set(
-          resolveAutoLayoutMode(untracked(autoMode), width, height, untracked(mediaAspect)),
+        const curSize = untracked(size);
+        if (curSize.width !== width || curSize.height !== height) {
+          size.set({ width, height });
+        }
+        const curAuto = untracked(autoMode);
+        const nextAuto = resolveAutoLayoutMode(
+          curAuto,
+          width,
+          height,
+          untracked(mediaAspect),
         );
+        if (nextAuto !== curAuto) {
+          autoMode.set(nextAuto);
+        }
       }}
     >
       <View

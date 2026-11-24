@@ -1,4 +1,5 @@
 import {
+  cleanup,
   effect,
   keymap,
   lifecycle,
@@ -143,18 +144,18 @@ function App() {
 
   // Probe dimensions once for legacy local videos missing videoWidth/videoHeight
   // so Home cards show their orientation icon and detail transitions start in the right mode.
+  let unmounted = false;
+  cleanup(() => {
+    unmounted = true;
+  });
   effect(() => {
     const list = savedEntries();
     if (!list.some((e) => !probedVideoIds.has(e.videoId) && needsDimensionProbe(e))) {
       return;
     }
-    let cancelled = false;
     void backfillVideoDimensions(list, probedVideoIds).then((updates) => {
-      if (!cancelled) applyVideoDimensions(updates);
+      if (!unmounted) applyVideoDimensions(updates);
     });
-    return () => {
-      cancelled = true;
-    };
   });
 
   effect(() => {
@@ -206,14 +207,16 @@ function App() {
     entry: LibraryEntry,
     originRect?: ViewTransitionRect | null,
   ) => {
+    const latest =
+      savedEntries().find((e) => e.videoId === entry.videoId) ?? entry;
     transitionOriginRect.set(originRect ?? null);
-    const src = await resolvePlayableSrc(entry);
+    const src = await resolvePlayableSrc(latest);
     if (!src) {
-      showToast(shellT().noLocalFile(entry.title), "error");
+      showToast(shellT().noLocalFile(latest.title), "error");
       return;
     }
     playingSrc.set(src);
-    playingEntry.set(entry);
+    playingEntry.set(latest);
   };
 
   const deleteLibraryEntry = async (entry: LibraryEntry) => {
