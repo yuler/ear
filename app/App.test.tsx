@@ -9,6 +9,12 @@ import {
 import { buildVideoPreview, isLinkText } from "./clipboard";
 import nshConfig from "./nsh.json";
 import { partitionSubtitleTracks } from "./ui/ClipboardCard";
+import {
+  drawEarMark,
+  EAR_MARK_FLOW_DASH,
+  EAR_MARK_FLOW_GAP,
+  EAR_MARK_FLOW_START,
+} from "./ui/EarMark";
 import { MESSAGES } from "./ui/i18n";
 import type { CaptionTrack } from "./youtube/types";
 
@@ -44,12 +50,91 @@ test("starts on Library under the search bar, with a weak Discover entry below a
   await app.waitFor("Your library is empty");
   expect(app.shows("label:Back to Library")).toBe(false);
 
-  // Top-bar Ear logo also returns to Library from Discover.
+  // Top-bar Ear logo returns to Library from Discover.
   await app.press("label:Browse all");
   await app.waitFor("English");
   await app.press("label:Ear");
   await app.waitFor("Your library is empty");
   expect(app.shows("label:Back to Library")).toBe(false);
+});
+
+test("hovering the top-bar Ear logo starts and resets the Loop Resonance animation on desktop", async () => {
+  const app = await open("./App.tsx", { platform: "macos" });
+  expect(app.shows("label:Ear")).toBe(true);
+  await app.hover("label:Ear");
+  await app.hover("label:Settings");
+  expect(app.shows("label:Ear")).toBe(true);
+});
+
+test("drawEarMark renders base loop, dashed flow pulse, ghost ripple, and outer resonance arc", () => {
+  const strokes: Array<{
+    strokeStyle: string;
+    globalAlpha: number;
+    dash: number[];
+    dashOffset: number;
+  }> = [];
+  const stateStack: Array<{ alpha: number; dash: number[]; dashOffset: number }> = [];
+  let dash: number[] = [];
+  const cx = {
+    strokeStyle: "",
+    lineWidth: 1,
+    lineCap: "butt",
+    lineJoin: "miter",
+    globalAlpha: 1,
+    lineDashOffset: 0,
+    clearRect() {},
+    save() {
+      stateStack.push({ alpha: this.globalAlpha, dash: [...dash], dashOffset: this.lineDashOffset });
+    },
+    restore() {
+      const prev = stateStack.pop();
+      if (prev) {
+        this.globalAlpha = prev.alpha;
+        dash = prev.dash;
+        this.lineDashOffset = prev.dashOffset;
+      }
+    },
+    scale() {},
+    translate() {},
+    beginPath() {},
+    moveTo() {},
+    lineTo() {},
+    arc() {},
+    setLineDash(segments: number[]) {
+      dash = [...segments];
+    },
+    stroke() {
+      strokes.push({
+        strokeStyle: this.strokeStyle,
+        globalAlpha: this.globalAlpha,
+        dash: [...dash],
+        dashOffset: this.lineDashOffset,
+      });
+    },
+  };
+
+  drawEarMark(cx as unknown as Parameters<typeof drawEarMark>[0], { width: 32, height: 32 }, {
+    loopColor: "#fafafa",
+    accentColor: "#2f7cf6",
+    arcColor: "#3b82f6",
+    flowOffset: EAR_MARK_FLOW_START,
+    flowOpacity: 1,
+    arcOpacity: 0.45,
+    arcScale: 1.04,
+    ghostOpacity: 0.45,
+    ghostScale: 1.3,
+  });
+
+  expect(strokes.length).toBe(4);
+  expect(strokes[0]?.strokeStyle).toBe("#fafafa");
+  expect(strokes[0]?.dash).toEqual([]);
+  expect(strokes[1]?.strokeStyle).toBe("#2f7cf6");
+  expect(strokes[1]?.dash).toEqual([EAR_MARK_FLOW_DASH, EAR_MARK_FLOW_GAP]);
+  expect(strokes[1]?.dashOffset).toBe(EAR_MARK_FLOW_START);
+  expect(strokes[2]?.strokeStyle).toBe("#2f7cf6");
+  expect(strokes[2]?.globalAlpha).toBe(0.45);
+  expect(strokes[3]?.strokeStyle).toBe("#3b82f6");
+  expect(strokes[3]?.globalAlpha).toBe(0.45);
 });
 
 test("a clipboard link pops a card with quality, subtitle options and Download, which closes it", async () => {

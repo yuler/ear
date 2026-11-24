@@ -45,6 +45,7 @@ export function TopBar(props: {
   const t = shellT;
   const insets = () => macTitleBarInsets();
   const triggerWidth = signal<number | null>(null);
+  const logoHovered = signal(false);
 
   const field = (
     <View class="h-9 w-full flex-row items-center gap-2.5 rounded-xl border border-line bg-well px-3">
@@ -107,13 +108,19 @@ export function TopBar(props: {
       }}
       class="shrink-0 flex-row items-center gap-3 bg-background"
     >
-      <Button
-        onPress={() => props.onLogoPress?.()}
-        class="h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-line bg-well transition hover:bg-accent active:opacity-80"
-        accessibilityLabel="Ear"
+      <View
+        class="shrink-0"
+        onMouseEnter={() => logoHovered.set(true)}
+        onMouseLeave={() => logoHovered.set(false)}
       >
-        <EarMark size={19} />
-      </Button>
+        <Button
+          onPress={() => props.onLogoPress?.()}
+          class="h-9 w-9 items-center justify-center rounded-xl border border-line bg-well transition hover:bg-accent active:opacity-80"
+          accessibilityLabel="Ear"
+        >
+          <EarMark size={19} animated={logoHovered} />
+        </Button>
+      </View>
 
       <View class="min-w-0 flex-1 flex-row items-center">
         <View
