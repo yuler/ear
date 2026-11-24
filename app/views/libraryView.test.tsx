@@ -1,6 +1,11 @@
 import { signal } from "nsh";
 import { expect, test } from "nsh/test";
 import type { LibraryEntry } from "../library/types";
+import {
+  ActiveDownloadRow,
+  ActiveDownloadsSection,
+  summarizeDownloads,
+} from "../ui/ActiveDownloadRow";
 import { LibraryCard } from "./LibraryCards";
 import { formatEntryDescription, isAudioEntry, LibraryView } from "./LibraryView";
 import {
@@ -256,4 +261,49 @@ test("LibraryCard omits per-card overflow button in favor of top-level multi-sel
   const str = JSON.stringify(card);
   expect(str.includes("More actions")).toBe(false);
   expect(str.includes("⋯")).toBe(false);
+});
+
+test("summarizeDownloads aggregates speed, max ETA, and running/paused flags for Downloading block", () => {
+  const tasks = [
+    {
+      videoId: "d1",
+      title: "Video 1",
+      thumbnailUrl: "",
+      qualityLabel: "1080p MP4",
+      subtitleLabel: "English · 人工",
+      subtitleIsAuto: false,
+      targetPath: "",
+      stage: "downloading" as const,
+      percent: 12,
+      downloadedBytes: 5 * 1024 * 1024,
+      totalBytes: 42 * 1024 * 1024,
+      speedBps: 837 * 1024,
+      etaSeconds: 48,
+    },
+    {
+      videoId: "d2",
+      title: "Video 2",
+      thumbnailUrl: "",
+      qualityLabel: "720p MP4",
+      subtitleLabel: "",
+      subtitleIsAuto: false,
+      targetPath: "",
+      stage: "paused" as const,
+      percent: 50,
+      downloadedBytes: 10 * 1024 * 1024,
+      totalBytes: 20 * 1024 * 1024,
+      speedBps: 500 * 1024,
+      etaSeconds: 99,
+    },
+  ];
+
+  const sum = summarizeDownloads(tasks);
+  expect(sum.count).toBe(2);
+  expect(sum.totalSpeedBps).toBe(837 * 1024);
+  expect(sum.maxEtaSeconds).toBe(48);
+  expect(sum.hasRunning).toBe(true);
+  expect(sum.hasPaused).toBe(true);
+
+  expect(ActiveDownloadRow({ task: () => tasks[0] })).toBeDefined();
+  expect(ActiveDownloadsSection({ tasks: () => tasks })).toBeDefined();
 });

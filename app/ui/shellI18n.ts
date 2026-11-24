@@ -55,13 +55,17 @@ export interface ShellMessages {
   autoSubtitles: string;
   noSubtitlesBadge: string;
   audio: string;
+  downloadingSection: string;
   pause: string;
   resume: string;
+  pauseAll: string;
+  resumeAll: string;
   retry: string;
   cancelDownload: string;
   stageStarting: string;
   stageMerging: string;
   stagePaused: string;
+  stageDone: string;
   stageError: string;
 
   // Discover
@@ -132,13 +136,17 @@ const EN: ShellMessages = {
   autoSubtitles: "Auto subtitles",
   noSubtitlesBadge: "No subtitles",
   audio: "Audio",
+  downloadingSection: "Downloading",
   pause: "Pause",
   resume: "Resume",
+  pauseAll: "Pause All",
+  resumeAll: "Resume All",
   retry: "Retry",
   cancelDownload: "Cancel download",
   stageStarting: "Starting…",
   stageMerging: "Merging…",
   stagePaused: "Paused",
+  stageDone: "Complete",
   stageError: "Failed",
 
   discoverSectionHint: "Curated picks — click to configure & download",
@@ -207,13 +215,17 @@ const ZH: ShellMessages = {
   autoSubtitles: "自动字幕",
   noSubtitlesBadge: "无字幕",
   audio: "音频",
+  downloadingSection: "正在下载",
   pause: "暂停",
   resume: "继续",
+  pauseAll: "全部暂停",
+  resumeAll: "全部继续",
   retry: "重试",
   cancelDownload: "取消下载",
   stageStarting: "准备中…",
   stageMerging: "合并中…",
   stagePaused: "已暂停",
+  stageDone: "下载完成",
   stageError: "下载失败",
 
   discoverSectionHint: "精选素材，点击预览配置后下载",

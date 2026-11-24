@@ -2,7 +2,7 @@ import { effect, keymap, Scroll, signal, Text, View, type ScrollRef } from "nsh"
 import { AlertDialog, Button, Scrollbar } from "nsh/base";
 import { Menu } from "nsh/desktop";
 import type { DownloadTaskProgress, LibraryEntry } from "../library/types";
-import { ActiveDownloadCard } from "../ui/ActiveDownloadRow";
+import { ActiveDownloadsSection } from "../ui/ActiveDownloadRow";
 import { Icon } from "../ui/Icon";
 import { shellT } from "../ui/shellI18n";
 import {
@@ -405,31 +405,30 @@ export function LibraryView(props: {
           >
             {libraryHeader}
 
-            <View style={POSTER_GRID_STYLE}>
-              <Each of={downloads()} key={(t) => t.videoId}>
-                {(getTask) => (
-                  <ActiveDownloadCard
-                    task={getTask}
-                    onPause={props.onPauseDownload}
-                    onResume={props.onResumeDownload}
-                    onCancel={props.onCancelDownload}
-                  />
-                )}
-              </Each>
-              <Each of={entries()} key={(entry) => entry.videoId}>
-                {(entry, index) => (
-                  <LibraryCard
-                    entry={entry()}
-                    selected={focusedIndex() === index()}
-                    selectionMode={selectionMode()}
-                    checked={selectedIds().has(entry().videoId)}
-                    onOpen={props.onOpenEntry}
-                    onToggleSelect={toggleEntrySelection}
-                    onMenu={openMenu}
-                  />
-                )}
-              </Each>
-            </View>
+            <ActiveDownloadsSection
+              tasks={downloads}
+              onPause={props.onPauseDownload}
+              onResume={props.onResumeDownload}
+              onCancel={props.onCancelDownload}
+            />
+
+            <If when={entries().length > 0}>
+              <View style={POSTER_GRID_STYLE}>
+                <Each of={entries()} key={(entry) => entry.videoId}>
+                  {(entry, index) => (
+                    <LibraryCard
+                      entry={entry()}
+                      selected={focusedIndex() === index()}
+                      selectionMode={selectionMode()}
+                      checked={selectedIds().has(entry().videoId)}
+                      onOpen={props.onOpenEntry}
+                      onToggleSelect={toggleEntrySelection}
+                      onMenu={openMenu}
+                    />
+                  )}
+                </Each>
+              </View>
+            </If>
           </View>
         </Scroll>
       </If>
