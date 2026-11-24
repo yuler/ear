@@ -5,7 +5,11 @@ import { Icon } from "../../ui/Icon";
 import { shellT } from "../../ui/shellI18n";
 import { POSTER_GRID_STYLE } from "../LibraryCards";
 import type { ViewTransitionRect } from "../viewTransition";
-import { DiscoverCard } from "./DiscoverCard";
+import {
+  DISCOVER_GRID_SKELETON_COUNT,
+  DiscoverCard,
+  DiscoverCardSkeleton,
+} from "./DiscoverCard";
 import { DiscoverFilters } from "./DiscoverFilters";
 import {
   discoverError,
@@ -140,16 +144,18 @@ export function DiscoverView(props: {
         </Button>
       </View>
 
-      <If when={isDiscoverLoading() && discoverItems().length === 0}>
-        <View class="items-center justify-center gap-3 py-16">
-          <Icon name="loader" size={20} tone="brand" class="animate-spin" />
-          <Text class="text-sm text-muted-foreground">
-            {shellT().discoverLoading}
-          </Text>
+      <If when={isDiscoverLoading()}>
+        <View
+          style={POSTER_GRID_STYLE}
+          accessibilityLabel={shellT().discoverLoading}
+        >
+          {Array.from({ length: DISCOVER_GRID_SKELETON_COUNT }, () => (
+            <DiscoverCardSkeleton />
+          ))}
         </View>
       </If>
 
-      <If when={Boolean(discoverError()) && discoverItems().length === 0}>
+      <If when={!isDiscoverLoading() && Boolean(discoverError()) && discoverItems().length === 0}>
         <View class="items-center justify-center gap-2 py-12">
           <Text class="text-sm font-medium text-foreground">
             {shellT().discoverFailed}
@@ -168,7 +174,7 @@ export function DiscoverView(props: {
         </View>
       </If>
 
-      <If when={filteredItems().length > 0}>
+      <If when={!isDiscoverLoading() && filteredItems().length > 0}>
         <View style={POSTER_GRID_STYLE}>
           {filteredItems().map((item, idx) => (
             <DiscoverCard
@@ -182,7 +188,7 @@ export function DiscoverView(props: {
         </View>
       </If>
 
-      <If when={discoverItems().length > 0 && filteredItems().length === 0}>
+      <If when={!isDiscoverLoading() && discoverItems().length > 0 && filteredItems().length === 0}>
         <View class="items-center justify-center gap-3 py-16">
           <Text class="text-sm text-muted-foreground">
             {query() ? shellT().librarySearchEmpty(query()) : shellT().discoverEmpty}

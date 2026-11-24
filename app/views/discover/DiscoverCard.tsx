@@ -12,6 +12,25 @@ import {
 } from "../viewTransition";
 import type { DiscoverItem } from "./types";
 
+export const DISCOVER_GRID_SKELETON_COUNT = 8;
+export const DISCOVER_STRIP_SKELETON_COUNT = 6;
+
+/** Shell loading placeholder matching DiscoverCard's exact poster and title geometry. */
+export function DiscoverCardSkeleton() {
+  return (
+    <View class="flex-col gap-2 rounded-lg p-1.5">
+      <View class="relative aspect-video w-full animate-pulse overflow-hidden rounded-lg border border-line/60 bg-well">
+        <View class="absolute top-1.5 left-1.5 h-4 w-7 rounded bg-muted" />
+        <View class="absolute right-1.5 bottom-1.5 h-4 w-10 rounded bg-muted" />
+      </View>
+      <View class="gap-1.5 px-0.5 pt-0.5">
+        <View class="h-3.5 w-11/12 animate-pulse rounded bg-well" />
+        <View class="h-3.5 w-2/3 animate-pulse rounded bg-well" />
+      </View>
+    </View>
+  );
+}
+
 /**
  * A Discover recommendation: poster with its level and duration, and the
  * title. A press is its only action (open when downloaded, else download);

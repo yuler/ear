@@ -12,7 +12,13 @@ import {
   toDiscoverItem,
   type RawDiscoverCliItem,
 } from "./source";
+import {
+  DISCOVER_GRID_SKELETON_COUNT,
+  DISCOVER_STRIP_SKELETON_COUNT,
+  DiscoverCardSkeleton,
+} from "./DiscoverCard";
 import { levelsFor } from "./DiscoverFilters";
+import { DiscoverView } from "./DiscoverView";
 import type { DiscoverItem } from "./types";
 
 const FIXTURE_RAW_ITEMS: RawDiscoverCliItem[] = [
@@ -248,5 +254,25 @@ test("loadDiscover updates reactive signals on success and manages loading state
     expect(discoverError()).toBeNull();
   } finally {
     setEarSpawnHook(null);
+  }
+});
+
+test("DiscoverCardSkeleton and DiscoverView render shell loading placeholders while loading", () => {
+  expect(DISCOVER_GRID_SKELETON_COUNT).toBeGreaterThanOrEqual(6);
+  expect(DISCOVER_STRIP_SKELETON_COUNT).toBeGreaterThanOrEqual(4);
+
+  const skeleton = DiscoverCardSkeleton();
+  expect(skeleton).toBeDefined();
+
+  const prevLoading = isDiscoverLoading();
+  const prevItems = discoverItems();
+  try {
+    discoverItems.set([]);
+    isDiscoverLoading.set(true);
+    const view = DiscoverView({ onSelectItem: () => {} });
+    expect(view).toBeDefined();
+  } finally {
+    isDiscoverLoading.set(prevLoading);
+    discoverItems.set(prevItems);
   }
 });

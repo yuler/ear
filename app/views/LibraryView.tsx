@@ -5,7 +5,11 @@ import type { DownloadTaskProgress, LibraryEntry } from "../library/types";
 import { ActiveDownloadCard } from "../ui/ActiveDownloadRow";
 import { Icon } from "../ui/Icon";
 import { shellT } from "../ui/shellI18n";
-import { DiscoverCard } from "./discover/DiscoverCard";
+import {
+  DISCOVER_STRIP_SKELETON_COUNT,
+  DiscoverCard,
+  DiscoverCardSkeleton,
+} from "./discover/DiscoverCard";
 import type { DiscoverItem } from "./discover/types";
 import { LibraryBatchBar } from "./LibraryBatchBar";
 import { LibraryCard, POSTER_GRID_STYLE } from "./LibraryCards";
@@ -85,6 +89,7 @@ export function LibraryView(props: {
   searchQuery?: () => string;
   onClearSearch?: () => void;
   discoverItems?: () => DiscoverItem[];
+  discoverLoading?: () => boolean;
   onSelectDiscoverItem?: (
     item: DiscoverItem,
     originRect?: ViewTransitionRect | null,
@@ -330,6 +335,22 @@ export function LibraryView(props: {
               <Icon name="chevron-right" size={12} tone="muted-foreground" />
             </Button>
           </View>
+
+          <If when={Boolean(props.discoverLoading?.()) && discoverPreview().length === 0}>
+            <View
+              class="w-full overflow-hidden"
+              style={{ height: 184 }}
+              accessibilityLabel={shellT().discoverLoading}
+            >
+              <View class="flex-row gap-3">
+                {Array.from({ length: DISCOVER_STRIP_SKELETON_COUNT }, () => (
+                  <View class="w-[220px] shrink-0">
+                    <DiscoverCardSkeleton />
+                  </View>
+                ))}
+              </View>
+            </View>
+          </If>
 
           <If when={discoverPreview().length > 0 && Boolean(props.onSelectDiscoverItem)}>
             <View class="w-full gap-1.5">

@@ -35,7 +35,11 @@ import {
   globalUpdateModalOpen,
 } from "./updater";
 import { DiscoverView } from "./views/discover/DiscoverView";
-import { discoverItems, loadDiscover } from "./views/discover/source";
+import {
+  discoverItems,
+  isDiscoverLoading,
+  loadDiscover,
+} from "./views/discover/source";
 import type { DiscoverItem } from "./views/discover/types";
 import { LibraryView } from "./views/LibraryView";
 import { VideoDetailView } from "./views/VideoDetailView";
@@ -294,6 +298,7 @@ function App() {
           searchQuery={searchQuery}
           onClearSearch={() => url.set("")}
           discoverItems={discoverItems}
+          discoverLoading={isDiscoverLoading}
           onSelectDiscoverItem={(item, rect) =>
             void selectDiscoverItem(item, rect)
           }
