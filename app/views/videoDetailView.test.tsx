@@ -23,7 +23,6 @@ import {
   computePlayerLayout,
   isPortraitMedia,
   nextLayoutMode,
-  PLAYER_SIDE_PAD,
   resolveAutoLayoutMode,
   subtitleTextSize,
 } from "./playerLayout";
@@ -276,13 +275,12 @@ test("Player layout: aspect ratio switches mode with hysteresis, sizes follow th
   expect(nextLayoutMode("stacked", 1200, 750)).toBe("stacked"); // 1.6
   expect(nextLayoutMode("side", 1200, 750)).toBe("side"); // 1.6
 
-  // Side: subtitle column 38% of width clamped to 360..520, video 16:9 fits the full left column (controls overlay inside video).
+  // Side: subtitle column 38% of width clamped to 360..520, full-bleed black video stage fills the entire left panel.
   const wide = computePlayerLayout("side", 1600, 700);
   expect(wide.subtitleWidth).toBe(520);
   expect(wide.mainWidth).toBe(1080);
-  const maxH = 700 - PLAYER_SIDE_PAD * 2;
-  expect(wide.videoWidth).toBe(Math.floor(Math.min(1080 - PLAYER_SIDE_PAD * 2, (maxH * 16) / 9)));
-  expect(wide.videoHeight).toBe(Math.floor((wide.videoWidth * 9) / 16));
+  expect(wide.videoWidth).toBe(1080);
+  expect(wide.videoHeight).toBe(700);
   expect(computePlayerLayout("side", 900, 500).subtitleWidth).toBe(360);
 
   // Stacked: video height = min(width * 9/16, 55% of window height; header is a floating overlay).
@@ -312,15 +310,18 @@ test("Player layout: portrait video auto-selects side-by-side and sizes to portr
   expect(resolveAutoLayoutMode("stacked", 1200, 800, 1920 / 1080)).toBe("stacked");
   expect(resolveAutoLayoutMode("stacked", 1600, 700, 1920 / 1080)).toBe("side");
 
-  // Side layout for 9:16 video in 1200x800 gives full height to the portrait frame and generous width to subtitles.
+  // Side layout for 9:16 video in 1200x800 gives full-bleed window height to the portrait stage and generous width to subtitles.
   const portraitDesktop = computePlayerLayout("side", 1200, 800, 9 / 16);
-  expect(portraitDesktop.videoHeight).toBe(800 - PLAYER_SIDE_PAD * 2);
-  expect(portraitDesktop.videoWidth).toBe(Math.floor((800 - PLAYER_SIDE_PAD * 2) * (9 / 16)));
-  expect(portraitDesktop.subtitleWidth).toBeGreaterThan(650);
+  expect(portraitDesktop.videoHeight).toBe(800);
+  expect(portraitDesktop.videoWidth).toBe(Math.floor(800 * (9 / 16)));
+  expect(portraitDesktop.mainWidth).toBe(portraitDesktop.videoWidth);
+  expect(portraitDesktop.subtitleWidth).toBe(1200 - portraitDesktop.mainWidth);
+  expect(portraitDesktop.subtitleWidth).toBeGreaterThan(700);
 
-  // Even at minimum 800x560 window, subtitle column stays >= 360pt wide.
+  // Even at minimum 800x560 window, portrait stage is full-height and subtitle column stays >= 360pt wide.
   const portraitSmall = computePlayerLayout("side", 800, 560, 9 / 16);
-  expect(portraitSmall.videoHeight).toBe(560 - PLAYER_SIDE_PAD * 2);
+  expect(portraitSmall.videoHeight).toBe(560);
+  expect(portraitSmall.videoWidth).toBe(portraitSmall.mainWidth);
   expect(portraitSmall.subtitleWidth).toBeGreaterThanOrEqual(360);
 });
 

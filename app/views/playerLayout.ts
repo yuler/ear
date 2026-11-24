@@ -3,6 +3,7 @@
  * Portrait videos automatically default to side-by-side layout (video on the left,
  * subtitles on the right); landscape videos switch between side-by-side and stacked
  * by the window's aspect ratio with hysteresis so resizing does not flap.
+ * Both layouts render the video in a full-bleed black stage with no outer margins.
  */
 
 export type PlayerLayoutMode = "side" | "stacked";
@@ -12,8 +13,6 @@ export type SubtitleTextSize = "sm" | "md" | "lg";
 export const PLAYER_HEADER_H = 44;
 /** Overlay control bar height inside the bottom of the video (points). */
 export const PLAYER_CONTROLS_H = 76;
-/** Padding around the video column in side-by-side mode (points). */
-export const PLAYER_SIDE_PAD = 16;
 
 export const SIDE_ENTER_RATIO = 1.65;
 export const STACKED_ENTER_RATIO = 1.55;
@@ -62,11 +61,11 @@ export function resolveAutoLayoutMode(
 
 export type PlayerLayout = {
   mode: PlayerLayoutMode;
-  /** Width of the video column. */
+  /** Width of the full-bleed black video stage. */
   mainWidth: number;
   /** Width of the subtitle column. */
   subtitleWidth: number;
-  /** Size of the video box (portrait or 16:9 in side mode, full width in stacked mode). */
+  /** Size of the video stage (fills the entire left panel in side mode, full width in stacked mode). */
   videoWidth: number;
   videoHeight: number;
 };
@@ -85,7 +84,7 @@ export function computePlayerLayout(
   mediaAspect?: number | null,
 ): PlayerLayout {
   const w = Math.max(0, width);
-  // Header and bottom controls are overlays inside the video/window, so full height is available.
+  // Header and bottom controls are overlays inside the video stage, so full height is available.
   const availH = Math.max(0, height);
 
   if (mode === "side") {
@@ -93,28 +92,18 @@ export function computePlayerLayout(
       const aspect = clamp(mediaAspect!, 0.4, PORTRAIT_ASPECT_THRESHOLD);
       const minSubtitleW = Math.min(360, Math.floor(w * 0.45));
       const maxMainW = Math.max(0, w - minSubtitleW);
-      const maxW = Math.max(0, maxMainW - PLAYER_SIDE_PAD * 2);
-      const maxH = Math.max(0, availH - PLAYER_SIDE_PAD * 2);
-      const videoWidth = Math.floor(Math.min(maxW, maxH * aspect));
-      const videoHeight = Math.floor(videoWidth / aspect);
-      const mainWidth = Math.min(
-        maxMainW,
-        Math.max(videoWidth + PLAYER_SIDE_PAD * 2, Math.min(maxMainW, 340)),
-      );
+      const idealW = Math.floor(availH * aspect);
+      const mainWidth = Math.min(maxMainW, Math.max(idealW, Math.min(maxMainW, 360)));
       const subtitleWidth = Math.max(0, w - mainWidth);
-      return { mode, mainWidth, subtitleWidth, videoWidth, videoHeight };
+      return { mode, mainWidth, subtitleWidth, videoWidth: mainWidth, videoHeight: availH };
     }
 
     const subtitleWidth = Math.min(sideSubtitleWidth(w), w);
     const mainWidth = Math.max(0, w - subtitleWidth);
-    const maxW = Math.max(0, mainWidth - PLAYER_SIDE_PAD * 2);
-    const maxH = Math.max(0, availH - PLAYER_SIDE_PAD * 2);
-    const videoWidth = Math.floor(Math.min(maxW, (maxH * 16) / 9));
-    const videoHeight = Math.floor((videoWidth * 9) / 16);
-    return { mode, mainWidth, subtitleWidth, videoWidth, videoHeight };
+    return { mode, mainWidth, subtitleWidth, videoWidth: mainWidth, videoHeight: availH };
   }
 
-  // Stacked: the video box spans the full width (letterboxed by the player).
+  // Stacked: the video stage spans the full width (letterboxed on black by the player).
   const videoHeight = Math.floor(Math.min((w * 9) / 16, availH * 0.55));
   return { mode, mainWidth: w, subtitleWidth: w, videoWidth: w, videoHeight };
 }

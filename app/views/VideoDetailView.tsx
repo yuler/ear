@@ -25,7 +25,6 @@ import { isAudioEntry } from "./libraryViewHelpers";
 import { createPlayerController } from "./playerController";
 import {
   computePlayerLayout,
-  PLAYER_SIDE_PAD,
   resolveAutoLayoutMode,
   subtitleTextSize,
   type PlayerLayoutMode,
@@ -210,7 +209,7 @@ export function VideoDetailView(props: VideoDetailViewProps) {
         transitionProperty: "opacity",
         transitionDuration: "160ms",
       }}
-      class={`relative shrink-0 overflow-hidden bg-black ${side() ? "rounded-lg" : ""}`}
+      class="relative shrink-0 overflow-hidden bg-black"
     >
       <Video
         ref={(node) => ctl.setVideoNode(node)}
@@ -418,12 +417,8 @@ export function VideoDetailView(props: VideoDetailViewProps) {
         {/* One tree for both modes so the <Video> never remounts on a switch. */}
         <View class={`min-h-0 flex-1 ${side() ? "flex-row" : "flex-col"}`}>
           <View
-            style={
-              side()
-                ? { width: layout().mainWidth, padding: PLAYER_SIDE_PAD }
-                : { width: layout().mainWidth }
-            }
-            class={`shrink-0 items-center ${side() ? "justify-center" : ""}`}
+            style={{ width: layout().mainWidth }}
+            class={`shrink-0 bg-black ${side() ? "h-full" : ""}`}
           >
             {videoBox}
           </View>
@@ -434,7 +429,8 @@ export function VideoDetailView(props: VideoDetailViewProps) {
           onBack={handleClose}
           language={language}
           paused={ctl.paused}
-          overVideo={() => !side()}
+          overVideo={() => true}
+          width={() => layout().mainWidth}
         />
       </View>
     </View>
