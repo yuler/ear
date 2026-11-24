@@ -1,5 +1,15 @@
-import { createMotion, effect, Image, LayoutAnimation, signal, Text, View } from "nsh";
-import { Button } from "nsh/base";
+import {
+  createMotion,
+  effect,
+  Image,
+  LayoutAnimation,
+  Scroll,
+  signal,
+  Text,
+  View,
+  type ScrollRef,
+} from "nsh";
+import { Button, Scrollbar } from "nsh/base";
 import { QUALITY_IDS } from "../appPreview";
 import type { ClipboardVideoPreview } from "../clipboard";
 import {
@@ -77,6 +87,7 @@ export function ClipboardCard(props: {
   };
 
   const expandedVideoId = signal<string | null>(null);
+  const subtitlesScrollRef = signal<ScrollRef | null>(null);
   const isExpanded = () => expandedVideoId() === props.preview().videoId;
 
   const rawTracks = (): readonly CaptionTrack[] => {
@@ -280,7 +291,7 @@ export function ClipboardCard(props: {
 
         {/* Subtitles Row */}
         <View class="flex-col gap-1.5 sm:flex-row sm:items-start">
-          <View class="w-20 shrink-0 pt-1">
+          <View class="w-20 shrink-0 pt-1.5">
             <Text class="font-mono text-[11px] uppercase tracking-wider text-dim">
               {shellT().subtitles}
             </Text>
@@ -301,67 +312,87 @@ export function ClipboardCard(props: {
             </View>
           </If>
           <If when={!isParsing()}>
-            <View class="flex-1 flex-row flex-wrap items-center gap-1.5">
-              {tracks().map((track) => {
-                const id = captionTrackId(track);
-                const badge = captionTrackBadge(track);
-                const selected = () => props.selectedTrackId() === id;
-                const isManual = badge.kind === "manual";
-                return (
-                  <Button
-                    onPress={() => props.onSelectTrack(id)}
-                    class={`flex-row items-center gap-1.5 rounded-md border px-2.5 py-1 transition ${
-                      selected()
-                        ? "border-brand bg-brand-soft"
-                        : "border-line bg-well hover:bg-accent active:bg-accent"
-                    }`}
-                  >
-                    <Text
-                      class={`text-xs ${
-                        selected()
-                          ? "font-semibold text-foreground"
-                          : "text-muted-foreground"
-                      }`}
-                    >
-                      {cleanCaptionTrackName(track)}
-                    </Text>
-                    <View
-                      class={`rounded px-1.5 py-0.5 ${
-                        isManual ? "bg-brand-soft" : "bg-well"
-                      }`}
-                    >
-                      <Text
-                        class={`font-mono text-[10px] font-semibold ${
-                          isManual ? "text-brand" : "text-muted-foreground"
+            <View class="min-w-0 flex-1 gap-1.5">
+              <Scroll
+                ref={(node) => subtitlesScrollRef.set(node)}
+                horizontal
+                scrollbar={false}
+                class="w-full"
+                style={{ height: 34 }}
+              >
+                <View class="flex-row items-center gap-1.5 py-0.5">
+                  {tracks().map((track) => {
+                    const id = captionTrackId(track);
+                    const badge = captionTrackBadge(track);
+                    const selected = () => props.selectedTrackId() === id;
+                    const isManual = badge.kind === "manual";
+                    return (
+                      <Button
+                        onPress={() => props.onSelectTrack(id)}
+                        class={`shrink-0 flex-row items-center gap-1.5 rounded-md border px-2.5 py-1 transition ${
+                          selected()
+                            ? "border-brand bg-brand-soft"
+                            : "border-line bg-well hover:bg-accent active:bg-accent"
                         }`}
                       >
-                        {badge.shortLabel}
+                        <Text
+                          class={`text-xs ${
+                            selected()
+                              ? "font-semibold text-foreground"
+                              : "text-muted-foreground"
+                          }`}
+                        >
+                          {cleanCaptionTrackName(track)}
+                        </Text>
+                        <View
+                          class={`rounded px-1.5 py-0.5 ${
+                            isManual ? "bg-brand-soft" : "bg-well"
+                          }`}
+                        >
+                          <Text
+                            class={`font-mono text-[10px] font-semibold ${
+                              isManual ? "text-brand" : "text-muted-foreground"
+                            }`}
+                          >
+                            {badge.shortLabel}
+                          </Text>
+                        </View>
+                      </Button>
+                    );
+                  })}
+                  <If when={hiddenTrackCount() > 0}>
+                    <Button
+                      onPress={() => expandedVideoId.set(props.preview().videoId)}
+                      class="shrink-0 rounded-md border border-dashed border-line px-2 py-1 transition hover:bg-well active:bg-accent"
+                      accessibilityLabel={shellT().moreSubtitles(hiddenTrackCount())}
+                    >
+                      <Text class="font-mono text-[11px] text-muted-foreground">
+                        {shellT().moreSubtitles(hiddenTrackCount())}
                       </Text>
-                    </View>
-                  </Button>
-                );
-              })}
-              <If when={hiddenTrackCount() > 0}>
-                <Button
-                  onPress={() => expandedVideoId.set(props.preview().videoId)}
-                  class="rounded-md border border-dashed border-line px-2 py-1 transition hover:bg-well active:bg-accent"
-                  accessibilityLabel={shellT().moreSubtitles(hiddenTrackCount())}
-                >
-                  <Text class="font-mono text-[11px] text-muted-foreground">
-                    {shellT().moreSubtitles(hiddenTrackCount())}
-                  </Text>
-                </Button>
-              </If>
-              <If when={canCollapseTracks()}>
-                <Button
-                  onPress={() => expandedVideoId.set(null)}
-                  class="rounded-md border border-dashed border-line px-2 py-1 transition hover:bg-well active:bg-accent"
-                  accessibilityLabel={shellT().fewerSubtitles}
-                >
-                  <Text class="font-mono text-[11px] text-muted-foreground">
-                    {shellT().fewerSubtitles}
-                  </Text>
-                </Button>
+                    </Button>
+                  </If>
+                  <If when={canCollapseTracks()}>
+                    <Button
+                      onPress={() => expandedVideoId.set(null)}
+                      class="shrink-0 rounded-md border border-dashed border-line px-2 py-1 transition hover:bg-well active:bg-accent"
+                      accessibilityLabel={shellT().fewerSubtitles}
+                    >
+                      <Text class="font-mono text-[11px] text-muted-foreground">
+                        {shellT().fewerSubtitles}
+                      </Text>
+                    </Button>
+                  </If>
+                </View>
+              </Scroll>
+              <If when={Boolean(subtitlesScrollRef())}>
+                <Scrollbar
+                  scroll={subtitlesScrollRef()!}
+                  axis="horizontal"
+                  mode="always"
+                  class="h-2 w-full rounded-full bg-well/60 p-0.5"
+                  thumbClass="h-full rounded-full bg-dim/70 transition hover:bg-muted-foreground active:bg-foreground/70"
+                  accessibilityLabel="Scroll subtitle tracks horizontally"
+                />
               </If>
             </View>
           </If>
