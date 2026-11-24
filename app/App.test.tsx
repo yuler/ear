@@ -16,6 +16,7 @@ const has = (texts: string[], s: string) => texts.some((t) => t.includes(s));
 
 test("starts on Library under the search bar, with a weak Discover entry below and Discover as a subpage", async () => {
   const app = await open("./App.tsx");
+  expect(app.shows("label:Ear")).toBe(true);
   expect(app.shows("label:Settings")).toBe(true);
   // No top-bar Discover | Library tabs on the Library home page.
   expect(app.shows("label:Back to Library")).toBe(false);
@@ -40,6 +41,13 @@ test("starts on Library under the search bar, with a weak Discover entry below a
 
   // Back button returns to Library.
   await app.press("label:Back to Library");
+  await app.waitFor("Your library is empty");
+  expect(app.shows("label:Back to Library")).toBe(false);
+
+  // Top-bar Ear logo also returns to Library from Discover.
+  await app.press("label:Browse all");
+  await app.waitFor("English");
+  await app.press("label:Ear");
   await app.waitFor("Your library is empty");
   expect(app.shows("label:Back to Library")).toBe(false);
 });

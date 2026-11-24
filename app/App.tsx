@@ -278,6 +278,7 @@ function App() {
   return (
     <View class="relative flex-1 flex-col bg-background pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)]">
       <TopBar
+        onLogoPress={() => selectPage("library")}
         settingsOpen={showSettingsModal}
         onOpenSettings={toggleSettings}
         url={url}

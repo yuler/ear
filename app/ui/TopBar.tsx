@@ -4,6 +4,7 @@ import { titleBar } from "nsh/desktop";
 import type { ClipboardVideoPreview } from "../clipboard";
 import { globalUpdateAvailable } from "../updater";
 import { ClipboardCard } from "./ClipboardCard";
+import { EarMark } from "./EarMark";
 import { Icon } from "./Icon";
 import { shellT } from "./shellI18n";
 import { formatKeystroke } from "./shortcuts";
@@ -19,6 +20,7 @@ export const TOP_BAR_HEIGHT = 48;
  * (its parsed link's card pops directly below it) and the Settings trigger.
  */
 export function TopBar(props: {
+  onLogoPress?: () => void;
   settingsOpen: () => boolean;
   onOpenSettings: () => void;
   url: () => string;
@@ -105,6 +107,14 @@ export function TopBar(props: {
       }}
       class="shrink-0 flex-row items-center gap-3 bg-background"
     >
+      <Button
+        onPress={() => props.onLogoPress?.()}
+        class="h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-line bg-well transition hover:bg-accent active:opacity-80"
+        accessibilityLabel="Ear"
+      >
+        <EarMark size={19} />
+      </Button>
+
       <View class="min-w-0 flex-1 flex-row items-center">
         <View
           class="w-full max-w-[760px]"
