@@ -1,6 +1,10 @@
 import { Image, Text, View, type ViewRef } from "nsh";
 import { Button } from "nsh/base";
 import type { LibraryEntry } from "../library/types";
+import {
+  ActionContextMenu,
+  type ContextMenuEntry,
+} from "../ui/ActionContextMenu";
 import { Icon } from "../ui/Icon";
 import { shellT } from "../ui/shellI18n";
 import { videoPosterUrl } from "../youtube/parse";
@@ -32,7 +36,7 @@ export function LibraryCard(props: {
   checked?: boolean;
   onOpen: (entry: LibraryEntry, originRect?: ViewTransitionRect | null) => void;
   onToggleSelect?: (entry: LibraryEntry) => void;
-  onMenu: (entry: LibraryEntry, at?: { x: number; y: number }) => void;
+  menuItems?: () => (ContextMenuEntry | null)[];
 }) {
   let posterRef: ViewRef | null = null;
   const entry = props.entry;
@@ -61,12 +65,9 @@ export function LibraryCard(props: {
     return "";
   };
 
-  return (
+  const card = (
     <View
-      onContextMenu={(e) => {
-        props.onMenu(entry, e.pagePosition);
-      }}
-      class={`group relative rounded-lg transition hover:bg-well ${cardHighlight()}`}
+      class={`group relative w-full rounded-lg transition hover:bg-well ${cardHighlight()}`}
     >
       <Button
         onPress={() => void handlePress()}
@@ -138,5 +139,15 @@ export function LibraryCard(props: {
         </View>
       </If>
     </View>
+  );
+
+  if (!props.menuItems) return card;
+
+  return (
+    <ActionContextMenu
+      class="w-full"
+      items={props.menuItems}
+      trigger={card}
+    />
   );
 }

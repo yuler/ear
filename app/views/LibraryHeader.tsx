@@ -5,6 +5,7 @@ import {
   formatDiskSize,
   type DiskSpaceInfo,
 } from "../library/storage";
+import { AppTooltip } from "../ui/AppTooltip";
 import { Icon } from "../ui/Icon";
 import { shellT } from "../ui/shellI18n";
 import { formatKeystroke } from "../ui/shortcuts";
@@ -84,9 +85,13 @@ export function LibraryHeader(props: {
               props.selectionMode() ? shellT().done : shellT().multiSelect
             }
             tooltip={
-              <Text class="text-xs">
-                {props.selectionMode() ? shellT().exitSelectMode : shellT().multiSelect}
-              </Text>
+              <AppTooltip
+                label={
+                  props.selectionMode()
+                    ? shellT().exitSelectMode
+                    : shellT().multiSelect
+                }
+              />
             }
           >
             <Icon
@@ -130,7 +135,14 @@ export function LibraryHeader(props: {
             disabled={!props.onOpenDownloadFolder}
             class="-ml-1 min-w-0 shrink flex-row items-center gap-1.5 rounded px-1 py-0.5 transition hover:bg-well/70 active:bg-accent"
             accessibilityLabel={shellT().openDownloadFolder}
-            tooltip={<Text class="text-xs">{downloadPath()}</Text>}
+            tooltip={
+              <AppTooltip
+                label={downloadPath()}
+                mono
+                placement="bottom"
+                align="start"
+              />
+            }
           >
             <Icon name="folder" size={11} tone="dim" />
             <Text class="min-w-0 truncate font-mono text-[11px] text-dim">
