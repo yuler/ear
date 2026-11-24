@@ -7,6 +7,10 @@ pub struct VideoQualityOption {
     pub label: String,
     pub mode: String, // "video" | "audio"
     pub height: Option<u32>,
+    #[serde(default)]
+    pub video_width: Option<u32>,
+    #[serde(default)]
+    pub video_height: Option<u32>,
     pub fps: Option<u32>,
     pub video_url: Option<String>,
     pub audio_url: Option<String>,
@@ -47,6 +51,10 @@ pub struct ParsedVideoPayload {
     pub audio_mime_type: Option<String>,
     pub video_url: Option<String>,
     pub video_mime_type: Option<String>,
+    #[serde(default)]
+    pub video_width: Option<u32>,
+    #[serde(default)]
+    pub video_height: Option<u32>,
     pub qualities: Vec<VideoQualityOption>,
     pub caption_tracks: Vec<CaptionTrackInfo>,
 }

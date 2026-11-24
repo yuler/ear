@@ -22,6 +22,8 @@ import move from "./icons/move.svg";
 import music from "./icons/music.svg";
 import pause from "./icons/pause.svg";
 import play from "./icons/play.svg";
+import rectangleHorizontal from "./icons/rectangle-horizontal.svg";
+import rectangleVertical from "./icons/rectangle-vertical.svg";
 import repeat from "./icons/repeat.svg";
 import search from "./icons/search.svg";
 import settingsIcon from "./icons/settings.svg";
@@ -57,6 +59,8 @@ const ICONS = {
   music,
   pause,
   play,
+  "rectangle-horizontal": rectangleHorizontal,
+  "rectangle-vertical": rectangleVertical,
   repeat,
   search,
   settings: settingsIcon,

@@ -23,12 +23,14 @@ import { formatEntryDescription, isAudioEntry, LibraryView } from "./LibraryView
 import {
   areAllVisibleSelected,
   completedEntries,
+  entryMediaAspect,
   filterLibraryEntries,
   formatDuration,
   pruneSelectedIds,
   subtitleIssue,
   toggleSelectAllIds,
   toggleSelectedId,
+  videoOrientation,
 } from "./libraryViewHelpers";
 
 function mockEntry(over: Partial<LibraryEntry> = {}): LibraryEntry {
@@ -275,6 +277,33 @@ test("LibraryCard omits per-card overflow button in favor of top-level multi-sel
   expect(str.includes("⋯")).toBe(false);
 });
 
+test("videoOrientation and entryMediaAspect distinguish portrait, landscape, audio, and unknown videos", () => {
+  const portrait = mockEntry({ videoId: "p1", videoWidth: 720, videoHeight: 1280 });
+  const landscape = mockEntry({ videoId: "l1", videoWidth: 1920, videoHeight: 1080 });
+  const unknown = mockEntry({ videoId: "u1", videoWidth: null, videoHeight: null });
+  const audio = mockEntry({
+    videoId: "a1",
+    quality: "Audio (M4A)",
+    videoPath: null,
+    audioPath: "/downloads/a1.m4a",
+    videoWidth: 1920,
+    videoHeight: 1080,
+  });
+
+  expect(entryMediaAspect(portrait)).toBe(720 / 1280);
+  expect(entryMediaAspect(landscape)).toBe(1920 / 1080);
+  expect(entryMediaAspect(unknown)).toBe(null);
+  expect(entryMediaAspect(audio)).toBe(null);
+  expect(videoOrientation(portrait)).toBe("portrait");
+  expect(videoOrientation(landscape)).toBe("landscape");
+  expect(videoOrientation(unknown)).toBe(null);
+  expect(videoOrientation(audio)).toBe(null);
+
+  expect(LibraryCard({ entry: portrait, onOpen: () => {}, onMenu: () => {} })).toBeDefined();
+  expect(LibraryCard({ entry: landscape, onOpen: () => {}, onMenu: () => {} })).toBeDefined();
+  expect(LibraryCard({ entry: audio, onOpen: () => {}, onMenu: () => {} })).toBeDefined();
+});
+
 test("summarizeDownloads aggregates speed, max ETA, and running/paused flags for Downloading block", () => {
   const tasks = [
     {
@@ -468,6 +497,9 @@ test("Library multi-select uses single-key S/A, keeps batch bar buttons permanen
   // Download folder and disk capacity appear tightly below the Library title
   await app.waitFor("/tmp/ear-downloads");
   expect(app.texts().some((t) => t.includes("120 GB free / 500 GB"))).toBe(true);
+  // Library cards show portrait and landscape orientation icons when dimensions are known
+  expect(app.shows("label:Portrait video")).toBe(true);
+  expect(app.shows("label:Landscape video")).toBe(true);
 
   // Press 's' to activate multi-select mode
   await app.keyboard.press("s");
@@ -502,6 +534,13 @@ test("Library multi-select uses single-key S/A, keeps batch bar buttons permanen
   await app.keyboard.press("escape");
   await app.waitFor("/tmp/ear-downloads");
   expect(app.shows("label:Delete selected")).toBe(false);
+
+  // Async dimension backfill updates mounted LibraryCard reactively (without remounting)
+  // and passes the fresh portrait dimensions when the card is clicked
+  await app.press("Backfill v3 Portrait");
+  await app.press("label:Open Video v3");
+  await app.waitFor("Dims:720x1280");
+  expect(app.texts().includes("Dims:720x1280")).toBe(true);
 });
 
 test("Library context menu advertises single-key 'a' for Select All in selection mode", () => {

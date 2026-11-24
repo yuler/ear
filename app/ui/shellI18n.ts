@@ -64,6 +64,8 @@ export interface ShellMessages {
   autoSubtitles: string;
   noSubtitlesBadge: string;
   audio: string;
+  landscapeVideo: string;
+  portraitVideo: string;
   downloadingSection: string;
   pause: string;
   resume: string;
@@ -154,6 +156,8 @@ const EN: ShellMessages = {
   autoSubtitles: "Auto subtitles",
   noSubtitlesBadge: "No subtitles",
   audio: "Audio",
+  landscapeVideo: "Landscape video",
+  portraitVideo: "Portrait video",
   downloadingSection: "Downloading",
   pause: "Pause",
   resume: "Resume",
@@ -242,6 +246,8 @@ const ZH: ShellMessages = {
   autoSubtitles: "自动字幕",
   noSubtitlesBadge: "无字幕",
   audio: "音频",
+  landscapeVideo: "横屏视频",
+  portraitVideo: "竖屏视频",
   downloadingSection: "正在下载",
   pause: "暂停",
   resume: "继续",

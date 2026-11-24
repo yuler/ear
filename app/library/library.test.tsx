@@ -1,5 +1,6 @@
 import { expect, test } from "nsh/test";
 import { normalizeEntry, pruneMissingPaths } from "./index";
+import { backfillVideoDimensions, needsDimensionProbe } from "./probe";
 import type { LibraryEntry } from "./types";
 import {
   formatEta,
@@ -106,4 +107,88 @@ test("openSystemPath and revealInFileManager guard empty and invalid targets", a
   expect(await openSystemPath("")).toBe(false);
   expect(await revealInFileManager("")).toBe(false);
   expect(await openFileParentFolder("")).toBe(false);
+});
+
+test("normalizeEntry preserves positive videoWidth/videoHeight and drops invalid values", () => {
+  const portrait = normalizeEntry({
+    videoId: "portrait001",
+    videoWidth: 720,
+    videoHeight: 1280,
+  });
+  expect(portrait.videoWidth).toBe(720);
+  expect(portrait.videoHeight).toBe(1280);
+
+  const invalid = normalizeEntry({
+    videoId: "invalid0001",
+    videoWidth: 0,
+    videoHeight: -10,
+  });
+  expect(invalid.videoWidth).toBe(null);
+  expect(invalid.videoHeight).toBe(null);
+});
+
+test("backfillVideoDimensions probes only legacy local videos missing dimensions and persists once", async () => {
+  const legacyPortrait = sample({
+    videoId: "legacy-p",
+    videoPath: "/downloads/legacy-p.mp4",
+    audioPath: null,
+    quality: "720p",
+    videoWidth: null,
+    videoHeight: null,
+  });
+  const alreadyKnown = sample({
+    videoId: "known-l",
+    videoPath: "/downloads/known-l.mp4",
+    audioPath: null,
+    quality: "1080p",
+    videoWidth: 1920,
+    videoHeight: 1080,
+  });
+  const audioOnly = sample({
+    videoId: "audio-1",
+    videoPath: null,
+    audioPath: "/downloads/audio-1.m4a",
+    quality: "Audio (M4A)",
+  });
+
+  expect(needsDimensionProbe(legacyPortrait)).toBe(true);
+  expect(needsDimensionProbe(alreadyKnown)).toBe(false);
+  expect(needsDimensionProbe(audioOnly)).toBe(false);
+
+  const attempted = new Set<string>();
+  const probedPaths: string[][] = [];
+  const written: LibraryEntry[] = [];
+
+  const updates = await backfillVideoDimensions(
+    [legacyPortrait, alreadyKnown, audioOnly],
+    attempted,
+    {
+      probe: async (paths) => {
+        probedPaths.push([...paths]);
+        return { "/downloads/legacy-p.mp4": { width: 720, height: 1280 } };
+      },
+      write: async (entry) => {
+        written.push(entry);
+      },
+    },
+  );
+
+  expect(probedPaths).toEqual([["/downloads/legacy-p.mp4"]]);
+  expect(updates).toEqual({ "legacy-p": { width: 720, height: 1280 } });
+  expect(written.length).toBe(1);
+  expect(written[0]?.videoWidth).toBe(720);
+  expect(written[0]?.videoHeight).toBe(1280);
+  expect(written[0]?.createdAt).toBe(legacyPortrait.createdAt);
+
+  // Second pass skips already attempted videoIds
+  const second = await backfillVideoDimensions(
+    [legacyPortrait],
+    attempted,
+    {
+      probe: async () => {
+        throw new Error("should not probe twice");
+      },
+    },
+  );
+  expect(second).toEqual({});
 });

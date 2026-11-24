@@ -1,4 +1,5 @@
 import {
+  cleanup,
   effect,
   keymap,
   lifecycle,
@@ -19,8 +20,9 @@ import { createPreviewController } from "./appPreview";
 import { installAppMenu, setupWindowChrome } from "./appWindow";
 import { isLinkText, type ClipboardVideoPreview } from "./clipboard";
 import { isDevMode } from "./env";
-import { deleteEntry, listEntriesSafe } from "./library/index";
+import { deleteEntry, listEntriesSafe, writeEntry } from "./library/index";
 import { mediaRoot, openDirectory } from "./library/paths";
+import { backfillVideoDimensions, needsDimensionProbe } from "./library/probe";
 import { queryDiskSpace, type DiskSpaceInfo } from "./library/storage";
 import type { LibraryEntry } from "./library/types";
 import { DevRibbon } from "./ui/DevRibbon";
@@ -58,8 +60,49 @@ function App() {
   const showSettingsModal = signal(false);
   const showShortcutsModal = signal(false);
   const diskSpace = signal<DiskSpaceInfo | null>(null);
+  const probedVideoIds = new Set<string>();
   let urlInputRef: InputRef | null = null;
   const downloadFolder = () => mediaRoot(settings().downloadFolder);
+
+  const applyVideoDimensions = (
+    updates: Record<string, { width: number; height: number }>,
+  ) => {
+    const keys = Object.keys(updates);
+    if (keys.length === 0) return;
+    savedEntries.update((list) =>
+      list.map((item) => {
+        const dims = updates[item.videoId];
+        if (!dims) return item;
+        if (item.videoWidth === dims.width && item.videoHeight === dims.height) {
+          return item;
+        }
+        return { ...item, videoWidth: dims.width, videoHeight: dims.height };
+      }),
+    );
+    const curPlaying = playingEntry();
+    const curDims = curPlaying ? updates[curPlaying.videoId] : undefined;
+    if (curPlaying && curDims) {
+      playingEntry.set({
+        ...curPlaying,
+        videoWidth: curDims.width,
+        videoHeight: curDims.height,
+      });
+    }
+  };
+
+  const recordMediaDimensions = (videoId: string, width: number, height: number) => {
+    if (width <= 0 || height <= 0) return;
+    const roundedW = Math.round(width);
+    const roundedH = Math.round(height);
+    probedVideoIds.add(videoId);
+    applyVideoDimensions({ [videoId]: { width: roundedW, height: roundedH } });
+    const existing = savedEntries().find((e) => e.videoId === videoId);
+    if (existing) {
+      void writeEntry({ ...existing, videoWidth: roundedW, videoHeight: roundedH }).catch(
+        () => {},
+      );
+    }
+  };
 
   const preview = createPreviewController(url);
   const downloads = createDownloadController({
@@ -97,6 +140,22 @@ function App() {
   });
   void listEntriesSafe().then((entries) => {
     savedEntries.set(entries);
+  });
+
+  // Probe dimensions once for legacy local videos missing videoWidth/videoHeight
+  // so Home cards show their orientation icon and detail transitions start in the right mode.
+  let unmounted = false;
+  cleanup(() => {
+    unmounted = true;
+  });
+  effect(() => {
+    const list = savedEntries();
+    if (!list.some((e) => !probedVideoIds.has(e.videoId) && needsDimensionProbe(e))) {
+      return;
+    }
+    void backfillVideoDimensions(list, probedVideoIds).then((updates) => {
+      if (!unmounted) applyVideoDimensions(updates);
+    });
   });
 
   effect(() => {
@@ -153,14 +212,16 @@ function App() {
     entry: LibraryEntry,
     originRect?: ViewTransitionRect | null,
   ) => {
+    const latest =
+      savedEntries().find((e) => e.videoId === entry.videoId) ?? entry;
     transitionOriginRect.set(originRect ?? null);
-    const src = await resolvePlayableSrc(entry);
+    const src = await resolvePlayableSrc(latest);
     if (!src) {
-      showToast(shellT().noLocalFile(entry.title), "error");
+      showToast(shellT().noLocalFile(latest.title), "error");
       return;
     }
     playingSrc.set(src);
-    playingEntry.set(entry);
+    playingEntry.set(latest);
   };
 
   const deleteLibraryEntry = async (entry: LibraryEntry) => {
@@ -369,6 +430,7 @@ function App() {
               showShortcutsModal() ||
               globalUpdateModalOpen()
             }
+            onMediaDimensions={recordMediaDimensions}
             onClose={() => {
               playingEntry.set(null);
               playingSrc.set(null);

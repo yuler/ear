@@ -55,6 +55,10 @@ export type LibraryEntry = {
   audioUrl: string | null;
   audioMimeType: string | null;
   durationMs: number | null;
+  /** Natural video display width in pixels (null for audio-only or unknown). */
+  videoWidth?: number | null;
+  /** Natural video display height in pixels (null for audio-only or unknown). */
+  videoHeight?: number | null;
   /** Selected quality label (e.g. "720p", "1080p", "Audio (M4A)"). */
   quality?: string | null;
   /** Selected subtitle summary (e.g. "English · 人工", "English · CC 机翻"). */

@@ -96,6 +96,10 @@ pub struct LibraryEntrySync {
     pub audio_url: Option<String>,
     pub audio_mime_type: Option<String>,
     pub duration_ms: Option<u64>,
+    #[serde(default)]
+    pub video_width: Option<u32>,
+    #[serde(default)]
+    pub video_height: Option<u32>,
     pub quality: Option<String>,
     pub subtitle_label: Option<String>,
     pub subtitle_is_auto: Option<bool>,
@@ -146,6 +150,8 @@ impl LibraryEntrySync {
             audio_url: None,
             audio_mime_type: None,
             duration_ms: None,
+            video_width: None,
+            video_height: None,
             quality: Some(quality.to_string()),
             subtitle_label: None,
             subtitle_is_auto: None,
@@ -250,6 +256,7 @@ pub fn sync_entry_ready(
     captions_path: Option<&str>,
     final_size: u64,
     is_audio: bool,
+    video_dimensions: Option<(u32, u32)>,
 ) {
     let path = LibraryEntrySync::entry_file(library_dir, video_id);
     if let Some(mut entry) = fs::read_to_string(&path)
@@ -267,6 +274,10 @@ pub fn sync_entry_ready(
             entry.audio_path = Some(final_media_path.to_string_lossy().to_string());
         } else {
             entry.video_path = Some(final_media_path.to_string_lossy().to_string());
+            if let Some((w, h)) = video_dimensions {
+                entry.video_width = Some(w);
+                entry.video_height = Some(h);
+            }
         }
         if let Some(cp) = captions_path {
             entry.captions_path = Some(cp.to_string());

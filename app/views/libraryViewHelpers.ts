@@ -1,11 +1,39 @@
 import type { DownloadTaskProgress, LibraryEntry } from "../library/types";
 import { formatBytes } from "../youtube/parse";
+import { isPortraitMedia } from "./playerLayout";
+
+export type VideoOrientation = "portrait" | "landscape";
 
 export function isAudioEntry(entry: LibraryEntry): boolean {
   if (entry.quality?.toLowerCase().includes("audio")) return true;
   if (entry.quality?.toLowerCase().includes("m4a")) return true;
   if (entry.audioPath && !entry.videoPath) return true;
   return false;
+}
+
+/** Known media aspect ratio (`width / height`) for a video entry, or null when audio/unknown. */
+export function entryMediaAspect(entry: LibraryEntry): number | null {
+  if (isAudioEntry(entry)) return null;
+  const w = entry.videoWidth;
+  const h = entry.videoHeight;
+  if (
+    typeof w === "number" &&
+    typeof h === "number" &&
+    Number.isFinite(w) &&
+    Number.isFinite(h) &&
+    w > 0 &&
+    h > 0
+  ) {
+    return w / h;
+  }
+  return null;
+}
+
+/** Video orientation for card indicators: portrait, landscape, or null (audio / unknown). */
+export function videoOrientation(entry: LibraryEntry): VideoOrientation | null {
+  const aspect = entryMediaAspect(entry);
+  if (aspect === null) return null;
+  return isPortraitMedia(aspect) ? "portrait" : "landscape";
 }
 
 /**
