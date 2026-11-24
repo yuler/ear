@@ -6,8 +6,6 @@ import { formatEntryDescription, isAudioEntry, LibraryView } from "./LibraryView
 import {
   areAllVisibleSelected,
   completedEntries,
-  filterDownloadsByMediaType,
-  filterEntriesByMediaType,
   filterLibraryEntries,
   formatDuration,
   pruneSelectedIds,
@@ -245,70 +243,6 @@ test("multi-select helpers toggle, select-all, deselect-all, and prune deleted I
   // Prune drops IDs no longer in the library
   const pruned = pruneSelectedIds(new Set(["v1", "v2", "gone"]), new Set(["v1", "v2"]));
   expect([...pruned].sort()).toEqual(["v1", "v2"]);
-});
-
-test("media type filters separate all, video, and audio entries and active downloads", () => {
-  const entries = [
-    mockEntry({ videoId: "vid-1", quality: "720p" }),
-    mockEntry({ videoId: "aud-1", quality: "Audio (M4A)", videoPath: null, audioPath: "/a.m4a" }),
-    mockEntry({ videoId: "vid-2", quality: "1080p" }),
-  ];
-
-  expect(filterEntriesByMediaType(entries, "all").map((e) => e.videoId)).toEqual([
-    "vid-1",
-    "aud-1",
-    "vid-2",
-  ]);
-  expect(filterEntriesByMediaType(entries, "video").map((e) => e.videoId)).toEqual([
-    "vid-1",
-    "vid-2",
-  ]);
-  expect(filterEntriesByMediaType(entries, "audio").map((e) => e.videoId)).toEqual([
-    "aud-1",
-  ]);
-
-  const downloads = [
-    {
-      videoId: "dl-vid",
-      title: "Video",
-      thumbnailUrl: "",
-      qualityLabel: "720p MP4",
-      subtitleLabel: "",
-      subtitleIsAuto: false,
-      targetPath: "",
-      stage: "downloading" as const,
-      percent: 40,
-      downloadedBytes: 0,
-      totalBytes: 0,
-      speedBps: 0,
-      etaSeconds: null,
-    },
-    {
-      videoId: "dl-aud",
-      title: "Audio",
-      thumbnailUrl: "",
-      qualityLabel: "Audio (M4A)",
-      subtitleLabel: "",
-      subtitleIsAuto: false,
-      targetPath: "",
-      stage: "downloading" as const,
-      percent: 60,
-      downloadedBytes: 0,
-      totalBytes: 0,
-      speedBps: 0,
-      etaSeconds: null,
-    },
-  ];
-  expect(filterDownloadsByMediaType(downloads, "all").map((d) => d.videoId)).toEqual([
-    "dl-vid",
-    "dl-aud",
-  ]);
-  expect(filterDownloadsByMediaType(downloads, "video").map((d) => d.videoId)).toEqual([
-    "dl-vid",
-  ]);
-  expect(filterDownloadsByMediaType(downloads, "audio").map((d) => d.videoId)).toEqual([
-    "dl-aud",
-  ]);
 });
 
 test("LibraryCard omits per-card overflow button in favor of top-level multi-select activation", () => {

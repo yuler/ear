@@ -1,36 +1,11 @@
 import type { DownloadTaskProgress, LibraryEntry } from "../library/types";
 import { formatBytes } from "../youtube/parse";
 
-export type LibraryMediaFilter = "all" | "video" | "audio";
-
 export function isAudioEntry(entry: LibraryEntry): boolean {
   if (entry.quality?.toLowerCase().includes("audio")) return true;
   if (entry.quality?.toLowerCase().includes("m4a")) return true;
   if (entry.audioPath && !entry.videoPath) return true;
   return false;
-}
-
-export function isAudioDownload(task: DownloadTaskProgress): boolean {
-  const label = task.qualityLabel.toLowerCase();
-  return label.includes("audio") || label.includes("m4a");
-}
-
-export function filterEntriesByMediaType(
-  entries: readonly LibraryEntry[],
-  filter: LibraryMediaFilter,
-): LibraryEntry[] {
-  if (filter === "all") return [...entries];
-  return entries.filter((e) => (filter === "audio" ? isAudioEntry(e) : !isAudioEntry(e)));
-}
-
-export function filterDownloadsByMediaType(
-  downloads: readonly DownloadTaskProgress[],
-  filter: LibraryMediaFilter,
-): DownloadTaskProgress[] {
-  if (filter === "all") return [...downloads];
-  return downloads.filter((d) =>
-    filter === "audio" ? isAudioDownload(d) : !isAudioDownload(d),
-  );
 }
 
 /**

@@ -35,12 +35,7 @@ export interface ShellMessages {
   libraryEmpty: string;
   libraryEmptyHint: string;
   librarySearchEmpty: (query: string) => string;
-  libraryFilterEmpty: (label: string) => string;
   clearSearch: string;
-  showAll: string;
-  filterAll: string;
-  filterVideo: string;
-  filterAudio: string;
   moreActions: string;
   openFolder: string;
   delete: string;
@@ -117,12 +112,7 @@ const EN: ShellMessages = {
   libraryEmpty: "Your library is empty",
   libraryEmptyHint: "Paste a YouTube link above, or pick a curated video below.",
   librarySearchEmpty: (query) => `No items matching “${query}”`,
-  libraryFilterEmpty: (label) => `No ${label.toLowerCase()} items in your library`,
   clearSearch: "Clear search",
-  showAll: "Show all",
-  filterAll: "All",
-  filterVideo: "Video",
-  filterAudio: "Audio",
   moreActions: "More actions",
   openFolder: "Open folder",
   delete: "Delete",
@@ -197,12 +187,7 @@ const ZH: ShellMessages = {
   libraryEmpty: "媒体库还是空的",
   libraryEmptyHint: "在上方粘贴 YouTube 链接，或从下方精选素材中挑选。",
   librarySearchEmpty: (query) => `没有找到匹配「${query}」的内容`,
-  libraryFilterEmpty: (label) => `媒体库中还没有${label}内容`,
   clearSearch: "清空搜索",
-  showAll: "查看全部",
-  filterAll: "全部",
-  filterVideo: "视频",
-  filterAudio: "音频",
   moreActions: "更多操作",
   openFolder: "打开文件夹",
   delete: "删除",

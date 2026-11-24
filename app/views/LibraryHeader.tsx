@@ -2,27 +2,15 @@ import { Text, View } from "nsh";
 import { Button } from "nsh/base";
 import { Icon } from "../ui/Icon";
 import { shellT } from "../ui/shellI18n";
-import type { LibraryMediaFilter } from "./libraryViewHelpers";
-
-const MEDIA_FILTERS: readonly LibraryMediaFilter[] = ["all", "video", "audio"];
-
-export function mediaFilterLabel(filter: LibraryMediaFilter): string {
-  const t = shellT();
-  if (filter === "video") return t.filterVideo;
-  if (filter === "audio") return t.filterAudio;
-  return t.filterAll;
-}
 
 /**
- * Compact Library section bar: title + count, fixed All / Video / Audio
- * filter tags, and the multi-select activation toggle placed right beside it.
+ * Compact Library section bar: title + count, with the multi-select activation
+ * toggle placed right beside Library.
  */
 export function LibraryHeader(props: {
   visibleCount: () => number;
   totalCount: () => number;
-  isFiltered: () => boolean;
-  mediaFilter: () => LibraryMediaFilter;
-  onSelectMediaFilter: (filter: LibraryMediaFilter) => void;
+  isSearching: () => boolean;
   canSelect: () => boolean;
   selectionMode: () => boolean;
   onToggleSelectionMode: () => void;
@@ -34,38 +22,10 @@ export function LibraryHeader(props: {
           {shellT().library}
         </Text>
         <Text class="font-mono text-xs tabular-nums text-dim">
-          {props.isFiltered()
+          {props.isSearching()
             ? `${props.visibleCount()} / ${props.totalCount()}`
             : `${props.totalCount()}`}
         </Text>
-      </View>
-
-      <View class="h-3.5 w-px bg-line/80" />
-
-      <View class="flex-row items-center gap-0.5 rounded-md border border-line/80 bg-well/50 p-0.5">
-        {MEDIA_FILTERS.map((key) => {
-          const active = () => props.mediaFilter() === key;
-          return (
-            <Button
-              onPress={() => props.onSelectMediaFilter(key)}
-              selected={active()}
-              class={`rounded px-1.5 py-0.5 transition ${
-                active()
-                  ? "bg-brand"
-                  : "hover:bg-well active:bg-accent"
-              }`}
-              accessibilityLabel={mediaFilterLabel(key)}
-            >
-              <Text
-                class={`text-[11px] font-medium leading-tight ${
-                  active() ? "text-brand-foreground" : "text-muted-foreground"
-                }`}
-              >
-                {mediaFilterLabel(key)}
-              </Text>
-            </Button>
-          );
-        })}
       </View>
 
       <If when={props.canSelect() || props.selectionMode()}>

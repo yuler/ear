@@ -62,9 +62,8 @@ flowchart LR
 
 当媒体库非空（含下载中条目）时展示在网格上方，元素紧凑左对齐，放在 `Library` 旁：
 
-1. **标题与计数**：`Library`（`text-sm font-semibold`）+ 等宽数字计数（筛选/搜索时显示 `可见数 / 总数`）。
-2. **固定媒体类型标签（All / Video / Audio）**：紧邻标题右侧的小号分段胶囊（`text-[11px]`），支持在 **全部 / 视频 / 音频** 间一键筛选，激活项使用蓝色实底（`bg-brand text-brand-foreground`）。
-3. **多选激活按钮（Select / Done）**：紧邻固定标签右侧的小号按钮（`text-[11px]` + `11px` 勾选图标），点击进入/退出批量多选模式；激活时呈蓝色柔和态（`border-brand/50 bg-brand-soft text-brand`）。
+1. **标题与计数**：`Library`（`text-sm font-semibold`）+ 等宽数字计数（搜索时显示 `可见数 / 总数`）。
+2. **多选激活按钮（Select / Done）**：紧邻标题与计数右侧的小号按钮（`text-[11px]` + `11px` 勾选图标），点击进入/退出批量多选模式；激活时呈蓝色柔和态（`border-brand/50 bg-brand-soft text-brand`）。
 
 #### 媒体网格与卡片
 
@@ -87,7 +86,7 @@ flowchart LR
 - 在 **搜索中** 或 **多选模式** 下自动隐藏，把空间留给本地媒体库。
 - **空态**：
   - 空媒体库：居中提示粘贴链接或从下方精选挑选，底部保留 Discover 条。
-  - 搜索无结果 / 媒体类型筛选无结果：保留 `LibraryHeader`，居中展示空态与「清空搜索」或「查看全部」按钮。
+  - 搜索无结果：保留 `LibraryHeader`，居中展示空态与「清空搜索」按钮。
 
 ---
 
