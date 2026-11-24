@@ -1,4 +1,4 @@
-import { platform, Text, View, type InputRef } from "nsh";
+import { platform, signal, Text, View, type InputRef } from "nsh";
 import { Button, Input, Popover } from "nsh/base";
 import { titleBar } from "nsh/desktop";
 import type { ClipboardVideoPreview } from "../clipboard";
@@ -42,6 +42,7 @@ export function TopBar(props: {
 }) {
   const t = shellT;
   const insets = () => macTitleBarInsets();
+  const triggerWidth = signal<number | null>(null);
 
   const field = (
     <View class="h-9 w-full flex-row items-center gap-2.5 rounded-xl border border-line bg-well px-3">
@@ -105,7 +106,13 @@ export function TopBar(props: {
       class="shrink-0 flex-row items-center gap-3 bg-background"
     >
       <View class="min-w-0 flex-1 flex-row items-center">
-        <View class="w-full max-w-[760px]">
+        <View
+          class="w-full max-w-[760px]"
+          onLayout={(e) => {
+            const w = Math.round(e.bounds.size.width);
+            if (w > 0 && w !== triggerWidth()) triggerWidth.set(w);
+          }}
+        >
           <Popover
             open={Boolean(props.preview())}
             placement="bottom"
@@ -115,7 +122,8 @@ export function TopBar(props: {
             onOpenChange={(e) => {
               if (!e.open && e.reason === "cancel") props.onDismissPreview();
             }}
-            popupClass="w-[360px] sm:w-[700px] lg:w-[860px] rounded-xl border border-line bg-popover shadow-2xl"
+            popupClass="rounded-xl border border-line bg-popover shadow-2xl"
+            popupStyle={{ width: triggerWidth() ?? 760 }}
             trigger={field}
           >
             <If when={props.preview()}>
