@@ -23,7 +23,7 @@ run = "cargo test --manifest-path cli/Cargo.toml"
 description = "Rebuild CLI (debug) then start native host"
 alias = ["run"]
 depends = ["cli:dev"]
-run = "nsh run app"
+run = 'PATH="$PWD/cli/target/debug:$PATH" nsh run app'
 
 [tasks.dev]
 description = "Run all *:dev tasks in parallel (cli + app + web)"
