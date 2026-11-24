@@ -8,6 +8,7 @@ import {
 } from "./appPreview";
 import { buildVideoPreview, isLinkText } from "./clipboard";
 import nshConfig from "./nsh.json";
+import { partitionSubtitleTracks } from "./ui/ClipboardCard";
 import { MESSAGES } from "./ui/i18n";
 import type { CaptionTrack } from "./youtube/types";
 
@@ -97,6 +98,31 @@ test("default subtitle: same-language manual track, else its auto track", () => 
   expect(pickDefaultTrack([track("ja", true), track("en", false)], { language: "ja" })?.trackId).toBe("ja:asr");
   expect(pickDefaultTrack(tracks, { language: "en" })?.trackId).toBe("en:manual");
   expect(pickDefaultTrack([], { language: "en" })).toBe(null);
+});
+
+test("partitionSubtitleTracks keeps at most 3 inline tracks and moves the rest into overflow select", () => {
+  const mk = (code: string): CaptionTrack => ({
+    trackId: `${code}:asr`,
+    languageCode: code,
+    name: code.toUpperCase(),
+    baseUrl: "",
+    isAuto: true,
+  });
+  const tracks = [mk("en"), mk("ja"), mk("fr"), mk("de"), mk("es")];
+
+  const def = partitionSubtitleTracks(tracks, "en:asr");
+  expect(def.primary.map((t) => t.languageCode)).toEqual(["en", "ja", "fr"]);
+  expect(def.overflow.map((t) => t.languageCode)).toEqual(["de", "es"]);
+
+  // Choosing an overflow track promotes it into the 3 inline pills.
+  const picked = partitionSubtitleTracks(tracks, "es:asr");
+  expect(picked.primary.map((t) => t.languageCode)).toEqual(["en", "ja", "es"]);
+  expect(picked.overflow.map((t) => t.languageCode)).toEqual(["fr", "de"]);
+
+  // 3 or fewer tracks show all inline with no overflow.
+  const few = partitionSubtitleTracks(tracks.slice(0, 3), "en:asr");
+  expect(few.primary.length).toBe(3);
+  expect(few.overflow.length).toBe(0);
 });
 
 test("buildVideoPreview extracts YouTube URL and ignores plain search words (including 11-letter words)", () => {

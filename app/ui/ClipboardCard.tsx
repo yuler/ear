@@ -1,15 +1,5 @@
-import {
-  createMotion,
-  effect,
-  Image,
-  LayoutAnimation,
-  Scroll,
-  signal,
-  Text,
-  View,
-  type ScrollRef,
-} from "nsh";
-import { Button, Scrollbar } from "nsh/base";
+import { createMotion, effect, Image, LayoutAnimation, Text, View } from "nsh";
+import { Button, Select } from "nsh/base";
 import { QUALITY_IDS } from "../appPreview";
 import type { ClipboardVideoPreview } from "../clipboard";
 import {
@@ -43,10 +33,46 @@ const FALLBACK_TRACKS: readonly CaptionTrack[] = [
   },
 ];
 
+export const MAX_INLINE_SUBTITLES = 3;
+
 /** "English (manual)" / "English (auto)". */
 export function trackTitle(track: CaptionTrack): string {
   const t = shellT();
   return `${cleanCaptionTrackName(track)} (${isAutoCaptionTrack(track) ? t.auto : t.manual})`;
+}
+
+/**
+ * Splits prioritized subtitle tracks into at most `maxVisible` inline pills
+ * (always keeping the currently selected track visible) and the overflow list
+ * shown inside the "..." Select dropdown.
+ */
+export function partitionSubtitleTracks(
+  tracks: readonly CaptionTrack[],
+  selectedTrackId: string | null,
+  maxVisible = MAX_INLINE_SUBTITLES,
+): { primary: CaptionTrack[]; overflow: CaptionTrack[] } {
+  if (tracks.length <= maxVisible) {
+    return { primary: [...tracks], overflow: [] };
+  }
+  const selectedIdx = selectedTrackId
+    ? tracks.findIndex((t) => captionTrackId(t) === selectedTrackId)
+    : -1;
+
+  if (selectedIdx < maxVisible) {
+    return {
+      primary: tracks.slice(0, maxVisible),
+      overflow: tracks.slice(maxVisible),
+    };
+  }
+
+  const primary = [
+    ...tracks.slice(0, maxVisible - 1),
+    tracks[selectedIdx]!,
+  ];
+  const overflow = tracks.filter(
+    (_, idx) => idx >= maxVisible - 1 && idx !== selectedIdx,
+  );
+  return { primary, overflow };
 }
 
 /**
@@ -86,36 +112,32 @@ export function ClipboardCard(props: {
     return filtered.length > 0 ? filtered : FALLBACK_QUALITIES;
   };
 
-  const expandedVideoId = signal<string | null>(null);
-  const subtitlesScrollRef = signal<ScrollRef | null>(null);
-  const isExpanded = () => expandedVideoId() === props.preview().videoId;
-
   const rawTracks = (): readonly CaptionTrack[] => {
     const list = props.preview().captionTracks;
     return list && list.length > 0 ? list : FALLBACK_TRACKS;
   };
 
-  const trackDisplay = () =>
+  const orderedTracks = (): readonly CaptionTrack[] =>
     selectDisplayCaptionTracks(rawTracks(), {
       selectedTrackId: props.selectedTrackId(),
       title: props.preview().title,
-      includeAll: isExpanded(),
-    });
+      includeAll: true,
+    }).visible;
 
-  const tracks = (): readonly CaptionTrack[] => trackDisplay().visible;
-  const hiddenTrackCount = () => trackDisplay().hiddenCount;
-  const canCollapseTracks = () =>
-    isExpanded() &&
-    selectDisplayCaptionTracks(rawTracks(), {
-      selectedTrackId: props.selectedTrackId(),
-      title: props.preview().title,
-      includeAll: false,
-    }).hiddenCount > 0;
+  const partitioned = () =>
+    partitionSubtitleTracks(orderedTracks(), props.selectedTrackId());
+  const primaryTracks = (): readonly CaptionTrack[] => partitioned().primary;
+  const overflowTracks = (): readonly CaptionTrack[] => partitioned().overflow;
+  const overflowItems = () =>
+    overflowTracks().map((track) => ({
+      value: captionTrackId(track),
+      title: `${cleanCaptionTrackName(track)} · ${captionTrackBadge(track).shortLabel}`,
+    }));
 
   const manualTrackCount = () =>
-    tracks().filter((t) => !isAutoCaptionTrack(t)).length;
+    rawTracks().filter((t) => !isAutoCaptionTrack(t)).length;
   const ccTrackCount = () =>
-    tracks().filter((t) => isAutoCaptionTrack(t)).length;
+    rawTracks().filter((t) => isAutoCaptionTrack(t)).length;
 
   const isBusy = () => props.parsing();
   const isParsing = () => props.parsing() || !props.preview().isParsed;
@@ -290,12 +312,10 @@ export function ClipboardCard(props: {
         </View>
 
         {/* Subtitles Row */}
-        <View class="flex-col gap-1.5 sm:flex-row sm:items-start">
-          <View class="w-20 shrink-0 pt-1.5">
-            <Text class="font-mono text-[11px] uppercase tracking-wider text-dim">
-              {shellT().subtitles}
-            </Text>
-          </View>
+        <View class="flex-col gap-1.5 sm:flex-row sm:items-center">
+          <Text class="w-20 shrink-0 font-mono text-[11px] uppercase tracking-wider text-dim">
+            {shellT().subtitles}
+          </Text>
           <If when={isParsing()}>
             <View class="flex-row flex-wrap items-center gap-2 pt-0.5">
               <View class="flex-row items-center gap-1.5">
@@ -312,86 +332,71 @@ export function ClipboardCard(props: {
             </View>
           </If>
           <If when={!isParsing()}>
-            <View class="min-w-0 flex-1 gap-1.5">
-              <Scroll
-                ref={(node) => subtitlesScrollRef.set(node)}
-                horizontal
-                scrollbar={false}
-                class="w-full"
-                style={{ height: 34 }}
-              >
-                <View class="flex-row items-center gap-1.5 py-0.5">
-                  {tracks().map((track) => {
-                    const id = captionTrackId(track);
-                    const badge = captionTrackBadge(track);
-                    const selected = () => props.selectedTrackId() === id;
-                    const isManual = badge.kind === "manual";
-                    return (
-                      <Button
-                        onPress={() => props.onSelectTrack(id)}
-                        class={`shrink-0 flex-row items-center gap-1.5 rounded-md border px-2.5 py-1 transition ${
-                          selected()
-                            ? "border-brand bg-brand-soft"
-                            : "border-line bg-well hover:bg-accent active:bg-accent"
+            <View class="min-w-0 flex-1 flex-row flex-wrap items-center gap-1.5">
+              {primaryTracks().map((track) => {
+                const id = captionTrackId(track);
+                const badge = captionTrackBadge(track);
+                const selected = () => props.selectedTrackId() === id;
+                const isManual = badge.kind === "manual";
+                return (
+                  <Button
+                    onPress={() => props.onSelectTrack(id)}
+                    class={`shrink-0 flex-row items-center gap-1.5 rounded-md border px-2.5 py-1 transition ${
+                      selected()
+                        ? "border-brand bg-brand-soft"
+                        : "border-line bg-well hover:bg-accent active:bg-accent"
+                    }`}
+                  >
+                    <Text
+                      class={`text-xs ${
+                        selected()
+                          ? "font-semibold text-foreground"
+                          : "text-muted-foreground"
+                      }`}
+                    >
+                      {cleanCaptionTrackName(track)}
+                    </Text>
+                    <View
+                      class={`rounded px-1.5 py-0.5 ${
+                        isManual ? "bg-brand-soft" : "bg-well"
+                      }`}
+                    >
+                      <Text
+                        class={`font-mono text-[10px] font-semibold ${
+                          isManual ? "text-brand" : "text-muted-foreground"
                         }`}
                       >
-                        <Text
-                          class={`text-xs ${
-                            selected()
-                              ? "font-semibold text-foreground"
-                              : "text-muted-foreground"
-                          }`}
-                        >
-                          {cleanCaptionTrackName(track)}
-                        </Text>
-                        <View
-                          class={`rounded px-1.5 py-0.5 ${
-                            isManual ? "bg-brand-soft" : "bg-well"
-                          }`}
-                        >
-                          <Text
-                            class={`font-mono text-[10px] font-semibold ${
-                              isManual ? "text-brand" : "text-muted-foreground"
-                            }`}
-                          >
-                            {badge.shortLabel}
-                          </Text>
-                        </View>
-                      </Button>
-                    );
-                  })}
-                  <If when={hiddenTrackCount() > 0}>
-                    <Button
-                      onPress={() => expandedVideoId.set(props.preview().videoId)}
-                      class="shrink-0 rounded-md border border-dashed border-line px-2 py-1 transition hover:bg-well active:bg-accent"
-                      accessibilityLabel={shellT().moreSubtitles(hiddenTrackCount())}
-                    >
-                      <Text class="font-mono text-[11px] text-muted-foreground">
-                        {shellT().moreSubtitles(hiddenTrackCount())}
+                        {badge.shortLabel}
                       </Text>
-                    </Button>
-                  </If>
-                  <If when={canCollapseTracks()}>
-                    <Button
-                      onPress={() => expandedVideoId.set(null)}
-                      class="shrink-0 rounded-md border border-dashed border-line px-2 py-1 transition hover:bg-well active:bg-accent"
-                      accessibilityLabel={shellT().fewerSubtitles}
-                    >
-                      <Text class="font-mono text-[11px] text-muted-foreground">
-                        {shellT().fewerSubtitles}
+                    </View>
+                  </Button>
+                );
+              })}
+
+              <If when={overflowTracks().length > 0}>
+                <Select
+                  items={overflowItems()}
+                  value={null}
+                  searchable={overflowTracks().length > 6}
+                  searchPlaceholder={shellT().subtitles}
+                  placement="bottom"
+                  align="start"
+                  offset={4}
+                  onChange={(e) => {
+                    if (e.value) props.onSelectTrack(e.value);
+                  }}
+                  accessibilityLabel={shellT().moreSubtitles(overflowTracks().length)}
+                  popupClass="w-[260px] rounded-xl border border-line bg-popover p-1 shadow-2xl"
+                  listClass="max-h-[240px]"
+                  searchClass="mb-1 h-7 rounded-md border border-line bg-well px-2 text-xs text-foreground placeholder:text-dim"
+                  itemClass="rounded-md px-2.5 py-1.5 text-xs text-foreground focus:bg-well selected:bg-brand-soft selected:font-semibold selected:text-brand"
+                  trigger={
+                    <View class="shrink-0 flex-row items-center justify-center rounded-md border border-dashed border-line bg-well/60 px-2.5 py-1 transition hover:bg-well active:bg-accent">
+                      <Text class="font-mono text-xs font-medium text-muted-foreground">
+                        ...
                       </Text>
-                    </Button>
-                  </If>
-                </View>
-              </Scroll>
-              <If when={Boolean(subtitlesScrollRef())}>
-                <Scrollbar
-                  scroll={subtitlesScrollRef()!}
-                  axis="horizontal"
-                  mode="always"
-                  class="h-2 w-full rounded-full bg-well/60 p-0.5"
-                  thumbClass="h-full rounded-full bg-dim/70 transition hover:bg-muted-foreground active:bg-foreground/70"
-                  accessibilityLabel="Scroll subtitle tracks horizontally"
+                    </View>
+                  }
                 />
               </If>
             </View>
