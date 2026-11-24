@@ -313,6 +313,37 @@ pub fn pick_best_audio(adaptive: &[Value]) -> Option<(String, String, Option<u64
     Some((url, mime, size))
 }
 
+/// Resolve a YouTube stream's standard quality tier (e.g. 1080, 720, 480, 360)
+/// for both landscape (16:9) and portrait (9:16) videos.
+/// Prefers YouTube's `qualityLabel` ("1080p", "720p60", ...), falling back to
+/// the shorter video dimension `min(width, height)` so vertical videos are not
+/// misclassified by their tall height (e.g. 608x1080 is 480p, not 1080p).
+pub fn format_quality_tier(fmt: &Value) -> Option<u32> {
+    if let Some(label) = fmt.get("qualityLabel").and_then(|v| v.as_str()) {
+        let digits: String = label
+            .trim()
+            .chars()
+            .take_while(|c| c.is_ascii_digit())
+            .collect();
+        if !digits.is_empty() && label.trim()[digits.len()..].starts_with('p') {
+            if let Ok(n) = digits.parse::<u32>() {
+                if n > 0 {
+                    return Some(n);
+                }
+            }
+        }
+    }
+    let w = fmt.get("width").and_then(|v| v.as_u64()).unwrap_or(0) as u32;
+    let h = fmt.get("height").and_then(|v| v.as_u64()).unwrap_or(0) as u32;
+    if w > 0 && h > 0 {
+        Some(w.min(h))
+    } else if h > 0 {
+        Some(h)
+    } else {
+        None
+    }
+}
+
 pub fn build_quality_options(
     formats: &[Value],
     adaptive: &[Value],
@@ -322,7 +353,7 @@ pub fn build_quality_options(
     let audio_url = best_audio.map(|a| a.0.clone());
     let audio_size = best_audio.and_then(|a| a.2);
 
-    // Collect MP4 H.264 (avc1) video streams by height (1080, 720, 480, 360, 240)
+    // Collect MP4 H.264 (avc1) video streams by resolution tier (1080, 720, 480, 360, 240)
     let target_heights = [1080u32, 720, 480, 360, 240];
     for &th in &target_heights {
         let mut matching: Vec<&Value> = adaptive
@@ -339,8 +370,7 @@ pub fn build_quality_options(
                 if !mime.starts_with("video/mp4") {
                     return false;
                 }
-                let h = f.get("height").and_then(|v| v.as_u64()).unwrap_or(0) as u32;
-                h == th
+                format_quality_tier(f) == Some(th)
             })
             .collect();
 
@@ -525,97 +555,8 @@ pub fn read_caption_tracks(player: &Value) -> Vec<CaptionTrackInfo> {
 }
 
 
+// Unit tests: cli/src/youtube_tests.rs
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_extract_video_id() {
-        assert_eq!(
-            extract_video_id("https://www.youtube.com/watch?v=Jyh11qBQ66Q"),
-            Some("Jyh11qBQ66Q".to_string())
-        );
-        assert_eq!(
-            extract_video_id("https://youtu.be/dQw4w9WgXcQ?t=12"),
-            Some("dQw4w9WgXcQ".to_string())
-        );
-        assert_eq!(
-            extract_video_id("b-6XR0rflJw"),
-            Some("b-6XR0rflJw".to_string())
-        );
-        assert_eq!(extract_video_id("not-a-url"), None);
-    }
-
-    #[test]
-    fn test_manual_vs_asr_caption_tracks() {
-        let player = json!({
-            "captions": {
-                "playerCaptionsTracklistRenderer": {
-                    "captionTracks": [
-                        {
-                            "baseUrl": "https://example.com/asr-en",
-                            "name": { "simpleText": "English (auto-generated)" },
-                            "languageCode": "en",
-                            "kind": "asr",
-                            "vssId": "a.en"
-                        },
-                        {
-                            "baseUrl": "https://example.com/manual-en",
-                            "name": { "simpleText": "English" },
-                            "languageCode": "en",
-                            "vssId": ".en"
-                        },
-                        {
-                            "baseUrl": "https://example.com/manual-ja",
-                            "name": { "simpleText": "Japanese" },
-                            "languageCode": "ja",
-                            "vssId": ".ja"
-                        }
-                    ]
-                }
-            }
-        });
-        let tracks = read_caption_tracks(&player);
-        assert_eq!(tracks.len(), 3);
-        // Manual English should be sorted first
-        assert_eq!(tracks[0].track_id, ".en");
-        assert!(!tracks[0].is_auto);
-        assert_eq!(tracks[1].track_id, "a.en");
-        assert!(tracks[1].is_auto);
-        assert_eq!(tracks[2].track_id, ".ja");
-        assert!(!tracks[2].is_auto);
-    }
-
-    #[test]
-    fn test_pick_best_audio_ignores_auto_dubbed() {
-        let adaptive = vec![
-            json!({
-                "itag": 140,
-                "mimeType": "audio/mp4; codecs=\"mp4a.40.2\"",
-                "bitrate": 135000,
-                "contentLength": "26630317",
-                "url": "https://example.com/arabic-dub.m4a",
-                "audioTrack": {
-                    "displayName": "Arabic",
-                    "audioIsDefault": false,
-                    "isAutoDubbed": true
-                }
-            }),
-            json!({
-                "itag": 140,
-                "mimeType": "audio/mp4; codecs=\"mp4a.40.2\"",
-                "bitrate": 131000,
-                "contentLength": "26628815",
-                "url": "https://example.com/english-orig.m4a",
-                "audioTrack": {
-                    "displayName": "English (US) original",
-                    "audioIsDefault": true
-                }
-            }),
-        ];
-        let picked = pick_best_audio(&adaptive).expect("should pick audio");
-        assert_eq!(picked.0, "https://example.com/english-orig.m4a");
-        assert_eq!(picked.2, Some(26628815));
-    }
-}
+#[path = "youtube_tests.rs"]
+mod tests;
 
