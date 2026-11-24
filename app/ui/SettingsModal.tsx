@@ -27,6 +27,7 @@ function SettingsModalDialog(props: {
       left: () => {},
       right: () => {},
       o: () => {},
+      s: () => {},
       r: () => {},
       m: () => {},
       b: () => {},

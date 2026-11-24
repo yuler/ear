@@ -1,18 +1,40 @@
-import { createMotion, Text, View } from "nsh";
+import { createMotion, platform, Text, View } from "nsh";
 import { Button } from "nsh/base";
 import { Icon } from "../ui/Icon";
 import { shellT } from "../ui/shellI18n";
+import { formatKeystroke } from "../ui/shortcuts";
+
+function ToolbarKeycap(props: {
+  keys: string;
+  tone?: "neutral" | "danger";
+}) {
+  return (
+    <View
+      class={`rounded border px-1 py-0.5 ${
+        props.tone === "danger"
+          ? "border-danger/35 bg-danger/10"
+          : "border-line/80 bg-well/70"
+      }`}
+    >
+      <Text
+        class={`font-mono text-[10px] leading-none ${
+          props.tone === "danger" ? "text-danger" : "text-dim"
+        }`}
+      >
+        {formatKeystroke(props.keys)}
+      </Text>
+    </View>
+  );
+}
 
 /**
  * Floating bottom-fixed capsule toolbar shown when Library multi-select mode
- * is active. Provides select-all toggle, reveal folder (for a single item),
- * batch delete, and exit controls.
+ * is active. Provides shortcut-annotated batch actions (open folder, delete,
+ * exit); Select All / Deselect All lives on the Library header row.
  */
 export function LibraryBatchBar(props: {
   selectedCount: () => number;
-  allSelected: () => boolean;
   canDelete: boolean;
-  onToggleSelectAll: () => void;
   onOpenFolder?: () => void;
   onDeleteSelected: () => void;
   onExit: () => void;
@@ -25,6 +47,7 @@ export function LibraryBatchBar(props: {
 
   const count = () => props.selectedCount();
   const hasSelection = () => count() > 0;
+  const deleteKey = platform.os === "macos" ? "backspace" : "delete";
 
   return (
     <View class="pointer-events-none absolute right-0 bottom-5 left-0 z-20 items-center px-4">
@@ -46,18 +69,6 @@ export function LibraryBatchBar(props: {
 
         <View class="mx-1 h-4 w-px bg-line" />
 
-        <Button
-          onPress={props.onToggleSelectAll}
-          class="flex-row items-center gap-1.5 rounded-full px-3 py-1.5 transition hover:bg-well active:bg-accent"
-          accessibilityLabel={
-            props.allSelected() ? t().deselectAll : t().selectAll
-          }
-        >
-          <Text class="text-xs font-medium text-foreground">
-            {props.allSelected() ? t().deselectAll : t().selectAll}
-          </Text>
-        </Button>
-
         <If when={count() === 1 && Boolean(props.onOpenFolder)}>
           <Button
             onPress={() => props.onOpenFolder?.()}
@@ -68,6 +79,7 @@ export function LibraryBatchBar(props: {
             <Text class="text-xs font-medium text-foreground">
               {t().openFolder}
             </Text>
+            <ToolbarKeycap keys="o" />
           </Button>
         </If>
 
@@ -94,6 +106,10 @@ export function LibraryBatchBar(props: {
             >
               {t().delete}
             </Text>
+            <ToolbarKeycap
+              keys={deleteKey}
+              tone={hasSelection() ? "danger" : "neutral"}
+            />
           </Button>
         </If>
 
@@ -101,10 +117,11 @@ export function LibraryBatchBar(props: {
 
         <Button
           onPress={props.onExit}
-          class="h-7 w-7 items-center justify-center rounded-full transition hover:bg-well active:bg-accent"
+          class="flex-row items-center gap-1 rounded-full px-2 py-1 transition hover:bg-well active:bg-accent"
           accessibilityLabel={t().exitSelectMode}
         >
           <Icon name="x" size={13} tone="muted-foreground" />
+          <ToolbarKeycap keys="escape" />
         </Button>
       </View>
     </View>

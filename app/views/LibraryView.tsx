@@ -15,6 +15,11 @@ import { LibraryBatchBar } from "./LibraryBatchBar";
 import { LibraryCard, POSTER_GRID_STYLE } from "./LibraryCards";
 import { LibraryHeader } from "./LibraryHeader";
 import {
+  buildDiscoverContextMenu,
+  buildLibraryContextMenu,
+  copyUrlWithToast,
+} from "./libraryMenus";
+import {
   areAllVisibleSelected,
   completedEntries,
   filterActiveDownloads,
@@ -206,16 +211,39 @@ export function LibraryView(props: {
   };
 
   const openMenu = (entry: LibraryEntry, at?: { x: number; y: number }) => {
-    const t = shellT();
     void Menu.popup(
-      [
-        { label: t.openFolder, onSelect: () => props.onOpenFolder(entry) },
-        { label: t.select, onSelect: () => enterSelectionMode(entry.videoId) },
-        canDelete ? { type: "separator" } : null,
-        canDelete
-          ? { label: t.delete, onSelect: () => void requestDelete(entry) }
-          : null,
-      ],
+      buildLibraryContextMenu({
+        entry,
+        selectionMode: selectionMode(),
+        checked: selectedIds().has(entry.videoId),
+        selectedCount: selectedCount(),
+        allVisibleSelected: allVisibleSelected(),
+        canDelete,
+        onPlay: () => props.onOpenEntry(entry),
+        onOpenFolder: () => props.onOpenFolder(entry),
+        onCopyLink: () => void copyUrlWithToast(entry.url),
+        onEnterSelect: () => enterSelectionMode(entry.videoId),
+        onToggleItemSelect: () => toggleEntrySelection(entry),
+        onToggleSelectAll: toggleSelectAll,
+        onDeleteItem: () => void requestDelete(entry),
+        onDeleteSelected: () => void requestBatchDelete(),
+      }),
+      at,
+    );
+  };
+
+  const openDiscoverMenu = (item: DiscoverItem, at?: { x: number; y: number }) => {
+    const existing =
+      props.savedEntries().find((e) => e.videoId === item.videoId && e.state === "ready") ??
+      null;
+    void Menu.popup(
+      buildDiscoverContextMenu({
+        item,
+        downloadedEntry: existing,
+        onOpen: () => props.onSelectDiscoverItem?.(item),
+        onOpenFolder: existing ? () => props.onOpenFolder(existing) : undefined,
+        onCopyLink: () => void copyUrlWithToast(item.url),
+      }),
       at,
     );
   };
@@ -266,9 +294,23 @@ export function LibraryView(props: {
       space: withFocused((e) => {
         if (selectionMode()) toggleEntrySelection(e);
       }),
-      o: withFocused((e) => {
-        if (!selectionMode()) props.onOpenFolder(e);
-      }),
+      s: () => {
+        if (props.disabled?.() || props.previewOpen?.()) return;
+        if (selectionMode()) exitSelectionMode();
+        else if (entries().length > 0) enterSelectionMode();
+      },
+      o: () => {
+        if (props.disabled?.()) return;
+        if (selectionMode()) {
+          const selected = selectedEntries();
+          if (selected.length === 1 && selected[0]) {
+            props.onOpenFolder(selected[0]);
+          }
+          return;
+        }
+        const entry = focused();
+        if (entry) props.onOpenFolder(entry);
+      },
       delete: () => {
         if (props.disabled?.()) return;
         if (selectionMode()) {
@@ -356,6 +398,7 @@ export function LibraryView(props: {
                       <DiscoverCard
                         item={item}
                         onPress={(it, rect) => props.onSelectDiscoverItem?.(it, rect)}
+                        onMenu={openDiscoverMenu}
                         isDownloaded={() => downloadedIds().has(item.videoId)}
                         download={() => downloadFor(item.videoId)}
                       />
@@ -387,10 +430,12 @@ export function LibraryView(props: {
       isSearching={isSearching}
       canSelect={() => entries().length > 0}
       selectionMode={selectionMode}
+      allSelected={allVisibleSelected}
       onToggleSelectionMode={() => {
         if (selectionMode()) exitSelectionMode();
         else enterSelectionMode();
       }}
+      onToggleSelectAll={toggleSelectAll}
     />
   );
 
@@ -480,9 +525,7 @@ export function LibraryView(props: {
       <If when={selectionMode()}>
         <LibraryBatchBar
           selectedCount={selectedCount}
-          allSelected={allVisibleSelected}
           canDelete={canDelete}
-          onToggleSelectAll={toggleSelectAll}
           onOpenFolder={() => {
             const single = selectedEntries()[0];
             if (single) props.onOpenFolder(single);

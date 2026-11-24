@@ -64,7 +64,7 @@ export function LibraryCard(props: {
   return (
     <View
       onContextMenu={(e) => {
-        if (!props.selectionMode) props.onMenu(entry, e.pagePosition);
+        props.onMenu(entry, e.pagePosition);
       }}
       class={`group relative rounded-lg transition hover:bg-well ${cardHighlight()}`}
     >

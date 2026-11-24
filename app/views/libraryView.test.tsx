@@ -6,7 +6,14 @@ import {
   ActiveDownloadsSection,
   summarizeDownloads,
 } from "../ui/ActiveDownloadRow";
+import { SHELL_MESSAGES } from "../ui/shellI18n";
+import { LibraryBatchBar } from "./LibraryBatchBar";
 import { LibraryCard } from "./LibraryCards";
+import { LibraryHeader } from "./LibraryHeader";
+import {
+  buildDiscoverContextMenu,
+  buildLibraryContextMenu,
+} from "./libraryMenus";
 import { formatEntryDescription, isAudioEntry, LibraryView } from "./LibraryView";
 import {
   areAllVisibleSelected,
@@ -306,4 +313,115 @@ test("summarizeDownloads aggregates speed, max ETA, and running/paused flags for
 
   expect(ActiveDownloadRow({ task: () => tasks[0] })).toBeDefined();
   expect(ActiveDownloadsSection({ tasks: () => tasks })).toBeDefined();
+});
+
+test("buildLibraryContextMenu and buildDiscoverContextMenu provide right-click actions for Home items", () => {
+  const entry = mockEntry({ videoId: "v1" });
+  const normalItems = buildLibraryContextMenu({
+    entry,
+    selectionMode: false,
+    checked: false,
+    selectedCount: 0,
+    allVisibleSelected: false,
+    canDelete: true,
+    messages: SHELL_MESSAGES.en,
+    onPlay: () => {},
+    onOpenFolder: () => {},
+    onCopyLink: () => {},
+    onEnterSelect: () => {},
+    onToggleItemSelect: () => {},
+    onToggleSelectAll: () => {},
+    onDeleteItem: () => {},
+    onDeleteSelected: () => {},
+  });
+  const normalLabels = normalItems
+    .filter((i): i is { label: string } => Boolean(i && "label" in i))
+    .map((i) => i.label);
+  expect(normalLabels).toEqual([
+    "Play",
+    "Open folder",
+    "Copy link",
+    "Multi-select",
+    "Delete",
+  ]);
+
+  const selectItems = buildLibraryContextMenu({
+    entry,
+    selectionMode: true,
+    checked: true,
+    selectedCount: 2,
+    allVisibleSelected: true,
+    canDelete: true,
+    messages: SHELL_MESSAGES.en,
+    onPlay: () => {},
+    onOpenFolder: () => {},
+    onCopyLink: () => {},
+    onEnterSelect: () => {},
+    onToggleItemSelect: () => {},
+    onToggleSelectAll: () => {},
+    onDeleteItem: () => {},
+    onDeleteSelected: () => {},
+  });
+  const selectLabels = selectItems
+    .filter((i): i is { label: string } => Boolean(i && "label" in i))
+    .map((i) => i.label);
+  expect(selectLabels).toEqual([
+    "Deselect",
+    "Deselect all",
+    "Play",
+    "Open folder",
+    "Copy link",
+    "Delete selected (2)",
+  ]);
+
+  const discoverMenu = buildDiscoverContextMenu({
+    item: {
+      id: "d1",
+      videoId: "d1",
+      url: "https://www.youtube.com/watch?v=d1",
+      title: "Sample",
+      author: "Channel",
+      language: "en",
+      level: "A2",
+      levelLabel: "A2 · CEFR",
+      durationTier: 10,
+      durationMs: 600000,
+      format: "en-en",
+      formatLabel: "英英结合",
+      thumbnailUrl: "",
+      description: "",
+      tags: [],
+    },
+    downloadedEntry: null,
+    messages: SHELL_MESSAGES.en,
+    onOpen: () => {},
+    onCopyLink: () => {},
+  });
+  const discoverLabels = discoverMenu
+    .filter((i): i is { label: string } => Boolean(i && "label" in i))
+    .map((i) => i.label);
+  expect(discoverLabels).toEqual(["Configure & download", "Copy link"]);
+
+  expect(
+    LibraryHeader({
+      visibleCount: () => 2,
+      totalCount: () => 2,
+      isSearching: () => false,
+      canSelect: () => true,
+      selectionMode: () => true,
+      allSelected: () => false,
+      onToggleSelectionMode: () => {},
+      onToggleSelectAll: () => {},
+    }),
+  ).toBeDefined();
+
+  expect(
+    LibraryBatchBar({
+      selectedCount: () => 1,
+      canDelete: true,
+      onOpenFolder: () => {},
+      onDeleteSelected: () => {},
+      onExit: () => {},
+    }),
+  ).toBeDefined();
 });

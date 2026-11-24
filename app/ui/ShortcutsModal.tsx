@@ -79,6 +79,7 @@ function ShortcutsModalDialog(props: { onClose: () => void }) {
       left: () => {},
       right: () => {},
       o: () => {},
+      s: () => {},
       r: () => {},
       m: () => {},
       b: () => {},

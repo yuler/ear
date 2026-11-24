@@ -37,7 +37,11 @@ export interface ShellMessages {
   librarySearchEmpty: (query: string) => string;
   clearSearch: string;
   moreActions: string;
+  playItem: string;
   openFolder: string;
+  copyLink: string;
+  linkCopied: string;
+  configureDownload: string;
   delete: string;
   deleteTitle: string;
   deleteDescription: (title: string) => string;
@@ -45,6 +49,9 @@ export interface ShellMessages {
   deleteBatchDescription: (n: number) => string;
   cancel: string;
   select: string;
+  multiSelect: string;
+  selectItem: string;
+  deselectItem: string;
   done: string;
   selectAll: string;
   deselectAll: string;
@@ -118,7 +125,11 @@ const EN: ShellMessages = {
   librarySearchEmpty: (query) => `No items matching “${query}”`,
   clearSearch: "Clear search",
   moreActions: "More actions",
+  playItem: "Play",
   openFolder: "Open folder",
+  copyLink: "Copy link",
+  linkCopied: "Link copied",
+  configureDownload: "Configure & download",
   delete: "Delete",
   deleteTitle: "Delete this item?",
   deleteDescription: (title) => `“${title}” and its local files will be removed.`,
@@ -126,6 +137,9 @@ const EN: ShellMessages = {
   deleteBatchDescription: (n) => `${n} selected items and their local files will be removed.`,
   cancel: "Cancel",
   select: "Select",
+  multiSelect: "Multi-select",
+  selectItem: "Select",
+  deselectItem: "Deselect",
   done: "Done",
   selectAll: "Select all",
   deselectAll: "Deselect all",
@@ -197,7 +211,11 @@ const ZH: ShellMessages = {
   librarySearchEmpty: (query) => `没有找到匹配「${query}」的内容`,
   clearSearch: "清空搜索",
   moreActions: "更多操作",
+  playItem: "播放",
   openFolder: "打开文件夹",
+  copyLink: "复制链接",
+  linkCopied: "已复制链接",
+  configureDownload: "配置并下载",
   delete: "删除",
   deleteTitle: "删除这个条目？",
   deleteDescription: (title) => `将移除「${title}」及其本地文件。`,
@@ -205,6 +223,9 @@ const ZH: ShellMessages = {
   deleteBatchDescription: (n) => `将移除已选的 ${n} 个条目及其本地文件。`,
   cancel: "取消",
   select: "多选",
+  multiSelect: "多选模式",
+  selectItem: "选中",
+  deselectItem: "取消选中",
   done: "完成",
   selectAll: "全选",
   deselectAll: "取消全选",

@@ -39,6 +39,7 @@ export function DiscoverCardSkeleton() {
 export function DiscoverCard(props: {
   item: DiscoverItem;
   onPress: (item: DiscoverItem, originRect?: ViewTransitionRect | null) => void;
+  onMenu?: (item: DiscoverItem, at?: { x: number; y: number }) => void;
   isDownloaded?: () => boolean;
   download?: () => DownloadTaskProgress | null;
   selected?: boolean;
@@ -57,13 +58,19 @@ export function DiscoverCard(props: {
   };
 
   return (
-    <Button
-      onPress={() => void handlePress()}
-      class={`group flex-col gap-2 rounded-lg p-1.5 text-left transition hover:bg-well ${
-        props.selected ? "bg-well ring-2 ring-brand" : ""
-      }`}
-      accessibilityLabel={`Play ${item.title}`}
+    <View
+      onContextMenu={(e) => {
+        props.onMenu?.(item, e.pagePosition);
+      }}
+      class="w-full"
     >
+      <Button
+        onPress={() => void handlePress()}
+        class={`group w-full flex-col gap-2 rounded-lg p-1.5 text-left transition hover:bg-well ${
+          props.selected ? "bg-well ring-2 ring-brand" : ""
+        }`}
+        accessibilityLabel={`Play ${item.title}`}
+      >
       <View
         ref={(node) => {
           posterRef = node;
@@ -114,6 +121,7 @@ export function DiscoverCard(props: {
       <Text class="line-clamp-2 px-0.5 text-sm font-medium leading-snug text-foreground">
         {item.title}
       </Text>
-    </Button>
+      </Button>
+    </View>
   );
 }
