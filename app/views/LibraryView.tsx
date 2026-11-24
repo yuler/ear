@@ -15,7 +15,6 @@ import type { DiscoverItem } from "./discover/types";
 import { LibraryBatchBar } from "./LibraryBatchBar";
 import { LibraryCard, POSTER_GRID_STYLE } from "./LibraryCards";
 import { LibraryHeader } from "./LibraryHeader";
-import { LibraryStorageFooter } from "./LibraryStorageFooter";
 import {
   buildDiscoverContextMenu,
   buildLibraryContextMenu,
@@ -432,16 +431,6 @@ export function LibraryView(props: {
     </If>
   );
 
-  const storageFooter = (
-    <If when={!selectionMode() && Boolean(props.downloadFolder?.())}>
-      <LibraryStorageFooter
-        downloadFolder={() => props.downloadFolder?.() ?? ""}
-        diskSpace={props.diskSpace}
-        onOpenDownloadFolder={props.onOpenDownloadFolder}
-      />
-    </If>
-  );
-
   const libraryHeader = (
     <LibraryHeader
       visibleCount={visibleCount}
@@ -455,6 +444,9 @@ export function LibraryView(props: {
         else enterSelectionMode();
       }}
       onToggleSelectAll={toggleSelectAll}
+      downloadFolder={props.downloadFolder}
+      diskSpace={props.diskSpace}
+      onOpenDownloadFolder={props.onOpenDownloadFolder}
     />
   );
 
@@ -499,9 +491,7 @@ export function LibraryView(props: {
 
       <If when={visibleCount() === 0}>
         <View class="mx-auto min-h-0 w-full max-w-[1440px] flex-1 flex-col px-4 pt-2 pb-4">
-          <If when={!isEmpty()}>
-            {libraryHeader}
-          </If>
+          {libraryHeader}
 
           <View class="flex-1 items-center justify-center">
             <If when={isSearchEmpty()}>
@@ -538,8 +528,6 @@ export function LibraryView(props: {
           </View>
         </View>
       </If>
-
-      {storageFooter}
 
       {discoverSection}
 

@@ -112,7 +112,12 @@ function App() {
     const _state = lifecycle();
     let cancelled = false;
     void queryDiskSpace(dir).then((info) => {
-      if (!cancelled) diskSpace.set(info);
+      if (cancelled) return;
+      if (info) {
+        diskSpace.set(info);
+      } else if (diskSpace()?.path !== dir) {
+        diskSpace.set(null);
+      }
     });
     return () => {
       cancelled = true;

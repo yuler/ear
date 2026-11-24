@@ -73,6 +73,7 @@
         "ear.exe",
         "yt-dlp",
         "ffmpeg",
+        "df",
         "xdg-open",
         "open",
         "gio",

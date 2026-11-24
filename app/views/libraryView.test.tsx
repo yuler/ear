@@ -1,6 +1,10 @@
 import { signal } from "nsh";
 import { expect, open, test } from "nsh/test";
-import { displayDownloadPath, formatDiskSize } from "../library/storage";
+import {
+  displayDownloadPath,
+  formatDiskSize,
+  parseDfPkOutput,
+} from "../library/storage";
 import type { LibraryEntry } from "../library/types";
 import {
   ActiveDownloadRow,
@@ -436,12 +440,32 @@ test("storage helpers shorten home paths and format disk capacities", () => {
   expect(formatDiskSize(48.5 * 1024 ** 3)).toBe("48.5 GB");
   expect(formatDiskSize(512 * 1024 ** 2)).toBe("512 MB");
   expect(formatDiskSize(null)).toBe("");
+
+  const dfOut = [
+    "Filesystem       1024-blocks      Used Available Capacity Mounted on",
+    "/dev/mapper/root   247943168 222927688  18667832      93% /home",
+  ].join("\n");
+  expect(parseDfPkOutput(dfOut, "/home/alice/Downloads")).toEqual({
+    path: "/home/alice/Downloads",
+    availableBytes: 18667832 * 1024,
+    totalBytes: 247943168 * 1024,
+  });
+
+  const spacedDf = [
+    "Filesystem     1024-blocks   Used Available Capacity Mounted on",
+    "my pool/data     1000000   400000    600000      40% /mnt/my drive",
+  ].join("\n");
+  expect(parseDfPkOutput(spacedDf, "/mnt/my drive")).toEqual({
+    path: "/mnt/my drive",
+    availableBytes: 600000 * 1024,
+    totalBytes: 1000000 * 1024,
+  });
 });
 
-test("Library multi-select uses single-key S/A, keeps batch bar buttons permanently mounted, and shows storage footer", async () => {
+test("Library multi-select uses single-key S/A, keeps batch bar buttons permanently mounted, and shows download path + free space under Library header", async () => {
   const app = await open("../ui/overlayFixture.tsx", { width: 1000, height: 700 });
 
-  // Storage footer displays download folder and disk capacity at bottom of Library
+  // Download folder and disk capacity appear tightly below the Library title
   await app.waitFor("/tmp/ear-downloads");
   expect(app.texts().some((t) => t.includes("120 GB free / 500 GB"))).toBe(true);
 
@@ -451,6 +475,9 @@ test("Library multi-select uses single-key S/A, keeps batch bar buttons permanen
   expect(app.texts().some((t) => t === "A")).toBe(true);
   expect(app.texts().some((t) => t.includes("Ctrl+A"))).toBe(false);
   expect(app.texts().some((t) => t === "0")).toBe(true);
+  // Download folder + disk capacity stay visible under Library without layout jump
+  expect(app.texts().some((t) => t.includes("/tmp/ear-downloads"))).toBe(true);
+  expect(app.texts().some((t) => t.includes("120 GB free / 500 GB"))).toBe(true);
   // Both Open folder and Delete stay permanently mounted at 0 selections
   expect(app.shows("label:Open folder")).toBe(true);
   expect(app.shows("label:Delete selected")).toBe(true);
@@ -471,7 +498,7 @@ test("Library multi-select uses single-key S/A, keeps batch bar buttons permanen
   await app.keyboard.press("mod+a");
   await app.waitFor("Deselect all");
 
-  // Escape exits multi-select and restores storage footer
+  // Escape exits multi-select cleanly
   await app.keyboard.press("escape");
   await app.waitFor("/tmp/ear-downloads");
   expect(app.shows("label:Delete selected")).toBe(false);
