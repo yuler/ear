@@ -1,4 +1,4 @@
-import { expect, test } from "nsh/test";
+import { expect, open, test } from "nsh/test";
 import { normalizeEntry } from "../library/index";
 import { normalizeSettings } from "../store";
 import { t } from "../ui/i18n";
@@ -139,6 +139,17 @@ test("VideoDetailView accepts originRect for music app-style shared element tran
   });
 
   expect(element).toBeDefined();
+});
+
+test("VideoDetailView starts portrait entries directly in side-by-side mode using persisted dimensions", async () => {
+  // 1000x700 window (aspect 1.43) defaults to stacked for landscape,
+  // but v1 has persisted 720x1280 portrait dimensions so it mounts immediately in side mode.
+  const app = await open("../ui/overlayFixture.tsx", { width: 1000, height: 700 });
+  await app.waitFor("Open Player");
+  await app.press("Open Player");
+  await app.waitFor("label:Switch to top-bottom layout");
+  expect(app.shows("label:Switch to top-bottom layout")).toBe(true);
+  expect(app.shows("label:Switch to side-by-side layout")).toBe(false);
 });
 
 test("i18n supports English-first by default and switches all action buttons to Chinese", () => {

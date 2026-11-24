@@ -124,6 +124,12 @@ export async function downloadLesson(
   const qualityLabel = chosenQuality?.label ?? (options.qualityId || "720p");
   const isAudioOnly =
     chosenQuality?.mode === "audio" || options.qualityId === "audio";
+  let videoWidth: number | null = isAudioOnly
+    ? null
+    : (chosenQuality?.videoWidth ?? video.videoWidth ?? existing?.videoWidth ?? null);
+  let videoHeight: number | null = isAudioOnly
+    ? null
+    : (chosenQuality?.videoHeight ?? video.videoHeight ?? existing?.videoHeight ?? null);
 
   const subtitleIsAuto = track ? isAutoCaptionTrack(track) : false;
   const subtitleLabel = track
@@ -185,6 +191,8 @@ export async function downloadLesson(
     audioUrl: video.audioUrl,
     audioMimeType: video.audioMimeType,
     durationMs: video.durationMs,
+    videoWidth,
+    videoHeight,
     quality: qualityLabel,
     subtitleLabel,
     subtitleIsAuto,
@@ -288,6 +296,10 @@ export async function downloadLesson(
         audioPath = rustDl.path;
       } else {
         videoPath = rustDl.path;
+        if (rustDl.videoWidth && rustDl.videoHeight) {
+          videoWidth = rustDl.videoWidth;
+          videoHeight = rustDl.videoHeight;
+        }
       }
       if (rustDl.sizeBytes > 0) {
         finalSizeBytes = rustDl.sizeBytes;
@@ -347,6 +359,8 @@ export async function downloadLesson(
     audioUrl: video.audioUrl,
     audioMimeType: video.audioMimeType,
     durationMs: video.durationMs,
+    videoWidth,
+    videoHeight,
     quality: qualityLabel,
     subtitleLabel,
     subtitleIsAuto,

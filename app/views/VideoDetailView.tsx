@@ -21,7 +21,7 @@ import { MediaErrorNotice } from "../ui/MediaErrorNotice";
 import { settings } from "../ui/settings";
 import { SubtitleBlocker } from "../ui/SubtitleBlocker";
 import { videoPosterUrl } from "../youtube/parse";
-import { isAudioEntry } from "./libraryViewHelpers";
+import { entryMediaAspect, isAudioEntry } from "./libraryViewHelpers";
 import { createPlayerController } from "./playerController";
 import {
   computePlayerLayout,
@@ -33,12 +33,13 @@ import { SentenceList } from "./SentenceList";
 import { VideoDetailHeader } from "./VideoDetailHeader";
 import { shouldShowPlayerControls, VideoPlayerControls } from "./VideoPlayerControls";
 import {
+  animateLayoutTransition,
   calculateFallbackOriginRect,
-  calculateTargetRect,
+  CLOSE_DURATION_MS,
   getViewTransitionHeroStyle,
+  layoutTargetRect,
   setupViewTransitionEnter,
   type TransitionPhase,
-  type ViewNodeMeasureTarget,
   type ViewTransitionRect,
 } from "./viewTransition";
 
@@ -48,6 +49,7 @@ export type VideoDetailViewProps = {
   src: () => string;
   originRect?: () => ViewTransitionRect | null;
   disabled?: () => boolean;
+  onMediaDimensions?: (videoId: string, width: number, height: number) => void;
   onClose: () => void;
 };
 
@@ -73,11 +75,13 @@ export function VideoDetailView(props: VideoDetailViewProps) {
   const language = () => (settings().language === "zh" ? "zh" : "en");
   const m = () => t(language());
 
-  // Layout: auto-detect portrait vs landscape media and window aspect ratio; user can override manually.
+  // Layout: seed aspect immediately from persisted entry dimensions so portrait videos
+  // enter directly in side-by-side mode without a stacked→side jump; user can still override.
   const size = signal(untracked(initialWindowSize));
-  const mediaAspect = signal<number | null>(null);
+  const initialAspect = untracked(() => entryMediaAspect(entry()));
+  const mediaAspect = signal<number | null>(initialAspect);
   const autoMode = signal<PlayerLayoutMode>(
-    resolveAutoLayoutMode("stacked", size().width, size().height, null),
+    resolveAutoLayoutMode("stacked", size().width, size().height, initialAspect),
   );
   const layoutOverride = signal<PlayerLayoutMode | null>(null);
   const effectiveMode = (): PlayerLayoutMode => layoutOverride() ?? autoMode();
@@ -98,13 +102,14 @@ export function VideoDetailView(props: VideoDetailViewProps) {
     layoutOverride.set(next === autoMode() ? null : next);
   };
 
-  // Hero transition from the clicked card into the video box.
-  const origin = () => props.originRect?.() ?? calculateFallbackOriginRect();
-  const measuredTargetRect = signal<ViewTransitionRect | null>(null);
-  const target = () => measuredTargetRect() ?? calculateTargetRect();
+  // Hero transition from the clicked card directly into the exact computed video stage.
+  const origin = () =>
+    props.originRect?.() ??
+    calculateFallbackOriginRect(size().width, size().height);
+  const target = () => layoutTargetRect(layout());
   const phase = signal<TransitionPhase>("initial");
   const closing = signal(false);
-  let targetBoxRef: ViewNodeMeasureTarget | null = null;
+  let closeTimer: ReturnType<typeof setTimeout> | null = null;
 
   // YouTube-style controls auto-hide: reveal on hover/activity, hide after 2.4s idle while playing.
   const videoHovered = signal(false);
@@ -134,7 +139,13 @@ export function VideoDetailView(props: VideoDetailViewProps) {
     }
   };
 
-  effect(() => () => clearControlsTimer());
+  effect(() => () => {
+    clearControlsTimer();
+    if (closeTimer) {
+      clearTimeout(closeTimer);
+      closeTimer = null;
+    }
+  });
 
   // Auto-scroll: keep the active row ~35% down the subtitle viewport.
   let scrollNode: ScrollRef | null = null;
@@ -146,13 +157,9 @@ export function VideoDetailView(props: VideoDetailViewProps) {
     if (closing()) return;
     closing.set(true);
     ctl.paused.set(true);
-    try {
-      LayoutAnimation.easeInEaseOut();
-    } catch {
-      // ignore
-    }
+    animateLayoutTransition(CLOSE_DURATION_MS);
     phase.set("closing");
-    setTimeout(() => props.onClose(), 360);
+    closeTimer = setTimeout(() => props.onClose(), CLOSE_DURATION_MS + 20);
   };
 
   const ctl = createPlayerController({
@@ -180,8 +187,8 @@ export function VideoDetailView(props: VideoDetailViewProps) {
 
   effect(() =>
     setupViewTransitionEnter(
-      targetBoxRef,
-      (rect) => measuredTargetRect.set(rect),
+      null,
+      () => {},
       (p) => phase.set(p),
     ),
   );
@@ -192,9 +199,6 @@ export function VideoDetailView(props: VideoDetailViewProps) {
 
   const videoBox = (
     <View
-      ref={(node) => {
-        targetBoxRef = node;
-      }}
       onMouseEnter={revealControls}
       onMouseMove={revealControls}
       onMouseLeave={() => {
@@ -205,9 +209,6 @@ export function VideoDetailView(props: VideoDetailViewProps) {
       style={{
         width: layout().videoWidth,
         height: layout().videoHeight,
-        opacity: phase() === "settled" ? 1 : 0,
-        transitionProperty: "opacity",
-        transitionDuration: "160ms",
       }}
       class="relative shrink-0 overflow-hidden bg-black"
     >
@@ -230,22 +231,31 @@ export function VideoDetailView(props: VideoDetailViewProps) {
           const w = e?.size?.width ?? 0;
           const h = e?.size?.height ?? 0;
           if (!audioOnly() && w > 0 && h > 0) {
+            const curEntry = untracked(entry);
+            if (curEntry.videoWidth !== w || curEntry.videoHeight !== h) {
+              props.onMediaDimensions?.(curEntry.videoId, w, h);
+            }
             const nextAspect = w / h;
-            mediaAspect.set(nextAspect);
-            const curSize = untracked(size);
-            const nextAuto = resolveAutoLayoutMode(
-              untracked(autoMode),
-              curSize.width,
-              curSize.height,
-              nextAspect,
-            );
-            if (nextAuto !== untracked(autoMode)) {
-              try {
-                LayoutAnimation.easeInEaseOut();
-              } catch {
-                // ignore on test host
+            const prevAspect = untracked(mediaAspect);
+            if (prevAspect === null || Math.abs(nextAspect - prevAspect) >= 0.02) {
+              mediaAspect.set(nextAspect);
+              const curSize = untracked(size);
+              const nextAuto = resolveAutoLayoutMode(
+                untracked(autoMode),
+                curSize.width,
+                curSize.height,
+                nextAspect,
+              );
+              if (nextAuto !== untracked(autoMode)) {
+                if (untracked(phase) === "settled") {
+                  try {
+                    LayoutAnimation.easeInEaseOut();
+                  } catch {
+                    // ignore on test host
+                  }
+                }
+                autoMode.set(nextAuto);
               }
-              autoMode.set(nextAuto);
             }
           }
         }}
@@ -324,9 +334,25 @@ export function VideoDetailView(props: VideoDetailViewProps) {
     </View>
   );
 
+  const subtitleStyle = () => {
+    const isHidden = phase() === "initial" || phase() === "closing";
+    return {
+      ...(side() ? { width: layout().subtitleWidth } : {}),
+      opacity: isHidden ? 0 : 1,
+      transform: isHidden
+        ? side()
+          ? "translateX(20px)"
+          : "translateY(16px)"
+        : "translateX(0px) translateY(0px)",
+      transitionProperty: "transform, opacity",
+      transitionDuration: (phase() === "closing" ? "200ms" : "280ms") as `${number}ms`,
+      transitionTimingFunction: "cubic-bezier(0.22, 1, 0.36, 1)" as const,
+    };
+  };
+
   const subtitles = (
     <View
-      style={side() ? { width: layout().subtitleWidth } : undefined}
+      style={subtitleStyle()}
       class={`relative min-h-0 ${
         side() ? "shrink-0 border-l border-border" : "w-full flex-1 border-t border-border"
       }`}
@@ -391,12 +417,16 @@ export function VideoDetailView(props: VideoDetailViewProps) {
       }}
     >
       <View
-        class={`absolute inset-0 bg-background transition-opacity duration-300 ease-out ${
-          shown() ? "opacity-100" : "pointer-events-none opacity-0"
-        }`}
+        style={{
+          opacity: shown() ? 1 : 0,
+          transitionProperty: "opacity",
+          transitionDuration: phase() === "closing" ? "200ms" : "240ms",
+          transitionTimingFunction: "ease-out",
+        }}
+        class={`absolute inset-0 bg-background ${shown() ? "" : "pointer-events-none"}`}
       />
 
-      {/* Shared element hero: the card poster zooms into the video box. */}
+      {/* Shared element hero: the card poster glides directly to the known portrait or landscape stage. */}
       <View
         style={getViewTransitionHeroStyle(phase(), origin(), target())}
         class="pointer-events-none bg-black"
@@ -410,8 +440,14 @@ export function VideoDetailView(props: VideoDetailViewProps) {
       </View>
 
       <View
-        class={`relative h-full flex-1 flex-col overflow-hidden transition-opacity duration-300 ease-out ${
-          shown() ? "opacity-100" : "pointer-events-none opacity-0"
+        style={{
+          opacity: shown() ? 1 : 0,
+          transitionProperty: "opacity",
+          transitionDuration: phase() === "closing" ? "200ms" : "240ms",
+          transitionTimingFunction: "ease-out",
+        }}
+        class={`relative h-full flex-1 flex-col overflow-hidden ${
+          shown() ? "" : "pointer-events-none"
         }`}
       >
         {/* One tree for both modes so the <Video> never remounts on a switch. */}

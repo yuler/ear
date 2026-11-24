@@ -2,6 +2,7 @@ import { expect, test } from "nsh/test";
 import {
   earBinaryCandidates,
   earDownload,
+  earProbe,
   earStorage,
   resolveEarLibraryDir,
   setEarBinaryCandidates,
@@ -204,6 +205,51 @@ test("earStorage parses storage JSON output from ear CLI", async () => {
       path: "/home/alice/Downloads",
       availableBytes: 120 * 1024 ** 3,
       totalBytes: 500 * 1024 ** 3,
+    });
+  } finally {
+    setEarSpawnHook(null);
+    setEarBinaryCandidates(null);
+  }
+});
+
+test("earProbe parses batch video dimension results from ear CLI", async () => {
+  let capturedArgs: string[] = [];
+  setEarBinaryCandidates(["./ear"]);
+  setEarSpawnHook((_bin, args) => {
+    capturedArgs = args;
+    const handlers: Record<string, (arg: any) => void> = {};
+    setTimeout(() => {
+      handlers.stdout?.(
+        JSON.stringify({
+          v: 1,
+          type: "probe",
+          results: [
+            { path: "/downloads/p.mp4", width: 720, height: 1280 },
+            { path: "/downloads/l.mp4", width: 1920, height: 1080 },
+            { path: "/downloads/bad.mp4", width: null, height: null },
+          ],
+        }),
+      );
+      handlers.exit?.({ code: 0 });
+    }, 0);
+    return {
+      on(event: string, handler: (arg: any) => void) {
+        handlers[event] = handler;
+      },
+    };
+  });
+
+  try {
+    const dims = await earProbe(["/downloads/p.mp4", "/downloads/l.mp4", "/downloads/bad.mp4"]);
+    expect(capturedArgs).toEqual([
+      "probe",
+      "/downloads/p.mp4",
+      "/downloads/l.mp4",
+      "/downloads/bad.mp4",
+    ]);
+    expect(dims).toEqual({
+      "/downloads/p.mp4": { width: 720, height: 1280 },
+      "/downloads/l.mp4": { width: 1920, height: 1080 },
     });
   } finally {
     setEarSpawnHook(null);

@@ -29,6 +29,8 @@ export type VideoQualityOption = {
   label: string;
   mode: "video" | "audio";
   height?: number | null;
+  videoWidth?: number | null;
+  videoHeight?: number | null;
   fps?: number | null;
   videoUrl?: string | null;
   audioUrl?: string | null;
@@ -59,6 +61,8 @@ export type ParsedVideo = {
   audioMimeType: string | null;
   videoUrl?: string | null;
   videoMimeType?: string | null;
+  videoWidth?: number | null;
+  videoHeight?: number | null;
   durationMs: number | null;
   qualities?: VideoQualityOption[];
   captionTracks: CaptionTrack[];

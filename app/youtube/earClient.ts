@@ -314,9 +314,76 @@ export async function earStorage(dirPath: string): Promise<DiskSpaceInfo | null>
   return null;
 }
 
+export type VideoDimensions = {
+  width: number;
+  height: number;
+};
+
+export async function earProbe(
+  paths: readonly string[],
+): Promise<Record<string, VideoDimensions>> {
+  const clean = paths.filter((p) => typeof p === "string" && p.trim().length > 0);
+  if (clean.length === 0) return {};
+
+  const bins = earBinaryCandidates();
+  for (const bin of bins) {
+    try {
+      const map = await new Promise<Record<string, VideoDimensions>>((resolve, reject) => {
+        let out: Record<string, VideoDimensions> | null = null;
+        const child = spawnEar(bin, ["probe", ...clean]);
+        if (!child) {
+          reject(new Error("process.spawn not supported in current environment"));
+          return;
+        }
+        child.on("stdout", (line: string) => {
+          const trimmed = line.trim();
+          if (!trimmed) return;
+          try {
+            const msg = JSON.parse(trimmed) as {
+              type?: string;
+              results?: Array<{ path?: string; width?: number | null; height?: number | null }>;
+            };
+            if (msg.type === "probe" && Array.isArray(msg.results)) {
+              const found: Record<string, VideoDimensions> = {};
+              for (const item of msg.results) {
+                if (
+                  typeof item.path === "string" &&
+                  typeof item.width === "number" &&
+                  typeof item.height === "number" &&
+                  item.width > 0 &&
+                  item.height > 0
+                ) {
+                  found[item.path] = { width: item.width, height: item.height };
+                }
+              }
+              out = found;
+            }
+          } catch {
+            // ignore non-json
+          }
+        });
+        child.on("exit", (res: { code: number }) => {
+          if (out) resolve(out);
+          else if (res.code === 0) resolve({});
+          else reject(new Error(`ear probe exited with code ${res.code ?? -1}`));
+        });
+      });
+      return map;
+    } catch {
+      // try next candidate binary
+    }
+  }
+  return {};
+}
+
 export async function earDownload(
   params: EarDownloadParams,
-): Promise<{ path: string; sizeBytes: number }> {
+): Promise<{
+  path: string;
+  sizeBytes: number;
+  videoWidth?: number | null;
+  videoHeight?: number | null;
+}> {
   if (params.signal?.aborted) {
     throw new Error("Download paused by user");
   }
@@ -351,10 +418,17 @@ export async function earDownload(
       throw new Error("Download paused by user");
     }
     try {
-      return await new Promise<{ path: string; sizeBytes: number }>(
+      return await new Promise<{
+        path: string;
+        sizeBytes: number;
+        videoWidth?: number | null;
+        videoHeight?: number | null;
+      }>(
         (resolve, reject) => {
           let donePath = params.outputPath;
           let doneSize = 0;
+          let doneWidth: number | null = null;
+          let doneHeight: number | null = null;
           let errMsg: string | null = null;
           let settled = false;
 
@@ -395,6 +469,8 @@ export async function earDownload(
                 etaSeconds?: number | null;
                 sizeBytes?: number;
                 path?: string;
+                videoWidth?: number | null;
+                videoHeight?: number | null;
                 message?: string;
               };
               if (msg.type === "progress") {
@@ -410,6 +486,12 @@ export async function earDownload(
               } else if (msg.type === "done" || msg.type === "result") {
                 donePath = msg.path ?? params.outputPath;
                 doneSize = msg.sizeBytes ?? 0;
+                if (typeof msg.videoWidth === "number" && msg.videoWidth > 0) {
+                  doneWidth = msg.videoWidth;
+                }
+                if (typeof msg.videoHeight === "number" && msg.videoHeight > 0) {
+                  doneHeight = msg.videoHeight;
+                }
               } else if (msg.type === "error") {
                 errMsg = msg.message ?? "ear download error";
               }
@@ -425,7 +507,13 @@ export async function earDownload(
             if (settled) return;
             settled = true;
             if (res.code === 0) {
-              resolve({ path: donePath, sizeBytes: doneSize });
+              resolve({
+                path: donePath,
+                sizeBytes: doneSize,
+                ...(doneWidth && doneHeight
+                  ? { videoWidth: doneWidth, videoHeight: doneHeight }
+                  : {}),
+              });
             } else if (errMsg) {
               reject(new EarApplicationError(errMsg));
             } else {

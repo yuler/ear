@@ -5,7 +5,7 @@ import { ShortcutsModal } from "./ShortcutsModal";
 import { VideoDetailView } from "../views/VideoDetailView";
 import { LibraryView } from "../views/LibraryView";
 
-function mockEntry(id: string): LibraryEntry {
+function mockEntry(id: string, over: Partial<LibraryEntry> = {}): LibraryEntry {
   return {
     videoId: id,
     title: `Video ${id}`,
@@ -24,13 +24,18 @@ function mockEntry(id: string): LibraryEntry {
     note: null,
     createdAt: 1000,
     updatedAt: 1000,
+    ...over,
   };
 }
 
 export function OverlayFixtureApp() {
   const showModal = signal(false);
   const showPlayer = signal(false);
-  const entries = signal<LibraryEntry[]>([mockEntry("v1"), mockEntry("v2"), mockEntry("v3")]);
+  const entries = signal<LibraryEntry[]>([
+    mockEntry("v1", { videoWidth: 720, videoHeight: 1280 }),
+    mockEntry("v2", { videoWidth: 1920, videoHeight: 1080 }),
+    mockEntry("v3"),
+  ]);
   const deleteCount = signal(0);
   const openCount = signal(0);
   const lastOpened = signal<string | null>(null);

@@ -1,10 +1,15 @@
 import { expect, test } from "nsh/test";
+import { computePlayerLayout, resolveAutoLayoutMode } from "./playerLayout";
 import {
   calculateFallbackOriginRect,
   calculateTargetRect,
   captureElementRect,
+  CLOSE_DURATION_MS,
   computeFlipTransform,
+  ENTER_DURATION_MS,
   getViewTransitionHeroStyle,
+  layoutTargetRect,
+  SETTLE_FADE_MS,
 } from "./viewTransition";
 
 test("calculateTargetRect calculates 100% full-width hero player with 16:9 ratio", () => {
@@ -79,12 +84,15 @@ test("getViewTransitionHeroStyle manages position, opacity, and transition prope
   expect(enteringStyle.borderRadius).toBe(12);
   expect(enteringStyle.opacity).toBe(1);
   expect(enteringStyle.transitionProperty).toBe("all");
+  expect(enteringStyle.transitionDuration).toBe(`${ENTER_DURATION_MS}ms`);
 
-  // Phase 3: settled (hidden at target, native player takes over)
+  // Phase 3: settled (cross-dissolves opacity smoothly at target into the live player)
   const settledStyle = getViewTransitionHeroStyle("settled", origin, target);
   expect(settledStyle.opacity).toBe(0);
+  expect(settledStyle.transitionProperty).toBe("opacity");
+  expect(settledStyle.transitionDuration).toBe(`${SETTLE_FADE_MS}ms`);
 
-  // Phase 4: closing (animating back to origin)
+  // Phase 4: closing (glides smoothly back to origin)
   const closingStyle = getViewTransitionHeroStyle("closing", origin, target);
   expect(closingStyle.left).toBe(50);
   expect(closingStyle.top).toBe(300);
@@ -92,7 +100,33 @@ test("getViewTransitionHeroStyle manages position, opacity, and transition prope
   expect(closingStyle.height).toBe(68);
   expect(closingStyle.opacity).toBe(1);
   expect(closingStyle.transitionProperty).toBe("all");
-  expect(closingStyle.transitionDuration).toBe("340ms");
+  expect(closingStyle.transitionDuration).toBe(`${CLOSE_DURATION_MS}ms`);
+});
+
+test("layoutTargetRect targets portrait side-by-side stage immediately when aspect is portrait", () => {
+  const portraitMode = resolveAutoLayoutMode("stacked", 1200, 800, 720 / 1280);
+  expect(portraitMode).toBe("side");
+  const portraitLayout = computePlayerLayout(portraitMode, 1200, 800, 720 / 1280);
+  const portraitTarget = layoutTargetRect(portraitLayout);
+  expect(portraitTarget).toEqual({
+    x: 0,
+    y: 0,
+    width: Math.floor(800 * (720 / 1280)),
+    height: 800,
+    borderRadius: 0,
+  });
+
+  const landscapeMode = resolveAutoLayoutMode("stacked", 1200, 800, 1920 / 1080);
+  expect(landscapeMode).toBe("stacked");
+  const landscapeLayout = computePlayerLayout(landscapeMode, 1200, 800, 1920 / 1080);
+  const landscapeTarget = layoutTargetRect(landscapeLayout);
+  expect(landscapeTarget).toEqual({
+    x: 0,
+    y: 0,
+    width: 1200,
+    height: Math.floor(800 * 0.55),
+    borderRadius: 0,
+  });
 });
 
 test("FLIP scale calculation creates scale big transform from origin to target", () => {

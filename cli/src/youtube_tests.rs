@@ -156,10 +156,16 @@ fn test_build_quality_options_handles_portrait_videos() {
         qualities[0].video_url.as_deref(),
         Some("https://example.com/1080-avc1.mp4")
     );
+    assert_eq!(qualities[0].video_width, Some(1080));
+    assert_eq!(qualities[0].video_height, Some(1920));
     assert_eq!(
         qualities[2].video_url.as_deref(),
         Some("https://example.com/480-avc1.mp4")
     );
+    assert_eq!(qualities[2].video_width, Some(480));
+    assert_eq!(qualities[2].video_height, Some(854));
+    assert_eq!(qualities[4].video_width, None);
+    assert_eq!(qualities[4].video_height, None);
 
     // Fallback without qualityLabel uses min(width, height)
     let no_label_portrait = json!({ "width": 720, "height": 1280 });

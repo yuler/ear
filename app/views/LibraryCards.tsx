@@ -9,6 +9,7 @@ import {
   formatEntryDescription,
   isAudioEntry,
   subtitleIssue,
+  videoOrientation,
 } from "./libraryViewHelpers";
 import {
   captureElementRect,
@@ -38,6 +39,7 @@ export function LibraryCard(props: {
   const entry = props.entry;
   const duration = formatDuration(entry.durationMs);
   const audio = isAudioEntry(entry);
+  const orientation = audio ? null : videoOrientation(entry);
   const issue = subtitleIssue(entry);
 
   const handlePress = async () => {
@@ -91,8 +93,34 @@ export function LibraryCard(props: {
             <View
               class="absolute top-1.5 left-1.5 h-6 w-6 items-center justify-center rounded-md bg-black/70"
               accessibilityLabel={shellT().audio}
+              tooltip={shellT().audio}
             >
               <Icon name="headphones" size={13} color="#ffffff" />
+            </View>
+          </If>
+          <If when={!audio && orientation !== null}>
+            <View
+              class="absolute top-1.5 left-1.5 h-6 w-6 items-center justify-center rounded-md bg-black/70"
+              accessibilityLabel={
+                orientation === "portrait"
+                  ? shellT().portraitVideo
+                  : shellT().landscapeVideo
+              }
+              tooltip={
+                orientation === "portrait"
+                  ? shellT().portraitVideo
+                  : shellT().landscapeVideo
+              }
+            >
+              <Icon
+                name={
+                  orientation === "portrait"
+                    ? "rectangle-vertical"
+                    : "rectangle-horizontal"
+                }
+                size={13}
+                color="#ffffff"
+              />
             </View>
           </If>
           <If when={Boolean(duration)}>

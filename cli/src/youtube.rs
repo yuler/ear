@@ -411,6 +411,16 @@ pub fn build_quality_options(
             .and_then(|m| m.as_str())
             .unwrap_or("video/mp4")
             .to_string();
+        let video_width = chosen
+            .get("width")
+            .and_then(|v| v.as_u64())
+            .filter(|&v| v > 0)
+            .map(|v| v as u32);
+        let video_height = chosen
+            .get("height")
+            .and_then(|v| v.as_u64())
+            .filter(|&v| v > 0)
+            .map(|v| v as u32);
         let fps = chosen
             .get("fps")
             .and_then(|v| v.as_u64())
@@ -430,6 +440,8 @@ pub fn build_quality_options(
             label,
             mode: "video".to_string(),
             height: Some(th),
+            video_width,
+            video_height,
             fps,
             video_url: Some(v_url),
             audio_url: if has_muxed_audio {
@@ -454,6 +466,8 @@ pub fn build_quality_options(
             label: "Audio (M4A)".to_string(),
             mode: "audio".to_string(),
             height: None,
+            video_width: None,
+            video_height: None,
             fps: None,
             video_url: None,
             audio_url: Some(a_url.clone()),

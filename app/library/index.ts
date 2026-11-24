@@ -78,6 +78,18 @@ export function normalizeEntry(raw: Partial<LibraryEntry> & { videoId: string })
     audioMimeType:
       typeof raw.audioMimeType === "string" ? raw.audioMimeType : null,
     durationMs: typeof raw.durationMs === "number" ? raw.durationMs : null,
+    videoWidth:
+      typeof raw.videoWidth === "number" &&
+      Number.isFinite(raw.videoWidth) &&
+      raw.videoWidth > 0
+        ? Math.round(raw.videoWidth)
+        : null,
+    videoHeight:
+      typeof raw.videoHeight === "number" &&
+      Number.isFinite(raw.videoHeight) &&
+      raw.videoHeight > 0
+        ? Math.round(raw.videoHeight)
+        : null,
     quality: typeof raw.quality === "string" ? raw.quality : null,
     subtitleLabel:
       typeof raw.subtitleLabel === "string" ? raw.subtitleLabel : null,

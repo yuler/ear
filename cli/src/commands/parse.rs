@@ -93,6 +93,13 @@ pub fn run(input: &str) -> Result<(), String> {
         .iter()
         .find(|q| q.id == "720p")
         .or_else(|| qualities.iter().find(|q| q.mode == "video"));
+    let dims_source = default_video
+        .filter(|q| q.video_width.is_some() && q.video_height.is_some())
+        .or_else(|| {
+            qualities
+                .iter()
+                .find(|q| q.mode == "video" && q.video_width.is_some() && q.video_height.is_some())
+        });
 
     let mut caption_tracks = vision_player
         .as_ref()
@@ -114,6 +121,8 @@ pub fn run(input: &str) -> Result<(), String> {
         audio_mime_type: best_audio.as_ref().map(|a| a.1.clone()),
         video_url: default_video.and_then(|q| q.video_url.clone()),
         video_mime_type: default_video.map(|q| q.mime_type.clone()),
+        video_width: dims_source.and_then(|q| q.video_width),
+        video_height: dims_source.and_then(|q| q.video_height),
         qualities,
         caption_tracks,
     };
