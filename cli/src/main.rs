@@ -7,7 +7,7 @@ use std::process;
 fn main() {
     let args: Vec<String> = env::args().skip(1).collect();
     let Some(sub) = args.first().map(|s| s.as_str()) else {
-        eprintln!("Usage: ear <parse|captions|download|open|discover|doctor> [args...]");
+        eprintln!("Usage: ear <parse|captions|download|open|discover|doctor|storage> [args...]");
         eprintln!("Run `ear --version` to inspect protocol schema version.");
         process::exit(1);
     };
@@ -25,6 +25,7 @@ fn main() {
         "download" => commands::download::run(&args[1..]),
         "discover" => commands::discover::run(&args[1..]),
         "doctor" | "check" => commands::doctor::run(&args[1..]),
+        "storage" => commands::storage::run(&args[1..]),
         "open" | "files" | "file" | "reveal" => {
             let target = if args.len() > 1 {
                 args[1..].join(" ")

@@ -39,6 +39,8 @@ export interface ShellMessages {
   moreActions: string;
   playItem: string;
   openFolder: string;
+  openDownloadFolder: string;
+  diskSpaceSummary: (avail: string, total: string) => string;
   copyLink: string;
   linkCopied: string;
   configureDownload: string;
@@ -127,6 +129,8 @@ const EN: ShellMessages = {
   moreActions: "More actions",
   playItem: "Play",
   openFolder: "Open folder",
+  openDownloadFolder: "Open download folder",
+  diskSpaceSummary: (avail, total) => `${avail} free / ${total}`,
   copyLink: "Copy link",
   linkCopied: "Link copied",
   configureDownload: "Configure & download",
@@ -213,6 +217,8 @@ const ZH: ShellMessages = {
   moreActions: "更多操作",
   playItem: "播放",
   openFolder: "打开文件夹",
+  openDownloadFolder: "打开下载目录",
+  diskSpaceSummary: (avail, total) => `剩余 ${avail} / 共 ${total}`,
   copyLink: "复制链接",
   linkCopied: "已复制链接",
   configureDownload: "配置并下载",

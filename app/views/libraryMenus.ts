@@ -54,7 +54,7 @@ export function buildLibraryContextMenu(
       },
       {
         label: opts.allVisibleSelected ? t.deselectAll : t.selectAll,
-        shortcut: "mod+a",
+        shortcut: "a",
         onSelect: opts.onToggleSelectAll,
       },
       { type: "separator" },

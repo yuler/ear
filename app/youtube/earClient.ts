@@ -257,6 +257,63 @@ export async function earCaptions(url: string): Promise<CaptionCue[]> {
   throw new Error(lastErr);
 }
 
+export type DiskSpaceInfo = {
+  path: string;
+  availableBytes: number;
+  totalBytes: number;
+};
+
+export async function earStorage(dirPath: string): Promise<DiskSpaceInfo | null> {
+  const bins = earBinaryCandidates();
+  for (const bin of bins) {
+    try {
+      const info = await new Promise<DiskSpaceInfo | null>((resolve, reject) => {
+        let result: DiskSpaceInfo | null = null;
+        const child = spawnEar(bin, ["storage", dirPath]);
+        if (!child) {
+          reject(new Error("process.spawn not supported in current environment"));
+          return;
+        }
+        child.on("stdout", (line: string) => {
+          const trimmed = line.trim();
+          if (!trimmed) return;
+          try {
+            const msg = JSON.parse(trimmed) as {
+              type?: string;
+              path?: string;
+              availableBytes?: number;
+              totalBytes?: number;
+            };
+            if (
+              msg.type === "storage" &&
+              typeof msg.availableBytes === "number" &&
+              typeof msg.totalBytes === "number" &&
+              msg.totalBytes > 0
+            ) {
+              result = {
+                path: msg.path ?? dirPath,
+                availableBytes: msg.availableBytes,
+                totalBytes: msg.totalBytes,
+              };
+            }
+          } catch {
+            // ignore non-json
+          }
+        });
+        child.on("exit", (res: { code: number }) => {
+          if (result) resolve(result);
+          else if (res.code === 0) resolve(null);
+          else reject(new Error(`ear storage exited with code ${res.code ?? -1}`));
+        });
+      });
+      if (info) return info;
+    } catch {
+      // try next candidate binary
+    }
+  }
+  return null;
+}
+
 export async function earDownload(
   params: EarDownloadParams,
 ): Promise<{ path: string; sizeBytes: number }> {

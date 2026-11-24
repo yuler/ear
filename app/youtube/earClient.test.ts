@@ -2,6 +2,7 @@ import { expect, test } from "nsh/test";
 import {
   earBinaryCandidates,
   earDownload,
+  earStorage,
   resolveEarLibraryDir,
   setEarBinaryCandidates,
   setEarSpawnHook,
@@ -169,4 +170,43 @@ test("earBinaryCandidates includes macOS app bundle Helpers/ear paths on macos o
   expect(linuxCandidates).toContain("ear");
   expect(linuxCandidates).toContain("/home/alice/.local/bin/ear");
   expect(linuxCandidates).not.toContain("/Applications/Ear.app/Contents/Helpers/ear");
+});
+
+test("earStorage parses storage JSON output from ear CLI", async () => {
+  let capturedArgs: string[] = [];
+  setEarBinaryCandidates(["./ear"]);
+  setEarSpawnHook((_bin, args) => {
+    capturedArgs = args;
+    const handlers: Record<string, (arg: any) => void> = {};
+    setTimeout(() => {
+      handlers.stdout?.(
+        JSON.stringify({
+          v: 1,
+          type: "storage",
+          path: "/home/alice/Downloads",
+          availableBytes: 120 * 1024 ** 3,
+          totalBytes: 500 * 1024 ** 3,
+        }),
+      );
+      handlers.exit?.({ code: 0 });
+    }, 0);
+    return {
+      on(event: string, handler: (arg: any) => void) {
+        handlers[event] = handler;
+      },
+    };
+  });
+
+  try {
+    const info = await earStorage("/home/alice/Downloads");
+    expect(capturedArgs).toEqual(["storage", "/home/alice/Downloads"]);
+    expect(info).toEqual({
+      path: "/home/alice/Downloads",
+      availableBytes: 120 * 1024 ** 3,
+      totalBytes: 500 * 1024 ** 3,
+    });
+  } finally {
+    setEarSpawnHook(null);
+    setEarBinaryCandidates(null);
+  }
 });

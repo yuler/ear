@@ -16,6 +16,7 @@ import helpCircle from "./icons/help-circle.svg";
 import layoutSide from "./icons/layout-side.svg";
 import layoutStacked from "./icons/layout-stacked.svg";
 import link from "./icons/link.svg";
+import listChecks from "./icons/list-checks.svg";
 import loader from "./icons/loader.svg";
 import move from "./icons/move.svg";
 import music from "./icons/music.svg";
@@ -50,6 +51,7 @@ const ICONS = {
   "layout-side": layoutSide,
   "layout-stacked": layoutStacked,
   link,
+  "list-checks": listChecks,
   loader,
   move,
   music,

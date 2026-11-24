@@ -1,6 +1,7 @@
 import { effect, keymap, Scroll, signal, Text, View, type ScrollRef } from "nsh";
 import { AlertDialog, Button, Scrollbar } from "nsh/base";
 import { Menu } from "nsh/desktop";
+import type { DiskSpaceInfo } from "../library/storage";
 import type { DownloadTaskProgress, LibraryEntry } from "../library/types";
 import { ActiveDownloadsSection } from "../ui/ActiveDownloadRow";
 import { Icon } from "../ui/Icon";
@@ -14,6 +15,7 @@ import type { DiscoverItem } from "./discover/types";
 import { LibraryBatchBar } from "./LibraryBatchBar";
 import { LibraryCard, POSTER_GRID_STYLE } from "./LibraryCards";
 import { LibraryHeader } from "./LibraryHeader";
+import { LibraryStorageFooter } from "./LibraryStorageFooter";
 import {
   buildDiscoverContextMenu,
   buildLibraryContextMenu,
@@ -99,6 +101,9 @@ export function LibraryView(props: {
   onOpenDiscover?: () => void;
   onOpenEntry: (entry: LibraryEntry, originRect?: ViewTransitionRect | null) => void;
   onOpenFolder: (entry: LibraryEntry) => void;
+  downloadFolder?: () => string;
+  diskSpace?: () => DiskSpaceInfo | null;
+  onOpenDownloadFolder?: () => void;
   onDeleteEntry?: (entry: LibraryEntry) => void;
   onDeleteEntries?: (entries: LibraryEntry[]) => void;
   onPauseDownload?: (videoId: string) => void;
@@ -329,6 +334,10 @@ export function LibraryView(props: {
         const entry = focused();
         if (entry) void requestDelete(entry);
       },
+      a: () => {
+        if (props.disabled?.() || !selectionMode()) return;
+        toggleSelectAll();
+      },
       "mod+a": () => {
         if (props.disabled?.() || !selectionMode()) return;
         toggleSelectAll();
@@ -420,6 +429,16 @@ export function LibraryView(props: {
           </If>
         </View>
       </View>
+    </If>
+  );
+
+  const storageFooter = (
+    <If when={!selectionMode() && Boolean(props.downloadFolder?.())}>
+      <LibraryStorageFooter
+        downloadFolder={() => props.downloadFolder?.() ?? ""}
+        diskSpace={props.diskSpace}
+        onOpenDownloadFolder={props.onOpenDownloadFolder}
+      />
     </If>
   );
 
@@ -519,6 +538,8 @@ export function LibraryView(props: {
           </View>
         </View>
       </If>
+
+      {storageFooter}
 
       {discoverSection}
 

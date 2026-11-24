@@ -93,6 +93,13 @@ export function OverlayFixtureApp() {
       <LibraryView
         disabled={isBackgroundDisabled}
         savedEntries={entries}
+        downloadFolder={() => "/tmp/ear-downloads"}
+        diskSpace={() => ({
+          path: "/tmp/ear-downloads",
+          availableBytes: 120 * 1024 ** 3,
+          totalBytes: 500 * 1024 ** 3,
+        })}
+        onOpenDownloadFolder={() => {}}
         onOpenEntry={(e) => {
           openCount.set(openCount() + 1);
           lastOpened.set(e.videoId);
