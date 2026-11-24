@@ -42,6 +42,8 @@ export interface I18nMessages {
   seekProgress: string;
   subtitleBlocker: string;
   toggleSubtitleBlocker: string;
+  switchToSideLayout: string;
+  switchToStackedLayout: string;
   resetBlocker: string;
   blockerIntensity: string;
   dragToMove: string;
@@ -139,6 +141,8 @@ export const MESSAGES: Record<EarLocale, I18nMessages> = {
     seekProgress: "Seek video progress",
     subtitleBlocker: "Blocker",
     toggleSubtitleBlocker: "Toggle subtitle blocker (B)",
+    switchToSideLayout: "Switch to side-by-side layout",
+    switchToStackedLayout: "Switch to top-bottom layout",
     resetBlocker: "Reset position",
     blockerIntensity: "Mask",
     dragToMove: "Drag to move",
@@ -229,6 +233,8 @@ export const MESSAGES: Record<EarLocale, I18nMessages> = {
     seekProgress: "拖动调整进度",
     subtitleBlocker: "拦截字幕条",
     toggleSubtitleBlocker: "切换拦截字幕条 (B)",
+    switchToSideLayout: "切换左右布局",
+    switchToStackedLayout: "切换上下布局",
     resetBlocker: "重置位置",
     blockerIntensity: "遮挡强度",
     dragToMove: "拖动调整位置",

@@ -25,8 +25,8 @@ import { isAudioEntry } from "./libraryViewHelpers";
 import { createPlayerController } from "./playerController";
 import {
   computePlayerLayout,
-  nextLayoutMode,
   PLAYER_SIDE_PAD,
+  resolveAutoLayoutMode,
   subtitleTextSize,
   type PlayerLayoutMode,
 } from "./playerLayout";
@@ -74,14 +74,30 @@ export function VideoDetailView(props: VideoDetailViewProps) {
   const language = () => (settings().language === "zh" ? "zh" : "en");
   const m = () => t(language());
 
-  // Layout: the overlay covers the window, so its own size is the window's.
+  // Layout: auto-detect portrait vs landscape media and window aspect ratio; user can override manually.
   const size = signal(untracked(initialWindowSize));
-  const mode = signal<PlayerLayoutMode>(
-    nextLayoutMode("stacked", size().width, size().height),
+  const mediaAspect = signal<number | null>(null);
+  const autoMode = signal<PlayerLayoutMode>(
+    resolveAutoLayoutMode("stacked", size().width, size().height, null),
   );
-  const layout = () => computePlayerLayout(mode(), size().width, size().height);
+  const layoutOverride = signal<PlayerLayoutMode | null>(null);
+  const effectiveMode = (): PlayerLayoutMode => layoutOverride() ?? autoMode();
+  const layout = () =>
+    computePlayerLayout(effectiveMode(), size().width, size().height, mediaAspect());
   const textSize = () => subtitleTextSize(layout().subtitleWidth);
   const side = () => layout().mode === "side";
+
+  const toggleLayout = () => {
+    const current = effectiveMode();
+    const next: PlayerLayoutMode = current === "side" ? "stacked" : "side";
+    try {
+      LayoutAnimation.easeInEaseOut();
+    } catch {
+      // ignore on test host
+    }
+    // Returning to the automatic mode clears the manual override so resize auto-adapts again.
+    layoutOverride.set(next === autoMode() ? null : next);
+  };
 
   // Hero transition from the clicked card into the video box.
   const origin = () => props.originRect?.() ?? calculateFallbackOriginRect();
@@ -207,7 +223,33 @@ export function VideoDetailView(props: VideoDetailViewProps) {
         audioSession="playback"
         progressUpdateInterval={80}
         class="h-full w-full object-contain"
-        onLoad={() => ctl.errorMsg.set(null)}
+        onLoad={(e?: { duration?: number; size?: { width: number; height: number } }) => {
+          ctl.errorMsg.set(null);
+          if (e?.duration && e.duration > 0) {
+            ctl.durationSec.set(e.duration);
+          }
+          const w = e?.size?.width ?? 0;
+          const h = e?.size?.height ?? 0;
+          if (!audioOnly() && w > 0 && h > 0) {
+            const nextAspect = w / h;
+            mediaAspect.set(nextAspect);
+            const curSize = untracked(size);
+            const nextAuto = resolveAutoLayoutMode(
+              untracked(autoMode),
+              curSize.width,
+              curSize.height,
+              nextAspect,
+            );
+            if (nextAuto !== untracked(autoMode)) {
+              try {
+                LayoutAnimation.easeInEaseOut();
+              } catch {
+                // ignore on test host
+              }
+              autoMode.set(nextAuto);
+            }
+          }
+        }}
         onProgress={ctl.onProgress}
         onError={(e: { message?: string; code?: string }) => {
           ctl.paused.set(true);
@@ -267,6 +309,9 @@ export function VideoDetailView(props: VideoDetailViewProps) {
         language={language}
         visible={controlsVisible}
         compact={() => layout().videoWidth < 680}
+        layoutMode={effectiveMode}
+        layoutManual={() => layoutOverride() !== null}
+        onToggleLayout={toggleLayout}
         onControlsMouseEnter={() => {
           clearControlsTimer();
           controlsHovered.set(true);
@@ -341,7 +386,9 @@ export function VideoDetailView(props: VideoDetailViewProps) {
         const { width, height } = e.bounds.size;
         if (width <= 0 || height <= 0) return;
         size.set({ width, height });
-        mode.set(nextLayoutMode(untracked(mode), width, height));
+        autoMode.set(
+          resolveAutoLayoutMode(untracked(autoMode), width, height, untracked(mediaAspect)),
+        );
       }}
     >
       <View

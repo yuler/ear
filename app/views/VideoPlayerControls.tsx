@@ -5,6 +5,7 @@ import { Icon, type IconName } from "../ui/Icon";
 import { t, type EarLocale } from "../ui/i18n";
 import type { SentenceLengthMode } from "../youtube/captions";
 import type { Sentence } from "../youtube/types";
+import type { PlayerLayoutMode } from "./playerLayout";
 import { formatSentenceTime } from "./sentencePlayer";
 
 export type VideoPlayerControlsProps = {
@@ -35,6 +36,10 @@ export type VideoPlayerControlsProps = {
   visible?: () => boolean;
   /** Hide optional text labels when the video box is narrow. */
   compact?: () => boolean;
+  /** Current player layout mode ("side" | "stacked") and manual override handler. */
+  layoutMode?: () => PlayerLayoutMode;
+  layoutManual?: () => boolean;
+  onToggleLayout?: () => void;
   onControlsMouseEnter?: () => void;
   onControlsMouseLeave?: () => void;
 };
@@ -184,7 +189,7 @@ export function VideoPlayerControls(props: VideoPlayerControlsProps) {
           language={props.language}
         />
 
-        <View class="mt-0.5 flex-row items-center justify-between gap-2">
+        <View class="mt-0.5 flex-row flex-wrap items-center justify-between gap-x-2 gap-y-1">
           <View class="flex-row items-center gap-0.5">
             <OverlayIconButton
               icon="chevron-left"
@@ -231,7 +236,7 @@ export function VideoPlayerControls(props: VideoPlayerControlsProps) {
             </View>
           </View>
 
-          <View class="flex-row items-center gap-1">
+          <View class="flex-row flex-wrap items-center gap-1">
             <Button
               onPress={props.onCycleRate}
               class={`${overlayToggleClass(props.rate() !== 1)} w-10`}
@@ -336,6 +341,19 @@ export function VideoPlayerControls(props: VideoPlayerControlsProps) {
                 )}
               </Each>
             </View>
+
+            <If when={Boolean(props.onToggleLayout && props.layoutMode)}>
+              <OverlayIconButton
+                icon={props.layoutMode?.() === "side" ? "layout-stacked" : "layout-side"}
+                label={
+                  props.layoutMode?.() === "side"
+                    ? m().switchToStackedLayout
+                    : m().switchToSideLayout
+                }
+                onPress={() => props.onToggleLayout?.()}
+                active={Boolean(props.layoutManual?.())}
+              />
+            </If>
           </View>
         </View>
       </View>

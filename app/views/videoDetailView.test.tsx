@@ -21,8 +21,10 @@ import { shouldShowPlayerControls } from "./VideoPlayerControls";
 import { getSentence3DStyle, SentenceRow } from "./SentenceRow";
 import {
   computePlayerLayout,
+  isPortraitMedia,
   nextLayoutMode,
   PLAYER_SIDE_PAD,
+  resolveAutoLayoutMode,
   subtitleTextSize,
 } from "./playerLayout";
 
@@ -294,6 +296,32 @@ test("Player layout: aspect ratio switches mode with hysteresis, sizes follow th
   expect(subtitleTextSize(360)).toBe("sm");
   expect(subtitleTextSize(600)).toBe("md");
   expect(subtitleTextSize(1200)).toBe("lg");
+});
+
+test("Player layout: portrait video auto-selects side-by-side and sizes to portrait aspect", () => {
+  expect(isPortraitMedia(1080 / 1920)).toBe(true);
+  expect(isPortraitMedia(3 / 4)).toBe(true);
+  expect(isPortraitMedia(1)).toBe(false);
+  expect(isPortraitMedia(16 / 9)).toBe(false);
+  expect(isPortraitMedia(null)).toBe(false);
+
+  // Portrait 9:16 video auto-switches to side layout even in a 1200x800 (1.5) or 800x560 window.
+  expect(resolveAutoLayoutMode("stacked", 1200, 800, 1080 / 1920)).toBe("side");
+  expect(resolveAutoLayoutMode("stacked", 800, 560, 720 / 1280)).toBe("side");
+  // Landscape 16:9 video keeps standard window-aspect hysteresis.
+  expect(resolveAutoLayoutMode("stacked", 1200, 800, 1920 / 1080)).toBe("stacked");
+  expect(resolveAutoLayoutMode("stacked", 1600, 700, 1920 / 1080)).toBe("side");
+
+  // Side layout for 9:16 video in 1200x800 gives full height to the portrait frame and generous width to subtitles.
+  const portraitDesktop = computePlayerLayout("side", 1200, 800, 9 / 16);
+  expect(portraitDesktop.videoHeight).toBe(800 - PLAYER_SIDE_PAD * 2);
+  expect(portraitDesktop.videoWidth).toBe(Math.floor((800 - PLAYER_SIDE_PAD * 2) * (9 / 16)));
+  expect(portraitDesktop.subtitleWidth).toBeGreaterThan(650);
+
+  // Even at minimum 800x560 window, subtitle column stays >= 360pt wide.
+  const portraitSmall = computePlayerLayout("side", 800, 560, 9 / 16);
+  expect(portraitSmall.videoHeight).toBe(560 - PLAYER_SIDE_PAD * 2);
+  expect(portraitSmall.subtitleWidth).toBeGreaterThanOrEqual(360);
 });
 
 test("VideoDetailHeader hides while playing unless hovered or focused", () => {

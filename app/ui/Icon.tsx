@@ -13,6 +13,8 @@ import film from "./icons/film.svg";
 import folder from "./icons/folder.svg";
 import headphones from "./icons/headphones.svg";
 import helpCircle from "./icons/help-circle.svg";
+import layoutSide from "./icons/layout-side.svg";
+import layoutStacked from "./icons/layout-stacked.svg";
 import link from "./icons/link.svg";
 import loader from "./icons/loader.svg";
 import move from "./icons/move.svg";
@@ -45,6 +47,8 @@ const ICONS = {
   folder,
   headphones,
   "help-circle": helpCircle,
+  "layout-side": layoutSide,
+  "layout-stacked": layoutStacked,
   link,
   loader,
   move,
