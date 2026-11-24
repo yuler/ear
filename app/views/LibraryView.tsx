@@ -1,6 +1,5 @@
 import { effect, keymap, Scroll, signal, Text, View, type ScrollRef } from "nsh";
 import { AlertDialog, Button, Scrollbar } from "nsh/base";
-import { Menu } from "nsh/desktop";
 import type { DiskSpaceInfo } from "../library/storage";
 import type { DownloadTaskProgress, LibraryEntry } from "../library/types";
 import { ActiveDownloadsSection } from "../ui/ActiveDownloadRow";
@@ -214,42 +213,35 @@ export function LibraryView(props: {
     exitSelectionMode();
   };
 
-  const openMenu = (entry: LibraryEntry, at?: { x: number; y: number }) => {
-    void Menu.popup(
-      buildLibraryContextMenu({
-        entry,
-        selectionMode: selectionMode(),
-        checked: selectedIds().has(entry.videoId),
-        selectedCount: selectedCount(),
-        allVisibleSelected: allVisibleSelected(),
-        canDelete,
-        onPlay: () => props.onOpenEntry(entry),
-        onOpenFolder: () => props.onOpenFolder(entry),
-        onCopyLink: () => void copyUrlWithToast(entry.url),
-        onEnterSelect: () => enterSelectionMode(entry.videoId),
-        onToggleItemSelect: () => toggleEntrySelection(entry),
-        onToggleSelectAll: toggleSelectAll,
-        onDeleteItem: () => void requestDelete(entry),
-        onDeleteSelected: () => void requestBatchDelete(),
-      }),
-      at,
-    );
-  };
+  const libraryMenuItems = (entry: LibraryEntry) =>
+    buildLibraryContextMenu({
+      entry,
+      selectionMode: selectionMode(),
+      checked: selectedIds().has(entry.videoId),
+      selectedCount: selectedCount(),
+      allVisibleSelected: allVisibleSelected(),
+      canDelete,
+      onPlay: () => props.onOpenEntry(entry),
+      onOpenFolder: () => props.onOpenFolder(entry),
+      onCopyLink: () => void copyUrlWithToast(entry.url),
+      onEnterSelect: () => enterSelectionMode(entry.videoId),
+      onToggleItemSelect: () => toggleEntrySelection(entry),
+      onToggleSelectAll: toggleSelectAll,
+      onDeleteItem: () => void requestDelete(entry),
+      onDeleteSelected: () => void requestBatchDelete(),
+    });
 
-  const openDiscoverMenu = (item: DiscoverItem, at?: { x: number; y: number }) => {
+  const discoverMenuItems = (item: DiscoverItem) => {
     const existing =
       props.savedEntries().find((e) => e.videoId === item.videoId && e.state === "ready") ??
       null;
-    void Menu.popup(
-      buildDiscoverContextMenu({
-        item,
-        downloadedEntry: existing,
-        onOpen: () => props.onSelectDiscoverItem?.(item),
-        onOpenFolder: existing ? () => props.onOpenFolder(existing) : undefined,
-        onCopyLink: () => void copyUrlWithToast(item.url),
-      }),
-      at,
-    );
+    return buildDiscoverContextMenu({
+      item,
+      downloadedEntry: existing,
+      onOpen: () => props.onSelectDiscoverItem?.(item),
+      onOpenFolder: existing ? () => props.onOpenFolder(existing) : undefined,
+      onCopyLink: () => void copyUrlWithToast(item.url),
+    });
   };
 
   /** The focused entry, after clamping; null on an empty list. */
@@ -406,7 +398,7 @@ export function LibraryView(props: {
                       <DiscoverCard
                         item={item}
                         onPress={(it, rect) => props.onSelectDiscoverItem?.(it, rect)}
-                        onMenu={openDiscoverMenu}
+                        menuItems={() => discoverMenuItems(item)}
                         isDownloaded={() => downloadedIds().has(item.videoId)}
                         download={() => downloadFor(item.videoId)}
                       />
@@ -479,7 +471,7 @@ export function LibraryView(props: {
                       checked={selectedIds().has(entry().videoId)}
                       onOpen={props.onOpenEntry}
                       onToggleSelect={toggleEntrySelection}
-                      onMenu={openMenu}
+                      menuItems={() => libraryMenuItems(entry())}
                     />
                   )}
                 </Each>

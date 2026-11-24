@@ -1,6 +1,10 @@
 import { Image, Text, View, type ViewRef } from "nsh";
 import { Button } from "nsh/base";
 import type { DownloadTaskProgress } from "../../library/types";
+import {
+  ActionContextMenu,
+  type ContextMenuEntry,
+} from "../../ui/ActionContextMenu";
 import { Icon } from "../../ui/Icon";
 import { PosterProgress } from "../../ui/ActiveDownloadRow";
 import { shellT } from "../../ui/shellI18n";
@@ -39,7 +43,7 @@ export function DiscoverCardSkeleton() {
 export function DiscoverCard(props: {
   item: DiscoverItem;
   onPress: (item: DiscoverItem, originRect?: ViewTransitionRect | null) => void;
-  onMenu?: (item: DiscoverItem, at?: { x: number; y: number }) => void;
+  menuItems?: () => (ContextMenuEntry | null)[];
   isDownloaded?: () => boolean;
   download?: () => DownloadTaskProgress | null;
   selected?: boolean;
@@ -57,13 +61,8 @@ export function DiscoverCard(props: {
     props.onPress(item, rect);
   };
 
-  return (
-    <View
-      onContextMenu={(e) => {
-        props.onMenu?.(item, e.pagePosition);
-      }}
-      class="w-full"
-    >
+  const card = (
+    <View class="w-full">
       <Button
         onPress={() => void handlePress()}
         class={`group w-full flex-col gap-2 rounded-lg p-1.5 text-left transition hover:bg-well ${
@@ -123,5 +122,15 @@ export function DiscoverCard(props: {
       </Text>
       </Button>
     </View>
+  );
+
+  if (!props.menuItems) return card;
+
+  return (
+    <ActionContextMenu
+      class="w-full"
+      items={props.menuItems}
+      trigger={card}
+    />
   );
 }

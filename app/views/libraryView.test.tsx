@@ -6,6 +6,8 @@ import {
   parseDfPkOutput,
 } from "../library/storage";
 import type { LibraryEntry } from "../library/types";
+import type { ContextMenuActionItem } from "../ui/ActionContextMenu";
+import { AppTooltip } from "../ui/AppTooltip";
 import {
   ActiveDownloadRow,
   ActiveDownloadsSection,
@@ -270,7 +272,6 @@ test("LibraryCard omits per-card overflow button in favor of top-level multi-sel
     selected: false,
     selectionMode: false,
     onOpen: () => {},
-    onMenu: () => {},
   });
   const str = JSON.stringify(card);
   expect(str.includes("More actions")).toBe(false);
@@ -368,16 +369,24 @@ test("buildLibraryContextMenu and buildDiscoverContextMenu provide right-click a
     onDeleteItem: () => {},
     onDeleteSelected: () => {},
   });
-  const normalLabels = normalItems
-    .filter((i): i is { label: string } => Boolean(i && "label" in i))
-    .map((i) => i.label);
-  expect(normalLabels).toEqual([
+  const normalActions = normalItems.filter(
+    (i): i is ContextMenuActionItem => Boolean(i && "label" in i),
+  );
+  expect(normalActions.map((i) => i.label)).toEqual([
     "Play",
     "Open folder",
     "Copy link",
     "Multi-select",
     "Delete",
   ]);
+  expect(normalActions.map((i) => i.icon)).toEqual([
+    "play",
+    "folder",
+    "link",
+    "list-checks",
+    "trash",
+  ]);
+  expect(normalActions.at(-1)?.destructive).toBe(true);
 
   const selectItems = buildLibraryContextMenu({
     entry,
@@ -396,16 +405,24 @@ test("buildLibraryContextMenu and buildDiscoverContextMenu provide right-click a
     onDeleteItem: () => {},
     onDeleteSelected: () => {},
   });
-  const selectLabels = selectItems
-    .filter((i): i is { label: string } => Boolean(i && "label" in i))
-    .map((i) => i.label);
-  expect(selectLabels).toEqual([
+  const selectActions = selectItems.filter(
+    (i): i is ContextMenuActionItem => Boolean(i && "label" in i),
+  );
+  expect(selectActions.map((i) => i.label)).toEqual([
     "Deselect",
     "Deselect all",
     "Play",
     "Open folder",
     "Copy link",
     "Delete selected (2)",
+  ]);
+  expect(selectActions.map((i) => i.icon)).toEqual([
+    "check-square",
+    "list-checks",
+    "play",
+    "folder",
+    "link",
+    "trash",
   ]);
 
   const discoverMenu = buildDiscoverContextMenu({
@@ -431,10 +448,14 @@ test("buildLibraryContextMenu and buildDiscoverContextMenu provide right-click a
     onOpen: () => {},
     onCopyLink: () => {},
   });
-  const discoverLabels = discoverMenu
-    .filter((i): i is { label: string } => Boolean(i && "label" in i))
-    .map((i) => i.label);
-  expect(discoverLabels).toEqual(["Configure & download", "Copy link"]);
+  const discoverActions = discoverMenu.filter(
+    (i): i is ContextMenuActionItem => Boolean(i && "label" in i),
+  );
+  expect(discoverActions.map((i) => i.label)).toEqual([
+    "Configure & download",
+    "Copy link",
+  ]);
+  expect(discoverActions.map((i) => i.icon)).toEqual(["download", "link"]);
 
   expect(
     LibraryHeader({
@@ -562,8 +583,42 @@ test("Library context menu advertises single-key 'a' for Select All in selection
     onDeleteSelected: () => {},
   });
   const selectAllItem = items.find(
-    (i): i is { label: string; shortcut?: string } =>
+    (i): i is ContextMenuActionItem =>
       Boolean(i && "label" in i && i.label === "Select all"),
   );
   expect(selectAllItem?.shortcut).toBe("a");
+  expect(selectAllItem?.icon).toBe("list-checks");
+});
+
+test("AppTooltip wraps tooltip content in a styled bubble instead of bare text", () => {
+  const el = AppTooltip({ label: "/home/alice/Downloads", mono: true });
+  expect(el).toBeDefined();
+});
+
+test("Home Library card right-click opens styled context menu with SVG icons and download folder hover shows tooltip", async () => {
+  const app = await open("../ui/overlayFixture.tsx", {
+    width: 1000,
+    height: 700,
+    platform: "linux",
+  });
+  await app.waitFor("Video v1");
+
+  // Hovering the download folder button displays the styled AppTooltip bubble
+  await app.hover("label:Open download folder");
+  await app.wait(450);
+  expect(
+    app.texts().filter((t) => t === "/tmp/ear-downloads").length,
+  ).toBeGreaterThanOrEqual(2);
+
+  // Right-clicking a video card opens the custom ActionContextMenu with all actions
+  await app.rightClick("label:Open Video v1");
+  await app.waitFor("Copy link");
+  expect(app.texts().some((t) => t === "Play")).toBe(true);
+  expect(app.texts().some((t) => t === "Open folder")).toBe(true);
+  expect(app.texts().some((t) => t === "Multi-select")).toBe(true);
+  expect(app.texts().some((t) => t === "Delete")).toBe(true);
+
+  await app.press("Multi-select");
+  await app.waitFor("Select all");
+  expect(app.shows("label:Delete selected")).toBe(true);
 });

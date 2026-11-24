@@ -1,6 +1,7 @@
 import { Text, View } from "nsh";
 import { Button } from "nsh/base";
 import type { PlaybackRate } from "../player";
+import { AppTooltip } from "../ui/AppTooltip";
 import { Icon, type IconName } from "../ui/Icon";
 import { t, type EarLocale } from "../ui/i18n";
 import type { SentenceLengthMode } from "../youtube/captions";
@@ -72,7 +73,7 @@ function OverlayIconButton(props: {
       onPress={props.onPress}
       class={overlayToggleClass(Boolean(props.active))}
       accessibilityLabel={props.label}
-      tooltip={<Text class="text-xs">{props.label}</Text>}
+      tooltip={<AppTooltip label={props.label} />}
     >
       <Icon
         name={props.icon}
@@ -241,7 +242,7 @@ export function VideoPlayerControls(props: VideoPlayerControlsProps) {
               onPress={props.onCycleRate}
               class={`${overlayToggleClass(props.rate() !== 1)} w-10`}
               accessibilityLabel={m().playbackSpeed}
-              tooltip={<Text class="text-xs">{m().playbackSpeed}</Text>}
+              tooltip={<AppTooltip label={m().playbackSpeed} />}
             >
               <Text
                 class={`font-mono text-xs font-medium ${
@@ -271,7 +272,7 @@ export function VideoPlayerControls(props: VideoPlayerControlsProps) {
               onPress={props.onToggleMask}
               class={overlayToggleClass(props.maskAll())}
               accessibilityLabel={m().toggleSubtitlesMask}
-              tooltip={<Text class="text-xs">{m().toggleSubtitlesMask}</Text>}
+              tooltip={<AppTooltip label={m().toggleSubtitlesMask} />}
             >
               <Icon
                 name={props.maskAll() ? "eye-off" : "eye"}
@@ -295,7 +296,7 @@ export function VideoPlayerControls(props: VideoPlayerControlsProps) {
                 onPress={() => props.onToggleBlocker?.()}
                 class={overlayToggleClass(Boolean(props.blockerEnabled?.()))}
                 accessibilityLabel={m().toggleSubtitleBlocker}
-                tooltip={<Text class="text-xs">{m().toggleSubtitleBlocker}</Text>}
+                tooltip={<AppTooltip label={m().toggleSubtitleBlocker} />}
               >
                 <Icon
                   name="subtitle-block"
