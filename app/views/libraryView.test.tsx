@@ -540,7 +540,21 @@ test("Library multi-select uses X to check the focused item, keeps batch bar but
   expect(app.shows("label:Portrait video")).toBe(true);
   expect(app.shows("label:Landscape video")).toBe(true);
 
-  // X checks the focused card (the first card when nothing is focused yet)
+  // Space outside selection mode does not enter selection mode
+  await app.keyboard.press("space");
+  expect(app.shows("label:Delete selected")).toBe(false);
+
+  // Clicking the header multi-select button enters selection mode; Space selects the focused card
+  await app.press("label:Multi-select");
+  await app.waitFor("Select all");
+  await app.keyboard.press("space");
+  await app.waitFor("1");
+  expect(app.texts().some((t) => t === "1")).toBe(true);
+  await app.keyboard.press("escape");
+  await app.waitFor("/tmp/ear-downloads");
+  expect(app.shows("label:Delete selected")).toBe(false);
+
+  // X checks the focused card
   await app.keyboard.press("x");
   await app.waitFor("Select all");
   expect(app.texts().some((t) => t === "X")).toBe(true);
@@ -553,6 +567,32 @@ test("Library multi-select uses X to check the focused item, keeps batch bar but
   // Both Open folder and Delete stay permanently mounted at 0 selections
   expect(app.shows("label:Open folder")).toBe(true);
   expect(app.shows("label:Delete selected")).toBe(true);
+
+  // Arrow right moves focus to v2 and Space toggles its selection in selection mode
+  await app.keyboard.press("right");
+  await app.keyboard.press("space");
+  await app.waitFor("2");
+  expect(app.texts().some((t) => t === "2")).toBe(true);
+
+  // Space again unchecks v2 while staying in selection mode
+  await app.keyboard.press("space");
+  await app.waitFor("1");
+  expect(app.texts().some((t) => t === "1")).toBe(true);
+
+  // Clicking the top-right selection circle directly selects and deselects the card,
+  // and Space right afterward toggles focused v2 cleanly without double-firing
+  await app.press("label:Toggle selection for Video v2");
+  await app.waitFor("2");
+  expect(app.texts().some((t) => t === "2")).toBe(true);
+  await app.keyboard.press("space");
+  await app.waitFor("1");
+  expect(app.texts().some((t) => t === "1")).toBe(true);
+  await app.press("label:Toggle selection for Video v2");
+  await app.waitFor("2");
+  expect(app.texts().some((t) => t === "2")).toBe(true);
+  await app.press("label:Toggle selection for Video v2");
+  await app.waitFor("1");
+  expect(app.texts().some((t) => t === "1")).toBe(true);
 
   // Press single key 'a' to select all 3 entries
   await app.keyboard.press("a");
@@ -601,6 +641,11 @@ test("Library context menu advertises single-key 'a' for Select All in selection
     onDeleteItem: () => {},
     onDeleteSelected: () => {},
   });
+  const selectItem = items.find(
+    (i): i is ContextMenuActionItem =>
+      Boolean(i && "label" in i && i.label === "Select"),
+  );
+  expect(selectItem?.shortcut).toBe("space");
   const selectAllItem = items.find(
     (i): i is ContextMenuActionItem =>
       Boolean(i && "label" in i && i.label === "Select all"),

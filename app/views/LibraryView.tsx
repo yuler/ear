@@ -177,6 +177,17 @@ export function LibraryView(props: {
     selectionMode.set(next.size > 0);
   };
 
+  /** Space toggles the focused item while selection mode is active. */
+  const toggleFocusedInSelectionMode = () => {
+    if (props.disabled?.() || props.previewOpen?.()) return;
+    if (!selectionMode()) return;
+    if (entries().length === 0) return;
+    if (focusedIndex() < 0) focusedIndex.set(0);
+    const entry = focused();
+    if (!entry) return;
+    toggleEntrySelection(entry);
+  };
+
   const toggleSelectAll = () => {
     selectedIds.set(toggleSelectAllIds(selectedIds(), visibleEntryIds()));
   };
@@ -299,6 +310,7 @@ export function LibraryView(props: {
       left: () => move(-1),
       enter: withFocused((e) => props.onOpenEntry(e)),
       x: toggleFocusedSelection,
+      space: toggleFocusedInSelectionMode,
       o: () => {
         if (props.disabled?.()) return;
         if (selectionMode()) {

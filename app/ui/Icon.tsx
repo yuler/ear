@@ -22,8 +22,6 @@ import move from "./icons/move.svg";
 import music from "./icons/music.svg";
 import pause from "./icons/pause.svg";
 import play from "./icons/play.svg";
-import rectangleHorizontal from "./icons/rectangle-horizontal.svg";
-import rectangleVertical from "./icons/rectangle-vertical.svg";
 import repeat from "./icons/repeat.svg";
 import search from "./icons/search.svg";
 import settingsIcon from "./icons/settings.svg";
@@ -31,6 +29,8 @@ import sparkles from "./icons/sparkles.svg";
 import subtitles from "./icons/subtitles.svg";
 import subtitleBlock from "./icons/subtitle-block.svg";
 import trash from "./icons/trash.svg";
+import videoLandscape from "./icons/video-landscape.svg";
+import videoPortrait from "./icons/video-portrait.svg";
 import volume from "./icons/volume.svg";
 import volumeX from "./icons/volume-x.svg";
 import x from "./icons/x.svg";
@@ -59,8 +59,6 @@ const ICONS = {
   music,
   pause,
   play,
-  "rectangle-horizontal": rectangleHorizontal,
-  "rectangle-vertical": rectangleVertical,
   repeat,
   search,
   settings: settingsIcon,
@@ -68,6 +66,8 @@ const ICONS = {
   subtitles,
   "subtitle-block": subtitleBlock,
   trash,
+  "video-landscape": videoLandscape,
+  "video-portrait": videoPortrait,
   volume,
   "volume-x": volumeX,
   x,

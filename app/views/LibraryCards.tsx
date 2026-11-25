@@ -77,7 +77,7 @@ export function LibraryCard(props: {
     >
       <Button
         onPress={() => void handlePress()}
-        class="flex-col gap-2 p-1.5 text-left"
+        class="w-full flex-col gap-2 p-1.5 text-left"
         accessibilityLabel={
           props.selectionMode
             ? `Select ${entry().title}`
@@ -103,35 +103,6 @@ export function LibraryCard(props: {
               <Icon name="headphones" size={13} color="#ffffff" />
             </View>
           </If>
-          <If when={!audio() && orientation() !== null}>
-            <View
-              class="absolute top-1.5 left-1.5 h-6 w-6 items-center justify-center rounded-md bg-black/70"
-              accessibilityLabel={
-                orientation() === "portrait"
-                  ? shellT().portraitVideo
-                  : shellT().landscapeVideo
-              }
-              tooltip={
-                <AppTooltip
-                  label={
-                    orientation() === "portrait"
-                      ? shellT().portraitVideo
-                      : shellT().landscapeVideo
-                  }
-                />
-              }
-            >
-              <Icon
-                name={
-                  orientation() === "portrait"
-                    ? "rectangle-vertical"
-                    : "rectangle-horizontal"
-                }
-                size={14}
-                color="#ffffff"
-              />
-            </View>
-          </If>
           <If when={Boolean(duration())}>
             <View class="absolute right-1.5 bottom-1.5 rounded bg-black/75 px-1.5 py-0.5">
               <Text class="font-mono text-[11px] tabular-nums text-white">
@@ -146,6 +117,35 @@ export function LibraryCard(props: {
             {entry().title}
           </Text>
           <View class="flex-row items-center gap-1.5">
+            <If when={!audio() && orientation() !== null}>
+              <View
+                class="shrink-0 items-center justify-center"
+                accessibilityLabel={
+                  orientation() === "portrait"
+                    ? shellT().portraitVideo
+                    : shellT().landscapeVideo
+                }
+                tooltip={
+                  <AppTooltip
+                    label={
+                      orientation() === "portrait"
+                        ? shellT().portraitVideo
+                        : shellT().landscapeVideo
+                    }
+                  />
+                }
+              >
+                <Icon
+                  name={
+                    orientation() === "portrait"
+                      ? "video-portrait"
+                      : "video-landscape"
+                  }
+                  size={14}
+                  tone="muted-foreground"
+                />
+              </View>
+            </If>
             <Text class="min-w-0 flex-1 truncate text-xs text-muted-foreground">
               {formatEntryDescription(entry())}
             </Text>
@@ -162,17 +162,19 @@ export function LibraryCard(props: {
         </View>
       </Button>
       <If when={Boolean(props.selectionMode)}>
-        <View
-          class={`pointer-events-none absolute top-3 right-3 h-5.5 w-5.5 items-center justify-center rounded-full shadow-sm transition ${
+        <Button
+          onPress={() => props.onToggleSelect?.(entry())}
+          class={`absolute top-3 right-3 z-10 h-5.5 w-5.5 items-center justify-center rounded-full shadow-sm transition hover:scale-105 active:scale-95 ${
             props.checked
               ? "bg-brand"
-              : "border-2 border-white/85 bg-black/45"
+              : "border-2 border-white/85 bg-black/45 hover:bg-black/65"
           }`}
+          accessibilityLabel={`Toggle selection for ${entry().title}`}
         >
           <If when={Boolean(props.checked)}>
             <Icon name="check" size={12} color="#ffffff" />
           </If>
-        </View>
+        </Button>
       </If>
     </View>
   );

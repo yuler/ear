@@ -155,7 +155,7 @@ const CATEGORIES_BY_LOCALE: Record<EarLocale, ShortcutCategory[]> = {
       shortcuts: [
         { id: "list-arrows", keystroke: "arrows", label: "Move focus", keys: ["↑", "↓", "←", "→"] },
         { id: "list-enter", keystroke: "enter", label: "Open item", keys: ["Enter"] },
-        { id: "list-select-mode", keystroke: "x", label: "Select focused item", keys: ["X"] },
+        { id: "list-select-mode", keystroke: "x", label: "Select focused item", keys: ["X", "Space"] },
         { id: "list-select-all", keystroke: "a", label: "Select / Deselect all", keys: ["A", "mod+a"] },
         { id: "list-open-folder", keystroke: "o", label: "Open folder", keys: ["O"] },
         {
@@ -221,7 +221,7 @@ const CATEGORIES_BY_LOCALE: Record<EarLocale, ShortcutCategory[]> = {
       shortcuts: [
         { id: "list-arrows", keystroke: "arrows", label: "移动焦点", keys: ["↑", "↓", "←", "→"] },
         { id: "list-enter", keystroke: "enter", label: "打开播放", keys: ["Enter"] },
-        { id: "list-select-mode", keystroke: "x", label: "勾选当前项", keys: ["X"] },
+        { id: "list-select-mode", keystroke: "x", label: "勾选当前项", keys: ["X", "Space"] },
         { id: "list-select-all", keystroke: "a", label: "全选 / 取消全选", keys: ["A", "mod+a"] },
         { id: "list-open-folder", keystroke: "o", label: "打开所在目录", keys: ["O"] },
         {

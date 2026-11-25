@@ -50,6 +50,7 @@ export function buildLibraryContextMenu(
       {
         label: opts.checked ? t.deselectItem : t.selectItem,
         icon: "check-square",
+        shortcut: "space",
         checked: opts.checked,
         onSelect: opts.onToggleItemSelect,
       },
