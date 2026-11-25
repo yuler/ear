@@ -4,7 +4,6 @@ import {
   effect,
   Image,
   LayoutAnimation,
-  Scroll,
   type ScrollRef,
   signal,
   untracked,
@@ -25,11 +24,12 @@ import { entryMediaAspect, isAudioEntry } from "./libraryViewHelpers";
 import { createPlayerController } from "./playerController";
 import {
   computePlayerLayout,
+  isCompactStudio,
   resolveAutoLayoutMode,
   subtitleTextSize,
   type PlayerLayoutMode,
 } from "./playerLayout";
-import { SentenceList } from "./SentenceList";
+import { SubtitleStudio } from "./SubtitleStudio";
 import { VideoDetailHeader } from "./VideoDetailHeader";
 import { shouldShowPlayerControls, VideoPlayerControls } from "./VideoPlayerControls";
 import {
@@ -89,6 +89,8 @@ export function VideoDetailView(props: VideoDetailViewProps) {
     computePlayerLayout(effectiveMode(), size().width, size().height, mediaAspect());
   const textSize = () => subtitleTextSize(layout().subtitleWidth);
   const side = () => layout().mode === "side";
+  const compactStudio = () => isCompactStudio(size().width, size().height);
+  const largeStudio = () => size().width >= 1420;
 
   const toggleLayout = () => {
     const current = effectiveMode();
@@ -353,12 +355,12 @@ export function VideoDetailView(props: VideoDetailViewProps) {
   const subtitles = (
     <View
       style={subtitleStyle()}
-      class={`relative min-h-0 ${
+      class={`relative min-h-0 flex-col ${
         side() ? "shrink-0 border-l border-border" : "w-full flex-1 border-t border-border"
       }`}
     >
       <If when={Boolean(ctl.errorMsg())}>
-        <View class="shrink-0 px-4 pt-3">
+        <View class="shrink-0 bg-well/65 px-4 pt-3">
           <MediaErrorNotice
             errorMsg={ctl.errorMsg}
             mediaPath={() => entry().videoPath ?? entry().audioPath}
@@ -367,40 +369,36 @@ export function VideoDetailView(props: VideoDetailViewProps) {
           />
         </View>
       </If>
-      <Scroll
-        ref={(node) => {
+      <SubtitleStudio
+        sentences={ctl.sentences}
+        loading={ctl.loadingSentences}
+        activeIndex={ctl.activeIndex}
+        paused={ctl.paused}
+        maskAll={ctl.maskAll}
+        isRevealed={(idx) => Boolean(ctl.revealedMap()[idx])}
+        onToggleReveal={ctl.toggleReveal}
+        onListen={ctl.playSentence}
+        onRepeatSentence={ctl.repeatCurrent}
+        side={side}
+        compact={compactStudio}
+        large={largeStudio}
+        language={language}
+        textSize={textSize}
+        scrollRef={(node) => {
           scrollNode = node;
         }}
-        scrollEventThrottle={50}
-        onScroll={(e) => {
-          scrollOffsetY = e.offset.y;
-          scrollViewportH = e.size.height;
+        onStreamScroll={(offsetY, viewportH) => {
+          scrollOffsetY = offsetY;
+          scrollViewportH = viewportH;
         }}
-        onLayout={(e) => {
-          scrollViewportH = e.bounds.size.height;
+        onStreamLayout={(viewportH) => {
+          scrollViewportH = viewportH;
         }}
-        class="min-h-0 flex-1"
-      >
-        <View class="mx-auto w-full max-w-[880px] px-3">
-          <SentenceList
-            showHeader={false}
-            sentences={ctl.sentences}
-            loading={ctl.loadingSentences}
-            activeIndex={ctl.activeIndex}
-            paused={ctl.paused}
-            maskAll={ctl.maskAll}
-            isRevealed={(idx) => Boolean(ctl.revealedMap()[idx])}
-            onToggleReveal={ctl.toggleReveal}
-            onListen={ctl.playSentence}
-            language={language}
-            textSize={textSize}
-            rowRef={(idx, node) => {
-              if (node) rowNodes.set(idx, node);
-              else rowNodes.delete(idx);
-            }}
-          />
-        </View>
-      </Scroll>
+        rowRef={(idx, node) => {
+          if (node) rowNodes.set(idx, node);
+          else rowNodes.delete(idx);
+        }}
+      />
     </View>
   );
 

@@ -1,4 +1,5 @@
 import { Image, token, type Tokens } from "nsh";
+import bookmark from "./icons/bookmark.svg";
 import check from "./icons/check.svg";
 import checkSquare from "./icons/check-square.svg";
 import chevronLeft from "./icons/chevron-left.svg";
@@ -26,6 +27,7 @@ import repeat from "./icons/repeat.svg";
 import search from "./icons/search.svg";
 import settingsIcon from "./icons/settings.svg";
 import sparkles from "./icons/sparkles.svg";
+import star from "./icons/star.svg";
 import subtitles from "./icons/subtitles.svg";
 import subtitleBlock from "./icons/subtitle-block.svg";
 import trash from "./icons/trash.svg";
@@ -36,6 +38,7 @@ import volumeX from "./icons/volume-x.svg";
 import x from "./icons/x.svg";
 
 const ICONS = {
+  bookmark,
   check,
   "check-square": checkSquare,
   "chevron-left": chevronLeft,
@@ -63,6 +66,7 @@ const ICONS = {
   search,
   settings: settingsIcon,
   sparkles,
+  star,
   subtitles,
   "subtitle-block": subtitleBlock,
   trash,

@@ -67,6 +67,17 @@ export interface I18nMessages {
   noCaptions: string;
   noCaptionsDesc: string;
 
+  // SubtitleStudio (Dual-Zone Inspector)
+  copySentence: string;
+  bookmarkSentence: string;
+  unbookmarkSentence: string;
+  starWord: string;
+  selectedWord: string;
+  revealSentence: string;
+  hideSentence: string;
+  blindPeekHint: string;
+  notePlaceholder: string;
+
   // VideoDetailView
   playerError: string;
 
@@ -163,6 +174,16 @@ export const MESSAGES: Record<EarLocale, I18nMessages> = {
     noCaptions: "No embedded captions detected for this video",
     noCaptionsDesc: "Play directly with the player above, or download a version with captions",
 
+    copySentence: "Copy sentence",
+    bookmarkSentence: "Bookmark sentence",
+    unbookmarkSentence: "Remove bookmark",
+    starWord: "Star word",
+    selectedWord: "Selected word",
+    revealSentence: "Reveal sentence",
+    hideSentence: "Mask sentence",
+    blindPeekHint: "Tap masked words to peek, or press M to reveal all",
+    notePlaceholder: "Jot down a quick note for this sentence…",
+
     playerError: "Player failed to load",
 
     gstreamerMissingTitle: "Missing GStreamer Codec Plugins",
@@ -254,6 +275,16 @@ export const MESSAGES: Record<EarLocale, I18nMessages> = {
     loadingCaptions: "正在加载字幕句子与时间对齐…",
     noCaptions: "未检测到当前视频的内嵌字幕",
     noCaptionsDesc: "可通过上方播放器直接播放，或重新解析下载包含字幕的版本",
+
+    copySentence: "复制当前句",
+    bookmarkSentence: "收藏当前句",
+    unbookmarkSentence: "取消收藏",
+    starWord: "标记生词",
+    selectedWord: "已选单词",
+    revealSentence: "显示当前句",
+    hideSentence: "重新打码",
+    blindPeekHint: "点击词块逐词揭晓，或按 M 显示整句",
+    notePlaceholder: "给这一句记条简短笔记…",
 
     playerError: "播放器加载失败",
 

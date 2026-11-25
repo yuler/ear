@@ -1,9 +1,9 @@
 /**
- * Pure layout math for the player page (desktop redesign §7).
- * Portrait videos automatically default to side-by-side layout (video on the left,
- * subtitles on the right); landscape videos switch between side-by-side and stacked
- * by the window's aspect ratio with hysteresis so resizing does not flap.
- * Both layouts render the video in a full-bleed black stage with no outer margins.
+ * Pure layout math for the player page (Dual-Zone Studio).
+ * - Portrait videos automatically use side-by-side layout (video left, dual studio right),
+ *   capping the subtitle column to <= 50% width (360..560pt) so it never outweighs the video.
+ * - Landscape videos stay in stacked layout (video top ~52%, horizontal dual studio below ~48%)
+ *   even on large desktop displays, while users can still toggle side-by-side manually.
  */
 
 export type PlayerLayoutMode = "side" | "stacked";
@@ -29,6 +29,11 @@ export function isPortraitMedia(mediaAspect: number | null | undefined): boolean
   );
 }
 
+/** True when the window is near the minimum desktop size (800x560) and needs compact chrome. */
+export function isCompactStudio(width: number, height: number): boolean {
+  return width <= 860 || height <= 600;
+}
+
 /** ≥ 1.65 → side, ≤ 1.55 → stacked, in between keep `prev`. */
 export function nextLayoutMode(
   prev: PlayerLayoutMode,
@@ -43,9 +48,10 @@ export function nextLayoutMode(
 }
 
 /**
- * Automatic layout selection: portrait videos prefer side-by-side layout
- * whenever the window is wide enough (`>= 600pt`); landscape videos follow
- * the window aspect ratio hysteresis rule.
+ * Automatic layout selection:
+ * - Portrait videos use side-by-side layout whenever width >= 600pt.
+ * - Known landscape videos default to stacked so the dual-zone studio sits cleanly below.
+ * - Unknown aspect falls back to window aspect hysteresis.
  */
 export function resolveAutoLayoutMode(
   prev: PlayerLayoutMode,
@@ -56,6 +62,13 @@ export function resolveAutoLayoutMode(
   if (isPortraitMedia(mediaAspect) && width >= 600) {
     return "side";
   }
+  if (
+    typeof mediaAspect === "number" &&
+    Number.isFinite(mediaAspect) &&
+    mediaAspect >= PORTRAIT_ASPECT_THRESHOLD
+  ) {
+    return "stacked";
+  }
   return nextLayoutMode(prev, width, height);
 }
 
@@ -63,7 +76,7 @@ export type PlayerLayout = {
   mode: PlayerLayoutMode;
   /** Width of the full-bleed black video stage. */
   mainWidth: number;
-  /** Width of the subtitle column. */
+  /** Width of the subtitle studio pane. */
   subtitleWidth: number;
   /** Size of the video stage (fills the entire left panel in side mode, full width in stacked mode). */
   videoWidth: number;
@@ -77,6 +90,12 @@ export function sideSubtitleWidth(width: number): number {
   return Math.round(clamp(width * 0.38, 360, 520));
 }
 
+/** Subtitle column width in side mode (portrait): 46% clamped to 360..560, never exceeding 50%. */
+export function portraitSubtitleWidth(width: number): number {
+  const half = Math.floor(width * 0.5);
+  return Math.min(half, Math.round(clamp(width * 0.46, Math.min(360, half), 560)));
+}
+
 export function computePlayerLayout(
   mode: PlayerLayoutMode,
   width: number,
@@ -88,23 +107,15 @@ export function computePlayerLayout(
   const availH = Math.max(0, height);
 
   if (mode === "side") {
-    if (isPortraitMedia(mediaAspect)) {
-      const aspect = clamp(mediaAspect!, 0.4, PORTRAIT_ASPECT_THRESHOLD);
-      const minSubtitleW = Math.min(360, Math.floor(w * 0.45));
-      const maxMainW = Math.max(0, w - minSubtitleW);
-      const idealW = Math.floor(availH * aspect);
-      const mainWidth = Math.min(maxMainW, Math.max(idealW, Math.min(maxMainW, 360)));
-      const subtitleWidth = Math.max(0, w - mainWidth);
-      return { mode, mainWidth, subtitleWidth, videoWidth: mainWidth, videoHeight: availH };
-    }
-
-    const subtitleWidth = Math.min(sideSubtitleWidth(w), w);
+    const subtitleWidth = isPortraitMedia(mediaAspect)
+      ? Math.min(portraitSubtitleWidth(w), w)
+      : Math.min(sideSubtitleWidth(w), w);
     const mainWidth = Math.max(0, w - subtitleWidth);
     return { mode, mainWidth, subtitleWidth, videoWidth: mainWidth, videoHeight: availH };
   }
 
-  // Stacked: the video stage spans the full width (letterboxed on black by the player).
-  const videoHeight = Math.floor(Math.min((w * 9) / 16, availH * 0.55));
+  // Stacked: video takes up to 52% of height (or 16:9 width), leaving ~48% for the dual-zone studio.
+  const videoHeight = Math.floor(Math.min((w * 9) / 16, availH * 0.52));
   return { mode, mainWidth: w, subtitleWidth: w, videoWidth: w, videoHeight };
 }
 

@@ -111,7 +111,7 @@ test("layoutTargetRect targets portrait side-by-side stage immediately when aspe
   expect(portraitTarget).toEqual({
     x: 0,
     y: 0,
-    width: Math.floor(800 * (720 / 1280)),
+    width: 1200 - 552,
     height: 800,
     borderRadius: 0,
   });
@@ -124,7 +124,7 @@ test("layoutTargetRect targets portrait side-by-side stage immediately when aspe
     x: 0,
     y: 0,
     width: 1200,
-    height: Math.floor(800 * 0.55),
+    height: Math.floor(800 * 0.52),
     borderRadius: 0,
   });
 });

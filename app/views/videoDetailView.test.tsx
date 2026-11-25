@@ -18,11 +18,18 @@ import type { SentenceLengthMode } from "../youtube/captions";
 import { VideoDetailView } from "./VideoDetailView";
 import { shouldShowPlayerHeader } from "./VideoDetailHeader";
 import { shouldShowPlayerControls } from "./VideoPlayerControls";
-import { getSentence3DStyle, SentenceRow } from "./SentenceRow";
+import { SentenceRow } from "./SentenceRow";
+import {
+  normalizeWordToken,
+  splitSentenceTokens,
+  SubtitleStudio,
+} from "./SubtitleStudio";
 import {
   computePlayerLayout,
+  isCompactStudio,
   isPortraitMedia,
   nextLayoutMode,
+  portraitSubtitleWidth,
   resolveAutoLayoutMode,
   subtitleTextSize,
 } from "./playerLayout";
@@ -294,12 +301,17 @@ test("Player layout: aspect ratio switches mode with hysteresis, sizes follow th
   expect(wide.videoHeight).toBe(700);
   expect(computePlayerLayout("side", 900, 500).subtitleWidth).toBe(360);
 
-  // Stacked: video height = min(width * 9/16, 55% of window height; header is a floating overlay).
+  // Stacked: video height = min(width * 9/16, 52% of window height; header is a floating overlay).
   const small = computePlayerLayout("stacked", 800, 560);
   expect(small.videoWidth).toBe(800);
-  expect(small.videoHeight).toBe(Math.floor(560 * 0.55));
+  expect(small.videoHeight).toBe(Math.floor(560 * 0.52));
   const tall = computePlayerLayout("stacked", 800, 1400);
   expect(tall.videoHeight).toBe(450);
+
+  // Compact studio detection matches minimum desktop window (800x560).
+  expect(isCompactStudio(800, 560)).toBe(true);
+  expect(isCompactStudio(1200, 800)).toBe(false);
+  expect(isCompactStudio(1600, 920)).toBe(false);
 
   // Subtitle text size picks one of 3 sizes from the column width.
   expect(subtitleTextSize(360)).toBe("sm");
@@ -307,7 +319,7 @@ test("Player layout: aspect ratio switches mode with hysteresis, sizes follow th
   expect(subtitleTextSize(1200)).toBe("lg");
 });
 
-test("Player layout: portrait video auto-selects side-by-side and sizes to portrait aspect", () => {
+test("Player layout: portrait video caps right studio <= 50% width and landscape stays stacked for dual-zone studio", () => {
   expect(isPortraitMedia(1080 / 1920)).toBe(true);
   expect(isPortraitMedia(3 / 4)).toBe(true);
   expect(isPortraitMedia(1)).toBe(false);
@@ -317,23 +329,31 @@ test("Player layout: portrait video auto-selects side-by-side and sizes to portr
   // Portrait 9:16 video auto-switches to side layout even in a 1200x800 (1.5) or 800x560 window.
   expect(resolveAutoLayoutMode("stacked", 1200, 800, 1080 / 1920)).toBe("side");
   expect(resolveAutoLayoutMode("stacked", 800, 560, 720 / 1280)).toBe("side");
-  // Landscape 16:9 video keeps standard window-aspect hysteresis.
+  // Known landscape 16:9 video stays stacked across normal and large desktop screens so the dual studio sits below.
   expect(resolveAutoLayoutMode("stacked", 1200, 800, 1920 / 1080)).toBe("stacked");
-  expect(resolveAutoLayoutMode("stacked", 1600, 700, 1920 / 1080)).toBe("side");
+  expect(resolveAutoLayoutMode("stacked", 1600, 920, 1920 / 1080)).toBe("stacked");
+  // Unknown aspect falls back to window-aspect hysteresis.
+  expect(resolveAutoLayoutMode("stacked", 1600, 700, null)).toBe("side");
 
-  // Side layout for 9:16 video in 1200x800 gives full-bleed window height to the portrait stage and generous width to subtitles.
+  // Side layout for 9:16 video caps subtitle studio to 46% (clamped 360..560, <= 50%) so it never outweighs the video.
   const portraitDesktop = computePlayerLayout("side", 1200, 800, 9 / 16);
   expect(portraitDesktop.videoHeight).toBe(800);
-  expect(portraitDesktop.videoWidth).toBe(Math.floor(800 * (9 / 16)));
-  expect(portraitDesktop.mainWidth).toBe(portraitDesktop.videoWidth);
-  expect(portraitDesktop.subtitleWidth).toBe(1200 - portraitDesktop.mainWidth);
-  expect(portraitDesktop.subtitleWidth).toBeGreaterThan(700);
+  expect(portraitDesktop.subtitleWidth).toBe(portraitSubtitleWidth(1200));
+  expect(portraitDesktop.subtitleWidth).toBe(552);
+  expect(portraitDesktop.mainWidth).toBe(648);
+  expect(portraitDesktop.subtitleWidth).toBeLessThanOrEqual(portraitDesktop.mainWidth);
 
-  // Even at minimum 800x560 window, portrait stage is full-height and subtitle column stays >= 360pt wide.
+  // Large desktop monitor (1600x920): portrait studio caps at 560pt wide.
+  const portraitLarge = computePlayerLayout("side", 1600, 920, 9 / 16);
+  expect(portraitLarge.subtitleWidth).toBe(560);
+  expect(portraitLarge.mainWidth).toBe(1040);
+
+  // Minimum desktop window (800x560): 54% video : 46% studio (432pt : 368pt), >= 360pt and <= 50%.
   const portraitSmall = computePlayerLayout("side", 800, 560, 9 / 16);
   expect(portraitSmall.videoHeight).toBe(560);
-  expect(portraitSmall.videoWidth).toBe(portraitSmall.mainWidth);
-  expect(portraitSmall.subtitleWidth).toBeGreaterThanOrEqual(360);
+  expect(portraitSmall.subtitleWidth).toBe(368);
+  expect(portraitSmall.mainWidth).toBe(432);
+  expect(portraitSmall.subtitleWidth).toBeLessThanOrEqual(portraitSmall.mainWidth);
 });
 
 test("VideoDetailHeader hides while playing unless hovered or focused", () => {
@@ -384,63 +404,77 @@ test("Smooth continuous playback: streams forward without seek halts", () => {
   expect(paused).toBe(false);
 });
 
-test("3D rolling subtitles: preceding sentences tilt back, upcoming sentences visible below", () => {
-  // Active sentence (diff === 0): fully focused, scale 1.02, 0deg
-  const activeStyle = getSentence3DStyle(0);
-  expect(activeStyle.opacity).toBe(1);
-  const activeJson = JSON.stringify(activeStyle.transform);
-  expect(activeJson).toContain('"rotateX":"0deg"');
-  expect(activeJson).toContain('"scale":1.02');
+test("SubtitleStudio tokenizes words cleanly and renders Dual-Zone Studio in stacked and side modes", () => {
+  expect(splitSentenceTokens("The bottom line is no one's coming.")).toEqual([
+    "The",
+    "bottom",
+    "line",
+    "is",
+    "no",
+    "one's",
+    "coming.",
+  ]);
+  expect(normalizeWordToken("coming.")).toBe("coming");
+  expect(normalizeWordToken("“one's,”")).toBe("one's");
 
-  // Preceding sentences ("前面" diff < 0): 3D rotateX backwards into drum
-  const prev1Style = getSentence3DStyle(-1);
-  const prev1Json = JSON.stringify(prev1Style.transform);
-  expect(prev1Json).toContain('"rotateX":"16deg"');
-  expect(prev1Style.opacity).toBeLessThan(1);
+  const stackedStudio = SubtitleStudio({
+    sentences: () => sentences,
+    loading: () => false,
+    activeIndex: () => 0,
+    paused: () => false,
+    maskAll: () => true,
+    isRevealed: () => false,
+    onToggleReveal: () => {},
+    onListen: () => {},
+    onRepeatSentence: () => {},
+    side: () => false,
+    compact: () => false,
+    large: () => false,
+    language: () => "en",
+    textSize: () => "md",
+    scrollRef: () => {},
+    onStreamScroll: () => {},
+    onStreamLayout: () => {},
+    rowRef: () => {},
+  });
+  expect(stackedStudio).toBeDefined();
 
-  const prev2Style = getSentence3DStyle(-2);
-  const prev2Json = JSON.stringify(prev2Style.transform);
-  expect(prev2Json).toContain('"rotateX":"28deg"');
-  expect(prev2Style.opacity).toBeLessThan(prev1Style.opacity as number);
-
-  // Upcoming sentences ("后面" diff > 0): 2-3 sentences visible with subtle tilt
-  const next1Style = getSentence3DStyle(1);
-  const next1Json = JSON.stringify(next1Style.transform);
-  expect(next1Json).toContain('"rotateX":"-10deg"');
-  expect(next1Style.opacity).toBe(0.72);
-
-  const next2Style = getSentence3DStyle(2);
-  const next2Json = JSON.stringify(next2Style.transform);
-  expect(next2Json).toContain('"rotateX":"-18deg"');
-  expect(next2Style.opacity).toBe(0.52);
-
-  const next3Style = getSentence3DStyle(3);
-  const next3Json = JSON.stringify(next3Style.transform);
-  expect(next3Json).toContain('"rotateX":"-26deg"');
-  expect(next3Style.opacity).toBe(0.36);
+  const sideCompactStudio = SubtitleStudio({
+    sentences: () => sentences,
+    loading: () => false,
+    activeIndex: () => 1,
+    paused: () => true,
+    maskAll: () => false,
+    isRevealed: () => true,
+    onToggleReveal: () => {},
+    onListen: () => {},
+    onRepeatSentence: () => {},
+    side: () => true,
+    compact: () => true,
+    large: () => false,
+    language: () => "zh",
+    textSize: () => "sm",
+    scrollRef: () => {},
+    onStreamScroll: () => {},
+    onStreamLayout: () => {},
+    rowRef: () => {},
+  });
+  expect(sideCompactStudio).toBeDefined();
 });
 
-test("SentenceRow: shows only the text, no index, difficulty or masked badges", () => {
-  let toggled = false;
-  let listened = false;
-
+test("SentenceRow: shows clean 2D stream row without redundant badges or buttons", () => {
   const row = SentenceRow({
     sentence: () => sentences[0],
     isActive: () => true,
     isPlaying: () => true,
     isMaskAll: () => true,
     isRevealed: () => false,
-    onToggleReveal: () => {
-      toggled = true;
-    },
-    onListen: () => {
-      listened = true;
-    },
+    onToggleReveal: () => {},
+    onListen: () => {},
     activeIndex: () => 0,
   });
 
   expect(row).toBeDefined();
-  // Stringified JSX does not contain redundant action button labels
   const str = JSON.stringify(row);
   expect(str.includes("Reveal sentence")).toBe(false);
   expect(str.includes("Repeat")).toBe(false);
