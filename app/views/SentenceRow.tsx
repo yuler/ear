@@ -48,14 +48,21 @@ export function SentenceRow(props: SentenceRowProps) {
   return (
     <View
       onPress={() => props.onListen(s())}
-      class={`cursor-pointer flex-row items-start gap-2.5 rounded-xl border-l-2 px-3 py-2 transition ${
-        active()
-          ? "border-brand bg-brand-soft/80"
-          : "border-transparent hover:bg-card/70"
+      class={`cursor-pointer flex-row items-start gap-2.5 rounded-xl px-2.5 py-2 transition ${
+        active() ? "bg-brand-soft/85" : "hover:bg-card/70"
       }`}
     >
+      <View
+        class={`mt-1 h-3.5 w-[3px] shrink-0 rounded-full transition ${
+          active() ? "bg-brand" : "bg-transparent"
+        }`}
+      />
       <If when={!compact()}>
-        <Text class="mt-0.5 w-9 shrink-0 font-mono text-[11px] tabular-nums text-dim">
+        <Text
+          class={`mt-0.5 w-9 shrink-0 font-mono text-[11px] tabular-nums ${
+            active() ? "text-brand/80" : "text-dim"
+          }`}
+        >
           {formatSentenceTime(s().startMs)}
         </Text>
       </If>
