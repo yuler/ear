@@ -1,3 +1,4 @@
+// Delayed stale-file cleanup race regressions live in ./cleanup.test.ts.
 import { expect, test } from "nsh/test";
 import {
   createHttpMirrorClient,
