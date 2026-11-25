@@ -323,7 +323,7 @@ export function VideoDetailView(props: VideoDetailViewProps) {
         onToggleBlocker={audioOnly() ? undefined : ctl.toggleBlocker}
         language={language}
         visible={controlsVisible}
-        compact={() => layout().videoWidth < 680}
+        videoWidth={() => layout().videoWidth}
         layoutMode={effectiveMode}
         layoutManual={() => layoutOverride() !== null}
         onToggleLayout={toggleLayout}

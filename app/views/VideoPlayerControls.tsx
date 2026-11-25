@@ -37,6 +37,8 @@ export type VideoPlayerControlsProps = {
   visible?: () => boolean;
   /** Hide optional text labels when the video box is narrow. */
   compact?: () => boolean;
+  /** Video stage width in points for progressive single-line control density. */
+  videoWidth?: () => number;
   /** Current player layout mode ("side" | "stacked") and manual override handler. */
   layoutMode?: () => PlayerLayoutMode;
   layoutManual?: () => boolean;
@@ -52,6 +54,45 @@ export function shouldShowPlayerControls(
   focused = false,
 ): boolean {
   return paused || hovered || focused;
+}
+
+export type PlayerControlsDensity = {
+  /** Collapse text labels on toggle buttons into icon-only + hover tooltip. */
+  iconOnlyToggles: boolean;
+  /** Collapse Short/Medium/Long 3-way pill into a single cycle badge + hover tooltip. */
+  compactLength: boolean;
+  /** Show only elapsed time (omit "/ total") on ultra-narrow stages (e.g. 800x560 portrait). */
+  compactTime: boolean;
+};
+
+/** Progressive single-line density so bottom controls stay on one crisp row across all widths. */
+export function resolveControlsDensity(
+  videoWidth: number,
+  forceCompact = false,
+): PlayerControlsDensity {
+  return {
+    iconOnlyToggles: forceCompact || videoWidth < 860,
+    compactLength: forceCompact || videoWidth < 680,
+    compactTime: videoWidth > 0 && videoWidth < 480,
+  };
+}
+
+const LENGTH_ORDER: readonly SentenceLengthMode[] = ["short", "medium", "long"];
+
+function nextSentenceLength(cur: SentenceLengthMode): SentenceLengthMode {
+  const i = LENGTH_ORDER.indexOf(cur);
+  return LENGTH_ORDER[(i + 1) % LENGTH_ORDER.length]!;
+}
+
+function compactLengthBadge(mode: SentenceLengthMode, locale: EarLocale): string {
+  if (locale === "zh") {
+    if (mode === "short") return "短";
+    if (mode === "long") return "长";
+    return "中";
+  }
+  if (mode === "short") return "S";
+  if (mode === "long") return "L";
+  return "M";
 }
 
 const BTN =
@@ -139,7 +180,11 @@ function SeekBar(props: {
 export function VideoPlayerControls(props: VideoPlayerControlsProps) {
   const m = () => t(props.language());
   const visible = () => props.visible?.() ?? true;
-  const compact = () => props.compact?.() ?? false;
+  const density = () =>
+    resolveControlsDensity(
+      props.videoWidth?.() ?? (props.compact?.() ? 560 : 1000),
+      Boolean(props.compact?.()),
+    );
   const dur = () => Math.max(0.1, props.durationSec());
   const percent = () =>
     Math.min(100, Math.max(0, (Math.max(0, props.currentTimeSec()) / dur()) * 100));
@@ -149,6 +194,8 @@ export function VideoPlayerControls(props: VideoPlayerControlsProps) {
     { mode: "medium", label: () => m().mediumSentences, desc: () => m().mediumSentencesDesc },
     { mode: "long", label: () => m().longSentences, desc: () => m().longSentencesDesc },
   ];
+  const activeLengthEntry = () =>
+    lengths.find((l) => l.mode === props.sentenceLength()) ?? lengths[0]!;
 
   return (
     <>
@@ -190,8 +237,8 @@ export function VideoPlayerControls(props: VideoPlayerControlsProps) {
           language={props.language}
         />
 
-        <View class="mt-0.5 flex-row flex-wrap items-center justify-between gap-x-2 gap-y-1">
-          <View class="flex-row items-center gap-0.5">
+        <View class="mt-0.5 flex-row items-center justify-between gap-2">
+          <View class="shrink-0 flex-row items-center gap-0.5">
             <OverlayIconButton
               icon="chevron-left"
               label={m().previousSentenceFull}
@@ -226,21 +273,23 @@ export function VideoPlayerControls(props: VideoPlayerControlsProps) {
                 active={Boolean(props.muted?.())}
               />
             </If>
-            <View class="ml-1.5 flex-row items-center gap-1 select-none">
+            <View class="ml-1 flex-row items-center gap-1 select-none">
               <Text class="font-mono text-[11px] tabular-nums text-white/90">
                 {formatSentenceTime(Math.max(0, props.currentTimeSec()) * 1000)}
               </Text>
-              <Text class="font-mono text-[11px] text-white/45">/</Text>
-              <Text class="font-mono text-[11px] tabular-nums text-white/65">
-                {formatSentenceTime(dur() * 1000)}
-              </Text>
+              <If when={!density().compactTime}>
+                <Text class="font-mono text-[11px] text-white/45">/</Text>
+                <Text class="font-mono text-[11px] tabular-nums text-white/65">
+                  {formatSentenceTime(dur() * 1000)}
+                </Text>
+              </If>
             </View>
           </View>
 
-          <View class="flex-row flex-wrap items-center gap-1">
+          <View class="shrink-0 flex-row items-center gap-1">
             <Button
               onPress={props.onCycleRate}
-              class={`${overlayToggleClass(props.rate() !== 1)} w-10`}
+              class={`${overlayToggleClass(props.rate() !== 1)} w-9`}
               accessibilityLabel={m().playbackSpeed}
               tooltip={<AppTooltip label={m().playbackSpeed} />}
             >
@@ -257,22 +306,41 @@ export function VideoPlayerControls(props: VideoPlayerControlsProps) {
               onPress={props.onToggleSentencePause}
               class={overlayToggleClass(props.sentencePause())}
               accessibilityLabel={m().sentencePauseToggle}
+              tooltip={
+                <AppTooltip
+                  label={
+                    props.sentencePause() ? m().sentencePauseOn : m().sentencePauseOff
+                  }
+                />
+              }
               selected={props.sentencePause()}
             >
-              <Text
-                class={`text-xs font-medium ${
-                  props.sentencePause() ? "text-white" : "text-white/80"
-                }`}
-              >
-                {m().sentencePause}
-              </Text>
+              <Icon
+                name="sentence-pause"
+                size={14}
+                tone={props.sentencePause() ? "brand" : undefined}
+                color={props.sentencePause() ? undefined : "rgba(255, 255, 255, 0.85)"}
+              />
+              <If when={!density().iconOnlyToggles}>
+                <Text
+                  class={`text-xs font-medium ${
+                    props.sentencePause() ? "text-white" : "text-white/80"
+                  }`}
+                >
+                  {m().sentencePause}
+                </Text>
+              </If>
             </Button>
 
             <Button
               onPress={props.onToggleMask}
               class={overlayToggleClass(props.maskAll())}
               accessibilityLabel={m().toggleSubtitlesMask}
-              tooltip={<AppTooltip label={m().toggleSubtitlesMask} />}
+              tooltip={
+                <AppTooltip
+                  label={props.maskAll() ? m().maskedCaptions : m().showCaptions}
+                />
+              }
             >
               <Icon
                 name={props.maskAll() ? "eye-off" : "eye"}
@@ -280,7 +348,7 @@ export function VideoPlayerControls(props: VideoPlayerControlsProps) {
                 tone={props.maskAll() ? "brand" : undefined}
                 color={props.maskAll() ? undefined : "rgba(255, 255, 255, 0.85)"}
               />
-              <If when={!compact()}>
+              <If when={!density().iconOnlyToggles}>
                 <Text
                   class={`text-xs font-medium ${
                     props.maskAll() ? "text-white" : "text-white/80"
@@ -304,7 +372,7 @@ export function VideoPlayerControls(props: VideoPlayerControlsProps) {
                   tone={props.blockerEnabled?.() ? "brand" : undefined}
                   color={props.blockerEnabled?.() ? undefined : "rgba(255, 255, 255, 0.85)"}
                 />
-                <If when={!compact()}>
+                <If when={!density().iconOnlyToggles}>
                   <Text
                     class={`text-xs font-medium ${
                       props.blockerEnabled?.() ? "text-white" : "text-white/80"
@@ -316,32 +384,53 @@ export function VideoPlayerControls(props: VideoPlayerControlsProps) {
               </Button>
             </If>
 
-            <View class="ml-0.5 flex-row items-center rounded-md border border-white/15 bg-black/45 p-0.5">
-              <Each of={lengths} key={(l) => l.mode}>
-                {(l) => (
-                  <Button
-                    onPress={() => props.onChangeSentenceLength(l().mode)}
-                    class={`h-6 justify-center rounded px-1.5 transition ${
-                      props.sentenceLength() === l().mode
-                        ? "bg-brand shadow-xs"
-                        : "hover:bg-white/15"
-                    }`}
-                    accessibilityLabel={l().desc()}
-                    selected={props.sentenceLength() === l().mode}
-                  >
-                    <Text
-                      class={`text-xs ${
+            <If
+              when={!density().compactLength}
+              else={
+                <Button
+                  onPress={() =>
+                    props.onChangeSentenceLength(
+                      nextSentenceLength(props.sentenceLength()),
+                    )
+                  }
+                  class={`${BTN} w-7 border border-white/20 bg-black/45 hover:bg-white/15`}
+                  accessibilityLabel={activeLengthEntry().desc()}
+                  tooltip={<AppTooltip label={activeLengthEntry().desc()} />}
+                >
+                  <Text class="font-mono text-[11px] font-semibold text-white">
+                    {compactLengthBadge(props.sentenceLength(), props.language())}
+                  </Text>
+                </Button>
+              }
+            >
+              <View class="ml-0.5 flex-row items-center rounded-md border border-white/15 bg-black/45 p-0.5">
+                <Each of={lengths} key={(l) => l.mode}>
+                  {(l) => (
+                    <Button
+                      onPress={() => props.onChangeSentenceLength(l().mode)}
+                      class={`h-6 justify-center rounded px-1.5 transition ${
                         props.sentenceLength() === l().mode
-                          ? "font-medium text-white"
-                          : "text-white/70"
+                          ? "bg-brand shadow-xs"
+                          : "hover:bg-white/15"
                       }`}
+                      accessibilityLabel={l().desc()}
+                      tooltip={<AppTooltip label={l().desc()} />}
+                      selected={props.sentenceLength() === l().mode}
                     >
-                      {l().label()}
-                    </Text>
-                  </Button>
-                )}
-              </Each>
-            </View>
+                      <Text
+                        class={`text-xs ${
+                          props.sentenceLength() === l().mode
+                            ? "font-medium text-white"
+                            : "text-white/70"
+                        }`}
+                      >
+                        {l().label()}
+                      </Text>
+                    </Button>
+                  )}
+                </Each>
+              </View>
+            </If>
 
             <If when={Boolean(props.onToggleLayout && props.layoutMode)}>
               <OverlayIconButton

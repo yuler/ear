@@ -25,6 +25,7 @@ import pause from "./icons/pause.svg";
 import play from "./icons/play.svg";
 import repeat from "./icons/repeat.svg";
 import search from "./icons/search.svg";
+import sentencePause from "./icons/sentence-pause.svg";
 import settingsIcon from "./icons/settings.svg";
 import sparkles from "./icons/sparkles.svg";
 import star from "./icons/star.svg";
@@ -64,6 +65,7 @@ const ICONS = {
   play,
   repeat,
   search,
+  "sentence-pause": sentencePause,
   settings: settingsIcon,
   sparkles,
   star,

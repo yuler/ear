@@ -17,7 +17,10 @@ import {
 import type { SentenceLengthMode } from "../youtube/captions";
 import { VideoDetailView } from "./VideoDetailView";
 import { shouldShowPlayerHeader } from "./VideoDetailHeader";
-import { shouldShowPlayerControls } from "./VideoPlayerControls";
+import {
+  resolveControlsDensity,
+  shouldShowPlayerControls,
+} from "./VideoPlayerControls";
 import {
   buildRawSubtitlesJson,
   RawSubtitlesModal,
@@ -372,6 +375,28 @@ test("VideoPlayerControls hides while playing unless hovered or focused", () => 
   expect(shouldShowPlayerControls(false, true, false)).toBe(true);
   expect(shouldShowPlayerControls(false, false, true)).toBe(true);
   expect(shouldShowPlayerControls(true, false, false)).toBe(true);
+
+  // Progressive single-line density prevents wrapping on portrait and minimum-size stages.
+  expect(resolveControlsDensity(1200)).toEqual({
+    iconOnlyToggles: false,
+    compactLength: false,
+    compactTime: false,
+  });
+  expect(resolveControlsDensity(800)).toEqual({
+    iconOnlyToggles: true,
+    compactLength: false,
+    compactTime: false,
+  });
+  expect(resolveControlsDensity(648)).toEqual({
+    iconOnlyToggles: true,
+    compactLength: true,
+    compactTime: false,
+  });
+  expect(resolveControlsDensity(432)).toEqual({
+    iconOnlyToggles: true,
+    compactLength: true,
+    compactTime: true,
+  });
 });
 
 test("Smooth continuous playback: streams forward without seek halts", () => {
