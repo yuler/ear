@@ -42,6 +42,7 @@ export function PairModal(props: {
     if (err instanceof MirrorApiError) {
       if (err.code === "invalid_code") return c().errWrongCode;
       if (err.code === "code_expired") return c().errExpiredCode;
+      if (err.code === "pair_locked") return c().errPairLocked;
       return c().errUnreachable(hostLabel);
     }
     return c().errUnreachable(hostLabel);

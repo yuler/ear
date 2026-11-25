@@ -28,6 +28,7 @@ export interface RemoteCatalogItem {
   thumbnailUrl: string;
   durationMs: number | null;
   sizeBytes: number;
+  contentSha256?: string;
   quality: string | null;
   mediaExt: string;
   mimeType: string;
@@ -44,6 +45,7 @@ export interface LocalItemRecord {
   thumbnailUrl: string;
   durationMs: number | null;
   sizeBytes: number;
+  contentSha256?: string;
   downloadedBytes: number;
   chunkSize: number;
   completedChunks: number;
@@ -73,6 +75,7 @@ export interface MirrorItemView {
   thumbnailUrl: string;
   durationMs: number | null;
   sizeBytes: number;
+  contentSha256?: string;
   downloadedBytes: number;
   progress: number;
   status: MirrorItemStatus;

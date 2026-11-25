@@ -1,13 +1,26 @@
+// Media catalog scanning, digest caching, and host helpers live in ./catalog.rs.
+pub use crate::commands::serve::catalog::{
+    default_library_dir, derive_short_name, detect_lan_ip, now_secs, CatalogItem, MediaCatalog,
+    ResolvedMedia,
+};
+use crate::commands::serve::catalog::{default_computer_name, url_encode};
+use crate::commands::serve::crypto::{constant_time_eq, generate_hex_secret, generate_pair_code};
 use serde::{Deserialize, Serialize};
-use std::collections::hash_map::DefaultHasher;
 use std::fs;
-use std::hash::{Hash, Hasher};
-use std::net::UdpSocket;
-use std::path::{Path, PathBuf};
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::path::PathBuf;
 
 pub const PAIR_TTL_SECS: u64 = 120;
+pub const PAIR_MAX_FAILED_ATTEMPTS: u32 = 5;
+pub const PAIR_LOCKOUT_SECS: u64 = 300;
 pub const DEFAULT_PORT: u16 = 7890;
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum PairError {
+    Locked { retry_after_secs: u64 },
+    CodeExpired,
+    InvalidCode { attempts_remaining: u32 },
+    EntropyUnavailable(String),
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -43,29 +56,6 @@ pub struct PersistedMirrorState {
     pub devices: Vec<PairedDevice>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct CatalogItem {
-    pub video_id: String,
-    pub title: String,
-    pub thumbnail_url: String,
-    pub duration_ms: Option<u64>,
-    pub size_bytes: u64,
-    pub quality: Option<String>,
-    pub media_ext: String,
-    pub mime_type: String,
-    pub has_captions: bool,
-    pub updated_at: u64,
-}
-
-#[derive(Debug, Clone)]
-pub struct ResolvedMedia {
-    pub path: PathBuf,
-    pub mime_type: String,
-    pub ext: String,
-    pub size_bytes: u64,
-}
-
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ServerSnapshot {
@@ -77,6 +67,9 @@ pub struct ServerSnapshot {
     pub code: String,
     pub code_expires_at: u64,
     pub pair_url: String,
+    pub pair_locked: bool,
+    pub pair_locked_until: Option<u64>,
+    pub pair_attempts_remaining: u32,
     pub library_count: usize,
     pub devices: Vec<PublicDevice>,
 }
@@ -86,12 +79,13 @@ pub struct MirrorState {
     pub server_name: String,
     pub host: String,
     pub port: u16,
-    pub library_dir: PathBuf,
     pub state_file: PathBuf,
     pub code: String,
     pub code_expires_at: u64,
+    pub pair_failed_attempts: u32,
+    pub pair_locked_until: Option<u64>,
     pub devices: Vec<PairedDevice>,
-    nonce: u64,
+    catalog: MediaCatalog,
 }
 
 impl MirrorState {
@@ -101,12 +95,11 @@ impl MirrorState {
         server_name: Option<String>,
         host: String,
         port: u16,
-    ) -> Self {
+    ) -> Result<Self, String> {
         let loaded = fs::read_to_string(&state_file)
             .ok()
             .and_then(|raw| serde_json::from_str::<PersistedMirrorState>(&raw).ok());
 
-        let now = now_secs();
         let default_name = server_name
             .filter(|s| !s.trim().is_empty())
             .unwrap_or_else(default_computer_name);
@@ -114,7 +107,7 @@ impl MirrorState {
         let (server_id, resolved_name, devices) = match loaded {
             Some(p) => (
                 if p.server_id.is_empty() {
-                    generate_hex(16, now, 1)
+                    generate_hex_secret(16)?
                 } else {
                     p.server_id
                 },
@@ -125,7 +118,7 @@ impl MirrorState {
                 },
                 p.devices,
             ),
-            None => (generate_hex(16, now, 1), default_name, Vec::new()),
+            None => (generate_hex_secret(16)?, default_name, Vec::new()),
         };
 
         let mut state = Self {
@@ -133,37 +126,78 @@ impl MirrorState {
             server_name: resolved_name,
             host,
             port,
-            library_dir,
             state_file,
             code: String::new(),
             code_expires_at: 0,
+            pair_failed_attempts: 0,
+            pair_locked_until: None,
             devices,
-            nonce: 2,
+            catalog: MediaCatalog::new(library_dir),
         };
-        state.rotate_code();
+        state.rotate_code_at(now_secs())?;
         let _ = state.persist();
-        state
+        Ok(state)
     }
 
     pub fn short_name(&self) -> String {
         derive_short_name(&self.server_name)
     }
 
-    pub fn rotate_code(&mut self) {
-        self.nonce = self.nonce.wrapping_add(1);
-        self.code = generate_pair_code(now_nanos(), self.nonce);
-        self.code_expires_at = now_secs() + PAIR_TTL_SECS;
+    pub fn is_pair_locked(&self, now: u64) -> bool {
+        self.pair_locked_until.is_some_and(|until| now < until)
     }
 
-    pub fn ensure_fresh_code(&mut self) -> bool {
-        if now_secs() >= self.code_expires_at {
-            self.rotate_code();
-            return true;
+    pub fn rotate_code(&mut self) -> Result<(), String> {
+        self.rotate_code_at(now_secs())
+    }
+
+    pub fn rotate_code_at(&mut self, now: u64) -> Result<(), String> {
+        self.code = generate_pair_code()?;
+        self.code_expires_at = now + PAIR_TTL_SECS;
+        Ok(())
+    }
+
+    /// Deliberate recovery / reopen invoked by the desktop owner (`refresh_code`).
+    /// Clears any active pairing lockout, resets failed attempts, and rotates to a fresh CSPRNG code.
+    pub fn reopen_pairing(&mut self) -> Result<(), String> {
+        self.reopen_pairing_at(now_secs())
+    }
+
+    pub fn reopen_pairing_at(&mut self, now: u64) -> Result<(), String> {
+        self.pair_locked_until = None;
+        self.pair_failed_attempts = 0;
+        self.rotate_code_at(now)
+    }
+
+    /// Periodic ticker maintenance:
+    /// - While locked, keeps pairing closed until `pair_locked_until` elapses.
+    /// - Once lockout elapses, resets attempt budget and rotates a fresh code.
+    /// - On normal 2-min code expiry, rotates the code without resetting prior failed attempts.
+    pub fn ensure_fresh_code(&mut self) -> Result<bool, String> {
+        self.ensure_fresh_code_at(now_secs())
+    }
+
+    pub fn ensure_fresh_code_at(&mut self, now: u64) -> Result<bool, String> {
+        if let Some(until) = self.pair_locked_until {
+            if now < until {
+                return Ok(false);
+            }
+            self.pair_locked_until = None;
+            self.pair_failed_attempts = 0;
+            self.rotate_code_at(now)?;
+            return Ok(true);
         }
-        false
+        if self.code.is_empty() || now >= self.code_expires_at {
+            self.rotate_code_at(now)?;
+            return Ok(true);
+        }
+        Ok(false)
     }
 
     pub fn pair_url(&self) -> String {
+        if self.code.is_empty() || self.is_pair_locked(now_secs()) {
+            return String::new();
+        }
         format!(
             "ear://pair?transport=lan&host={}&port={}&code={}&name={}",
             url_encode(&self.host),
@@ -178,24 +212,63 @@ impl MirrorState {
         code: &str,
         device_name: &str,
         device_id: Option<&str>,
-    ) -> Result<PairedDevice, &'static str> {
-        let now = now_secs();
-        if now >= self.code_expires_at {
-            self.rotate_code();
-            return Err("code_expired");
-        }
-        if code.trim() != self.code {
-            return Err("invalid_code");
+    ) -> Result<PairedDevice, PairError> {
+        self.pair_device_at(now_secs(), code, device_name, device_id)
+    }
+
+    pub fn pair_device_at(
+        &mut self,
+        now: u64,
+        code: &str,
+        device_name: &str,
+        device_id: Option<&str>,
+    ) -> Result<PairedDevice, PairError> {
+        if let Some(until) = self.pair_locked_until {
+            if now < until {
+                return Err(PairError::Locked {
+                    retry_after_secs: until.saturating_sub(now).max(1),
+                });
+            }
+            self.pair_locked_until = None;
+            self.pair_failed_attempts = 0;
+            self.rotate_code_at(now)
+                .map_err(PairError::EntropyUnavailable)?;
         }
 
-        self.nonce = self.nonce.wrapping_add(1);
-        let id = device_id
+        if self.code.is_empty() || now >= self.code_expires_at {
+            self.rotate_code_at(now)
+                .map_err(PairError::EntropyUnavailable)?;
+            return Err(PairError::CodeExpired);
+        }
+
+        let submitted = code.trim();
+        if !constant_time_eq(submitted.as_bytes(), self.code.as_bytes()) {
+            self.pair_failed_attempts = self.pair_failed_attempts.saturating_add(1);
+            if self.pair_failed_attempts >= PAIR_MAX_FAILED_ATTEMPTS {
+                self.code.clear();
+                self.code_expires_at = 0;
+                self.pair_locked_until = Some(now + PAIR_LOCKOUT_SECS);
+                return Err(PairError::Locked {
+                    retry_after_secs: PAIR_LOCKOUT_SECS,
+                });
+            }
+            let remaining = PAIR_MAX_FAILED_ATTEMPTS.saturating_sub(self.pair_failed_attempts);
+            return Err(PairError::InvalidCode {
+                attempts_remaining: remaining,
+            });
+        }
+
+        let id = match device_id
             .map(str::trim)
             .filter(|s| !s.is_empty() && s.len() <= 64)
-            .map(ToOwned::to_owned)
-            .unwrap_or_else(|| format!("ios-{}", generate_hex(8, now_nanos(), self.nonce)));
-        self.nonce = self.nonce.wrapping_add(1);
-        let token = generate_hex(32, now_nanos(), self.nonce);
+        {
+            Some(existing) => existing.to_owned(),
+            None => format!(
+                "ios-{}",
+                generate_hex_secret(8).map_err(PairError::EntropyUnavailable)?
+            ),
+        };
+        let token = generate_hex_secret(32).map_err(PairError::EntropyUnavailable)?;
         let clean_name = {
             let trimmed = device_name.trim();
             if trimmed.is_empty() {
@@ -217,15 +290,21 @@ impl MirrorState {
             background: false,
         };
         self.devices.insert(0, dev.clone());
-        self.rotate_code();
+        self.pair_failed_attempts = 0;
+        self.pair_locked_until = None;
+        // One-use code: invalidate before rotating so the code can never be replayed.
+        self.code.clear();
+        self.code_expires_at = 0;
+        let _ = self.rotate_code_at(now);
         let _ = self.persist();
         Ok(dev)
     }
 
     pub fn verify_token(&mut self, token: &str) -> Option<String> {
         let now = now_secs();
+        let token_bytes = token.as_bytes();
         for d in &mut self.devices {
-            if d.token == token {
+            if constant_time_eq(d.token.as_bytes(), token_bytes) {
                 d.last_seen_at = now;
                 return Some(d.id.clone());
             }
@@ -267,6 +346,12 @@ impl MirrorState {
     pub fn snapshot(&self) -> ServerSnapshot {
         let now = now_secs();
         let library_count = self.scan_catalog().len();
+        let locked = self.is_pair_locked(now);
+        let pair_attempts_remaining = if locked {
+            0
+        } else {
+            PAIR_MAX_FAILED_ATTEMPTS.saturating_sub(self.pair_failed_attempts)
+        };
         let devices = self
             .devices
             .iter()
@@ -291,9 +376,12 @@ impl MirrorState {
             short_name: self.short_name(),
             host: self.host.clone(),
             port: self.port,
-            code: self.code.clone(),
-            code_expires_at: self.code_expires_at,
-            pair_url: self.pair_url(),
+            code: if locked { String::new() } else { self.code.clone() },
+            code_expires_at: if locked { 0 } else { self.code_expires_at },
+            pair_url: if locked { String::new() } else { self.pair_url() },
+            pair_locked: locked,
+            pair_locked_until: if locked { self.pair_locked_until } else { None },
+            pair_attempts_remaining,
             library_count,
             devices,
         }
@@ -314,278 +402,14 @@ impl MirrorState {
     }
 
     pub fn scan_catalog(&self) -> Vec<CatalogItem> {
-        let Ok(entries) = fs::read_dir(&self.library_dir) else {
-            return Vec::new();
-        };
-        let mut items = Vec::new();
-        for entry in entries.flatten() {
-            let path = entry.path();
-            let Some(file_name) = path.file_name().and_then(|n| n.to_str()) else {
-                continue;
-            };
-            if !file_name.ends_with(".json") || file_name == "index.json" {
-                continue;
-            }
-            let Ok(raw) = fs::read_to_string(&path) else {
-                continue;
-            };
-            let Ok(val) = serde_json::from_str::<serde_json::Value>(&raw) else {
-                continue;
-            };
-            let Some(video_id) = val.get("videoId").and_then(|v| v.as_str()) else {
-                continue;
-            };
-            if !is_safe_video_id(video_id) {
-                continue;
-            }
-            let state = val.get("state").and_then(|v| v.as_str()).unwrap_or("");
-            if state == "downloading" || state == "pending" || state == "paused" || state == "error"
-            {
-                continue;
-            }
-            let Some(media) = resolve_media_for_value(&val) else {
-                continue;
-            };
-            let title = val
-                .get("title")
-                .and_then(|v| v.as_str())
-                .filter(|s| !s.is_empty())
-                .unwrap_or(video_id)
-                .to_string();
-            let thumbnail_url = val
-                .get("thumbnailUrl")
-                .and_then(|v| v.as_str())
-                .filter(|s| !s.is_empty())
-                .map(ToOwned::to_owned)
-                .unwrap_or_else(|| format!("https://i.ytimg.com/vi/{video_id}/hqdefault.jpg"));
-            let duration_ms = val.get("durationMs").and_then(|v| v.as_u64());
-            let quality = val
-                .get("quality")
-                .and_then(|v| v.as_str())
-                .map(ToOwned::to_owned);
-            let updated_at = val
-                .get("updatedAt")
-                .and_then(|v| v.as_u64())
-                .unwrap_or_else(|| now_secs() * 1000);
-            let has_captions = self.resolve_captions_path(video_id, &val).is_some();
-
-            items.push(CatalogItem {
-                video_id: video_id.to_string(),
-                title,
-                thumbnail_url,
-                duration_ms,
-                size_bytes: media.size_bytes,
-                quality,
-                media_ext: media.ext,
-                mime_type: media.mime_type,
-                has_captions,
-                updated_at,
-            });
-        }
-        items.sort_by(|a, b| b.updated_at.cmp(&a.updated_at));
-        items
+        self.catalog.scan()
     }
 
     pub fn resolve_media(&self, video_id: &str) -> Option<ResolvedMedia> {
-        if !is_safe_video_id(video_id) {
-            return None;
-        }
-        let meta_path = self.library_dir.join(format!("{video_id}.json"));
-        let raw = fs::read_to_string(meta_path).ok()?;
-        let val = serde_json::from_str::<serde_json::Value>(&raw).ok()?;
-        resolve_media_for_value(&val)
+        self.catalog.resolve_media(video_id)
     }
 
     pub fn resolve_captions(&self, video_id: &str) -> Option<PathBuf> {
-        if !is_safe_video_id(video_id) {
-            return None;
-        }
-        let meta_path = self.library_dir.join(format!("{video_id}.json"));
-        let val = fs::read_to_string(meta_path)
-            .ok()
-            .and_then(|raw| serde_json::from_str::<serde_json::Value>(&raw).ok())
-            .unwrap_or(serde_json::Value::Null);
-        self.resolve_captions_path(video_id, &val)
+        self.catalog.resolve_captions(video_id)
     }
-
-    fn resolve_captions_path(&self, video_id: &str, val: &serde_json::Value) -> Option<PathBuf> {
-        if let Some(p) = val.get("captionsPath").and_then(|v| v.as_str()) {
-            let pb = PathBuf::from(p);
-            if pb.is_file() {
-                return Some(pb);
-            }
-        }
-        let fallback = self.library_dir.join(video_id).join("captions.json");
-        if fallback.is_file() {
-            return Some(fallback);
-        }
-        None
-    }
-}
-
-fn resolve_media_for_value(val: &serde_json::Value) -> Option<ResolvedMedia> {
-    for key in ["videoPath", "audioPath"] {
-        if let Some(p) = val.get(key).and_then(|v| v.as_str()) {
-            let pb = PathBuf::from(p);
-            if let Ok(meta) = fs::metadata(&pb) {
-                if meta.is_file() && meta.len() > 0 {
-                    let ext = pb
-                        .extension()
-                        .and_then(|e| e.to_str())
-                        .unwrap_or(if key == "videoPath" { "mp4" } else { "m4a" })
-                        .to_ascii_lowercase();
-                    let mime_type = mime_for_ext(&ext).to_string();
-                    return Some(ResolvedMedia {
-                        path: pb,
-                        mime_type,
-                        ext,
-                        size_bytes: meta.len(),
-                    });
-                }
-            }
-        }
-    }
-    None
-}
-
-pub fn is_safe_video_id(id: &str) -> bool {
-    !id.is_empty()
-        && id.len() <= 64
-        && id != "index"
-        && id
-            .chars()
-            .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
-}
-
-fn mime_for_ext(ext: &str) -> &'static str {
-    match ext {
-        "mp4" | "m4v" => "video/mp4",
-        "webm" => "video/webm",
-        "mkv" => "video/x-matroska",
-        "m4a" => "audio/mp4",
-        "mp3" => "audio/mpeg",
-        "opus" | "ogg" => "audio/ogg",
-        _ => "application/octet-stream",
-    }
-}
-
-pub fn detect_lan_ip() -> String {
-    if let Ok(sock) = UdpSocket::bind("0.0.0.0:0") {
-        if sock.connect("8.8.8.8:80").is_ok() {
-            if let Ok(addr) = sock.local_addr() {
-                let ip = addr.ip();
-                if !ip.is_loopback() && !ip.is_unspecified() {
-                    return ip.to_string();
-                }
-            }
-        }
-    }
-    "127.0.0.1".to_string()
-}
-
-pub fn default_computer_name() -> String {
-    for key in ["EAR_COMPUTER_NAME", "COMPUTERNAME", "HOSTNAME"] {
-        if let Ok(val) = std::env::var(key) {
-            let trimmed = val.trim();
-            if !trimmed.is_empty() {
-                return trimmed.to_string();
-            }
-        }
-    }
-    if let Ok(raw) = fs::read_to_string("/etc/hostname") {
-        let trimmed = raw.trim();
-        if !trimmed.is_empty() {
-            return trimmed.to_string();
-        }
-    }
-    "Ear Desktop".to_string()
-}
-
-pub fn derive_short_name(name: &str) -> String {
-    let trimmed = name.trim();
-    if trimmed.is_empty() {
-        return "Desktop".to_string();
-    }
-    trimmed
-        .split_whitespace()
-        .next()
-        .unwrap_or(trimmed)
-        .chars()
-        .take(12)
-        .collect()
-}
-
-pub fn default_library_dir() -> PathBuf {
-    if let Ok(dir) = std::env::var("EAR_DATA_DIR") {
-        if !dir.trim().is_empty() {
-            return PathBuf::from(dir).join("library");
-        }
-    }
-    let home = std::env::var("HOME")
-        .or_else(|_| std::env::var("USERPROFILE"))
-        .unwrap_or_else(|_| ".".to_string());
-    #[cfg(target_os = "macos")]
-    {
-        Path::new(&home)
-            .join("Library")
-            .join("Application Support")
-            .join("dev.yuler.ear")
-            .join("library")
-    }
-    #[cfg(not(target_os = "macos"))]
-    {
-        Path::new(&home)
-            .join(".local")
-            .join("share")
-            .join("dev.yuler.ear")
-            .join("library")
-    }
-}
-
-pub fn now_secs() -> u64 {
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_secs()
-}
-
-fn now_nanos() -> u64 {
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_nanos() as u64
-}
-
-fn generate_pair_code(seed: u64, nonce: u64) -> String {
-    let mut h = DefaultHasher::new();
-    seed.hash(&mut h);
-    nonce.hash(&mut h);
-    std::process::id().hash(&mut h);
-    let n = 1000 + (h.finish() % 9000);
-    format!("{n:04}")
-}
-
-fn generate_hex(bytes: usize, seed: u64, nonce: u64) -> String {
-    let mut out = String::with_capacity(bytes * 2);
-    let mut state = seed ^ nonce.rotate_left(17) ^ (std::process::id() as u64);
-    for i in 0..bytes {
-        let mut h = DefaultHasher::new();
-        state.hash(&mut h);
-        (i as u64).hash(&mut h);
-        state = h.finish();
-        out.push_str(&format!("{:02x}", (state & 0xff) as u8));
-    }
-    out
-}
-
-pub fn url_encode(input: &str) -> String {
-    let mut out = String::with_capacity(input.len());
-    for b in input.bytes() {
-        if b.is_ascii_alphanumeric() || matches!(b, b'-' | b'_' | b'.' | b'~') {
-            out.push(b as char);
-        } else {
-            out.push_str(&format!("%{b:02X}"));
-        }
-    }
-    out
 }

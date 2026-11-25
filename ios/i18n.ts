@@ -92,6 +92,7 @@ export interface MobileCopy {
   errInvalidHost: string;
   errWrongCode: string;
   errExpiredCode: string;
+  errPairLocked: string;
   errUnreachable: (host: string) => string;
   errClipboardEmpty: string;
 
@@ -192,6 +193,7 @@ export const COPY: Record<Locale, MobileCopy> = {
     errInvalidHost: "请输入有效的局域网地址，例如 192.168.1.42:7890。",
     errWrongCode: "配对码不正确，请核对电脑屏幕上的 4 位数字。",
     errExpiredCode: "配对码已过期，请看电脑上新刷新的 4 位配对码。",
+    errPairLocked: "错误次数过多，电脑端已临时锁定配对。请在电脑上点击「重新开启配对」后重试。",
     errUnreachable: (host) => `无法连接到 ${host}，请确认手机与电脑在同一 Wi-Fi 且已开启手机镜像。`,
     errClipboardEmpty: "剪贴板里没有检测到 ear://pair 配对链接。",
 
@@ -289,6 +291,7 @@ export const COPY: Record<Locale, MobileCopy> = {
     errInvalidHost: "Enter a valid LAN address such as 192.168.1.42:7890.",
     errWrongCode: "Incorrect pairing code. Check the 4 digits shown on your computer.",
     errExpiredCode: "Pairing code expired. Enter the refreshed 4-digit code.",
+    errPairLocked: "Too many failed attempts. Reopen pairing on your computer and try again.",
     errUnreachable: (host) => `Could not reach ${host}. Make sure both devices are on the same Wi-Fi.`,
     errClipboardEmpty: "No ear://pair link found on the clipboard.",
 

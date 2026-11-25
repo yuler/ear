@@ -1,4 +1,4 @@
-use crate::commands::serve::state::{MirrorState, ServerSnapshot};
+use crate::commands::serve::state::{MirrorState, PairError, ServerSnapshot};
 use serde::Deserialize;
 use serde_json::json;
 use std::collections::HashMap;
@@ -114,11 +114,40 @@ fn handle_pair(
             });
             let _ = write_json(stream, 200, "OK", &body);
         }
-        Err(err) => {
-            if err == "code_expired" {
-                on_change(snap);
-            }
-            let _ = write_json(stream, 401, "Unauthorized", &json!({ "error": err }));
+        Err(PairError::Locked { retry_after_secs }) => {
+            on_change(snap);
+            let _ = write_json(
+                stream,
+                429,
+                "Too Many Requests",
+                &json!({ "error": "pair_locked", "retryAfterSecs": retry_after_secs }),
+            );
+        }
+        Err(PairError::CodeExpired) => {
+            on_change(snap);
+            let _ = write_json(
+                stream,
+                401,
+                "Unauthorized",
+                &json!({ "error": "code_expired" }),
+            );
+        }
+        Err(PairError::InvalidCode { attempts_remaining }) => {
+            on_change(snap);
+            let _ = write_json(
+                stream,
+                401,
+                "Unauthorized",
+                &json!({ "error": "invalid_code", "attemptsRemaining": attempts_remaining }),
+            );
+        }
+        Err(PairError::EntropyUnavailable(_)) => {
+            let _ = write_json(
+                stream,
+                503,
+                "Service Unavailable",
+                &json!({ "error": "entropy_unavailable" }),
+            );
         }
     }
 }
@@ -241,11 +270,29 @@ fn handle_video_asset(
                 let _ = write_json(stream, 404, "Not Found", &json!({ "error": "no_media" }));
                 return;
             };
+            let etag = format!("\"sha256:{}\"", m.content_sha256);
+            if let Some(if_match) = req.headers.get("if-match").map(String::as_str) {
+                let matched = if_match
+                    .split(',')
+                    .map(str::trim)
+                    .any(|tag| tag == "*" || tag == etag);
+                if !matched {
+                    let _ = write_json(
+                        stream,
+                        412,
+                        "Precondition Failed",
+                        &json!({ "error": "representation_changed" }),
+                    );
+                    return;
+                }
+            }
             let _ = stream_file_with_range(
                 stream,
                 &m.path,
                 &m.mime_type,
                 m.size_bytes,
+                &etag,
+                &m.content_sha256,
                 req.headers.get("range").map(String::as_str),
             );
         }
@@ -260,7 +307,11 @@ fn require_auth(
     req: &HttpRequest,
     state: &Arc<Mutex<MirrorState>>,
 ) -> Option<String> {
-    let auth = req.headers.get("authorization").map(String::as_str)?;
+    let auth = req
+        .headers
+        .get("authorization")
+        .map(String::as_str)
+        .unwrap_or("");
     let token = auth.strip_prefix("Bearer ").map(str::trim).unwrap_or("");
     if token.is_empty() {
         let _ = write_json(
@@ -321,6 +372,8 @@ fn stream_file_with_range(
     path: &std::path::Path,
     mime: &str,
     total: u64,
+    etag: &str,
+    content_sha256: &str,
     range_header: Option<&str>,
 ) -> std::io::Result<()> {
     let mut file = File::open(path)?;
@@ -329,7 +382,7 @@ fn stream_file_with_range(
             Some((s, e)) => (206, "Partial Content", s, e),
             None => {
                 let resp = format!(
-                    "HTTP/1.1 416 Range Not Satisfiable\r\nContent-Range: bytes */{total}\r\nContent-Length: 0\r\nConnection: close\r\n\r\n"
+                    "HTTP/1.1 416 Range Not Satisfiable\r\nContent-Range: bytes */{total}\r\nETag: {etag}\r\nX-Ear-Content-Sha256: {content_sha256}\r\nContent-Length: 0\r\nConnection: close\r\n\r\n"
                 );
                 stream.write_all(resp.as_bytes())?;
                 return Ok(());
@@ -340,7 +393,7 @@ fn stream_file_with_range(
 
     let len = if total == 0 { 0 } else { end - start + 1 };
     let mut head = format!(
-        "HTTP/1.1 {status} {reason}\r\nContent-Type: {mime}\r\nAccept-Ranges: bytes\r\nContent-Length: {len}\r\nConnection: close\r\n"
+        "HTTP/1.1 {status} {reason}\r\nContent-Type: {mime}\r\nAccept-Ranges: bytes\r\nETag: {etag}\r\nX-Ear-Content-Sha256: {content_sha256}\r\nContent-Length: {len}\r\nConnection: close\r\n"
     );
     if status == 206 {
         head.push_str(&format!("Content-Range: bytes {start}-{end}/{total}\r\n"));
@@ -435,7 +488,7 @@ fn write_bytes(
     bytes: &[u8],
 ) -> std::io::Result<()> {
     let head = format!(
-        "HTTP/1.1 {status} {reason}\r\nContent-Type: {content_type}\r\nContent-Length: {}\r\nAccess-Control-Allow-Origin: *\r\nAccess-Control-Allow-Headers: Authorization, Content-Type, Range\r\nAccess-Control-Allow-Methods: GET, POST, OPTIONS\r\nConnection: close\r\n\r\n",
+        "HTTP/1.1 {status} {reason}\r\nContent-Type: {content_type}\r\nContent-Length: {}\r\nAccess-Control-Allow-Origin: *\r\nAccess-Control-Allow-Headers: Authorization, Content-Type, Range, If-Match\r\nAccess-Control-Allow-Methods: GET, POST, OPTIONS\r\nConnection: close\r\n\r\n",
         bytes.len()
     );
     stream.write_all(head.as_bytes())?;
@@ -445,7 +498,7 @@ fn write_bytes(
 
 fn write_empty(stream: &mut TcpStream, status: u16, reason: &str) -> std::io::Result<()> {
     let head = format!(
-        "HTTP/1.1 {status} {reason}\r\nContent-Length: 0\r\nAccess-Control-Allow-Origin: *\r\nAccess-Control-Allow-Headers: Authorization, Content-Type, Range\r\nAccess-Control-Allow-Methods: GET, POST, OPTIONS\r\nConnection: close\r\n\r\n"
+        "HTTP/1.1 {status} {reason}\r\nContent-Length: 0\r\nAccess-Control-Allow-Origin: *\r\nAccess-Control-Allow-Headers: Authorization, Content-Type, Range, If-Match\r\nAccess-Control-Allow-Methods: GET, POST, OPTIONS\r\nConnection: close\r\n\r\n"
     );
     stream.write_all(head.as_bytes())?;
     stream.flush()

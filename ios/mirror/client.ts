@@ -4,8 +4,11 @@ import type { PairedMac, RemoteCatalogItem, TransportKind } from "./types";
 export type MirrorApiErrorCode =
   | "invalid_code"
   | "code_expired"
+  | "pair_locked"
   | "unpaired"
   | "unreachable"
+  | "representation_changed"
+  | "invalid_range_response"
   | "http_error";
 
 export class MirrorApiError extends Error {
@@ -36,6 +39,11 @@ export interface CatalogResponse {
   items: RemoteCatalogItem[];
 }
 
+export interface MediaRangeOptions {
+  expectedTotalBytes?: number;
+  expectedContentSha256?: string;
+}
+
 export interface MirrorApiClient {
   pair(
     host: string,
@@ -51,6 +59,7 @@ export interface MirrorApiClient {
     start: number,
     end: number,
     signal?: AbortSignal,
+    options?: MediaRangeOptions,
   ): Promise<Uint8Array>;
   fetchCaptions(
     mac: PairedMac,
@@ -64,6 +73,27 @@ export interface MirrorApiClient {
     background: boolean,
   ): Promise<void>;
   unpair(mac: PairedMac): Promise<void>;
+}
+
+export function parseContentRangeHeader(
+  header: string | null | undefined,
+): { start: number; end: number; total: number } | null {
+  if (!header) return null;
+  const match = /^bytes\s+(\d+)-(\d+)\/(\d+)$/i.exec(header.trim());
+  if (!match) return null;
+  const start = Number(match[1]);
+  const end = Number(match[2]);
+  const total = Number(match[3]);
+  if (
+    !Number.isSafeInteger(start) ||
+    !Number.isSafeInteger(end) ||
+    !Number.isSafeInteger(total) ||
+    end < start ||
+    total <= end
+  ) {
+    return null;
+  }
+  return { start, end, total };
 }
 
 async function fetchWithTimeout(
@@ -114,6 +144,9 @@ export function createHttpMirrorClient(): MirrorApiClient {
       });
       if (!res.ok) {
         const errCode = await parseErrorCode(res);
+        if (errCode === "pair_locked" || res.status === 429) {
+          throw new MirrorApiError("pair_locked", "Pairing temporarily locked", res.status);
+        }
         if (errCode === "code_expired") {
           throw new MirrorApiError("code_expired", "Pairing code expired", res.status);
         }
@@ -142,16 +175,21 @@ export function createHttpMirrorClient(): MirrorApiClient {
       return (await res.json()) as CatalogResponse;
     },
 
-    async fetchMediaRange(mac, videoId, start, end, signal) {
+    async fetchMediaRange(mac, videoId, start, end, signal, options) {
+      const expectedLength = end - start + 1;
       const t = createTransport(mac.transport, mac.host, mac.port);
+      const headers: Record<string, string> = {
+        Authorization: `Bearer ${mac.token}`,
+        Range: `bytes=${start}-${end}`,
+      };
+      if (options?.expectedContentSha256) {
+        headers["If-Match"] = `"sha256:${options.expectedContentSha256}"`;
+      }
       const res = await fetchWithTimeout(
         `${t.baseUrl()}/v1/videos/${encodeURIComponent(videoId)}/media`,
         {
           method: "GET",
-          headers: {
-            Authorization: `Bearer ${mac.token}`,
-            Range: `bytes=${start}-${end}`,
-          },
+          headers,
           signal,
           timeoutMs: 30000,
         },
@@ -159,11 +197,75 @@ export function createHttpMirrorClient(): MirrorApiClient {
       if (res.status === 401) {
         throw new MirrorApiError("unpaired", "Device was unpaired by computer", 401);
       }
-      if (!res.ok && res.status !== 206) {
+      if (res.status === 412 || res.status === 416) {
+        throw new MirrorApiError(
+          "representation_changed",
+          `Media representation changed (${res.status})`,
+          res.status,
+        );
+      }
+      if (!res.ok) {
         throw new MirrorApiError("http_error", `Media range failed (${res.status})`, res.status);
       }
+      if (res.status !== 206) {
+        throw new MirrorApiError(
+          "invalid_range_response",
+          `Expected 206 Partial Content for range request, received ${res.status}`,
+          res.status,
+        );
+      }
+
+      const contentRange = parseContentRangeHeader(res.headers?.get("content-range"));
+      if (!contentRange) {
+        throw new MirrorApiError(
+          "invalid_range_response",
+          "Missing or malformed Content-Range header",
+          206,
+        );
+      }
+      if (
+        options?.expectedTotalBytes !== undefined &&
+        contentRange.total !== options.expectedTotalBytes
+      ) {
+        throw new MirrorApiError(
+          "representation_changed",
+          `Media total changed (${contentRange.total} !== ${options.expectedTotalBytes})`,
+          206,
+        );
+      }
+      if (contentRange.start !== start || contentRange.end !== end) {
+        throw new MirrorApiError(
+          "invalid_range_response",
+          `Content-Range ${contentRange.start}-${contentRange.end} did not match requested ${start}-${end}`,
+          206,
+        );
+      }
+
+      if (options?.expectedContentSha256) {
+        const expectedEtag = `"sha256:${options.expectedContentSha256}"`;
+        const respEtag = res.headers?.get("etag")?.trim();
+        const respSha = res.headers?.get("x-ear-content-sha256")?.trim();
+        const matchesEtag = respEtag === expectedEtag;
+        const matchesSha = respSha === options.expectedContentSha256;
+        if (!matchesEtag && !matchesSha) {
+          throw new MirrorApiError(
+            "representation_changed",
+            "Media ETag/digest did not match expected representation",
+            206,
+          );
+        }
+      }
+
       const buf = await res.arrayBuffer();
-      return new Uint8Array(buf);
+      const bytes = new Uint8Array(buf);
+      if (bytes.byteLength !== expectedLength) {
+        throw new MirrorApiError(
+          "invalid_range_response",
+          `Range payload length ${bytes.byteLength} did not match expected ${expectedLength}`,
+          206,
+        );
+      }
+      return bytes;
     },
 
     async fetchCaptions(mac, videoId, signal) {

@@ -24,6 +24,9 @@ export interface MirrorServerSnapshot {
   code: string;
   codeExpiresAt: number;
   pairUrl: string;
+  pairLocked?: boolean;
+  pairLockedUntil?: number | null;
+  pairAttemptsRemaining?: number;
   libraryCount: number;
   devices: MirrorDevice[];
 }

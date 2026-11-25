@@ -28,6 +28,7 @@
   "appearance": "dark",
   "theme": "theme.json",
   "capabilities": {
+    "application": true,
     "statusBar": true,
     "clipboard": true,
     "homeDir": true,

@@ -1,3 +1,5 @@
+pub mod catalog;
+pub mod crypto;
 pub mod http;
 pub mod state;
 
@@ -54,7 +56,7 @@ pub fn run(args: &[String]) -> Result<(), String> {
         opts.name,
         advertised_host,
         actual_port,
-    )));
+    )?));
     let running = Arc::new(AtomicBool::new(true));
 
     let emit_snapshot = Arc::new(|snap: ServerSnapshot| {
@@ -82,7 +84,7 @@ pub fn run(args: &[String]) -> Result<(), String> {
                 thread::sleep(Duration::from_secs(1));
                 let rotated = {
                     let mut guard = st.lock().unwrap();
-                    if guard.ensure_fresh_code() {
+                    if guard.ensure_fresh_code().unwrap_or(false) {
                         Some(guard.snapshot())
                     } else {
                         None
@@ -114,10 +116,15 @@ pub fn run(args: &[String]) -> Result<(), String> {
                     "refresh_code" => {
                         let snap = {
                             let mut guard = st.lock().unwrap();
-                            guard.rotate_code();
-                            guard.snapshot()
+                            if guard.reopen_pairing().is_ok() {
+                                Some(guard.snapshot())
+                            } else {
+                                None
+                            }
                         };
-                        emit_cb(snap);
+                        if let Some(snap) = snap {
+                            emit_cb(snap);
+                        }
                     }
                     "remove_device" => {
                         if let Some(id) = cmd.device_id.as_deref() {
@@ -282,13 +289,16 @@ mod tests {
 
         let listener = TcpListener::bind(("127.0.0.1", 0)).unwrap();
         let port = listener.local_addr().unwrap().port();
-        let st = Arc::new(Mutex::new(MirrorState::load_or_init(
-            lib_dir,
-            tmp.join("mirror-state.json"),
-            Some("Home MacBook Pro".to_string()),
-            "127.0.0.1".to_string(),
-            port,
-        )));
+        let st = Arc::new(Mutex::new(
+            MirrorState::load_or_init(
+                lib_dir,
+                tmp.join("mirror-state.json"),
+                Some("Home MacBook Pro".to_string()),
+                "127.0.0.1".to_string(),
+                port,
+            )
+            .unwrap(),
+        ));
 
         let initial_code = st.lock().unwrap().code.clone();
         let st_srv = Arc::clone(&st);
@@ -343,7 +353,15 @@ mod tests {
         let device_id = paired["deviceId"].as_str().unwrap().to_string();
         assert_ne!(st.lock().unwrap().code, initial_code);
 
-        // 4. Library listing with bearer token
+        // 4. Missing Authorization header returns 401 unpaired (does not silently drop)
+        let (status, _, body) = send_http(
+            port,
+            "GET /v1/library HTTP/1.1\r\nHost: 127.0.0.1\r\n\r\n",
+        );
+        assert_eq!(status, 401);
+        assert!(String::from_utf8_lossy(&body).contains("unpaired"));
+
+        // 5. Library listing with bearer token includes contentSha256
         let (status, _, body) = send_http(
             port,
             &format!("GET /v1/library HTTP/1.1\r\nHost: 127.0.0.1\r\nAuthorization: Bearer {token}\r\n\r\n"),
@@ -353,19 +371,32 @@ mod tests {
         assert_eq!(lib["items"].as_array().unwrap().len(), 1);
         assert_eq!(lib["items"][0]["videoId"], "abc12345678");
         assert_eq!(lib["items"][0]["sizeBytes"], 20);
+        let sha = lib["items"][0]["contentSha256"].as_str().unwrap().to_string();
+        assert_eq!(sha.len(), 64);
 
-        // 5. Partial Range media download (bytes=10-14 -> "abcde")
+        // 6. Partial Range media download with matching If-Match (bytes=10-14 -> "abcde")
         let (status, head, body) = send_http(
             port,
             &format!(
-                "GET /v1/videos/abc12345678/media HTTP/1.1\r\nHost: 127.0.0.1\r\nAuthorization: Bearer {token}\r\nRange: bytes=10-14\r\n\r\n"
+                "GET /v1/videos/abc12345678/media HTTP/1.1\r\nHost: 127.0.0.1\r\nAuthorization: Bearer {token}\r\nRange: bytes=10-14\r\nIf-Match: \"sha256:{sha}\"\r\n\r\n"
             ),
         );
         assert_eq!(status, 206);
         assert!(head.contains("Content-Range: bytes 10-14/20"));
+        assert!(head.contains(&format!("ETag: \"sha256:{sha}\"")));
         assert_eq!(body, b"abcde");
 
-        // 6. Captions download
+        // 7. Conditional Range with stale If-Match returns 412 Precondition Failed
+        let (status, _, body) = send_http(
+            port,
+            &format!(
+                "GET /v1/videos/abc12345678/media HTTP/1.1\r\nHost: 127.0.0.1\r\nAuthorization: Bearer {token}\r\nRange: bytes=0-4\r\nIf-Match: \"sha256:0000\"\r\n\r\n"
+            ),
+        );
+        assert_eq!(status, 412);
+        assert!(String::from_utf8_lossy(&body).contains("representation_changed"));
+
+        // 8. Captions download
         let (status, _, body) = send_http(
             port,
             &format!(
@@ -375,7 +406,7 @@ mod tests {
         assert_eq!(status, 200);
         assert!(String::from_utf8_lossy(&body).contains("abc12345678"));
 
-        // 7. Revoking device returns 401 unpaired
+        // 9. Revoking device returns 401 unpaired
         assert!(st.lock().unwrap().remove_device(&device_id));
         let (status, _, body) = send_http(
             port,
@@ -386,6 +417,88 @@ mod tests {
 
         stop.store(true, Ordering::Relaxed);
         let _ = handle.join();
+        let _ = fs::remove_dir_all(&tmp);
+    }
+
+    #[test]
+    fn pairing_attempt_budget_locks_out_and_requires_recovery() {
+        let tmp = std::env::temp_dir().join(format!(
+            "ear-serve-lockout-{}-{}",
+            std::process::id(),
+            state::now_secs()
+        ));
+        let lib_dir = tmp.join("library");
+        fs::create_dir_all(&lib_dir).unwrap();
+
+        let mut st = MirrorState::load_or_init(
+            lib_dir,
+            tmp.join("mirror-state.json"),
+            Some("Lockout Test Mac".to_string()),
+            "127.0.0.1".to_string(),
+            7890,
+        )
+        .unwrap();
+        let t0 = 1_700_000_000u64;
+        st.reopen_pairing_at(t0).unwrap();
+        let valid_code = st.code.clone();
+        let wrong_code = if valid_code == "0000" { "9999" } else { "0000" };
+
+        // Exhaust the aggregate attempt budget with wrong codes.
+        for attempt in 1..state::PAIR_MAX_FAILED_ATTEMPTS {
+            let err = st
+                .pair_device_at(t0 + attempt as u64, wrong_code, "Attacker", None)
+                .unwrap_err();
+            assert_eq!(
+                err,
+                state::PairError::InvalidCode {
+                    attempts_remaining: state::PAIR_MAX_FAILED_ATTEMPTS - attempt
+                }
+            );
+            assert!(st.devices.is_empty());
+        }
+
+        // The Nth wrong attempt locks pairing and invalidates the active code.
+        let lock_time = t0 + state::PAIR_MAX_FAILED_ATTEMPTS as u64;
+        let err = st
+            .pair_device_at(lock_time, wrong_code, "Attacker", None)
+            .unwrap_err();
+        assert_eq!(
+            err,
+            state::PairError::Locked {
+                retry_after_secs: state::PAIR_LOCKOUT_SECS
+            }
+        );
+        assert!(st.code.is_empty());
+        assert!(st.is_pair_locked(lock_time + 1));
+
+        // While locked, even submitting the previously valid code must not issue a token.
+        let err_while_locked = st
+            .pair_device_at(lock_time + 10, &valid_code, "Late Client", None)
+            .unwrap_err();
+        assert!(matches!(err_while_locked, state::PairError::Locked { .. }));
+        assert!(st.devices.is_empty());
+
+        // Background ticker does not silently unlock before lockout expiry.
+        assert!(!st.ensure_fresh_code_at(lock_time + 60).unwrap());
+        assert!(st.code.is_empty());
+
+        // Deliberate recovery via reopen_pairing unlocks with a fresh code.
+        st.reopen_pairing_at(lock_time + 61).unwrap();
+        assert!(!st.is_pair_locked(lock_time + 61));
+        let fresh_code = st.code.clone();
+        assert_eq!(fresh_code.len(), 4);
+
+        // One-use pairing succeeds once, then immediately invalidates the code.
+        let dev = st
+            .pair_device_at(lock_time + 62, &fresh_code, "Owner iPhone", None)
+            .unwrap();
+        assert_eq!(dev.token.len(), 64);
+        assert_eq!(st.devices.len(), 1);
+        assert_ne!(st.code, fresh_code);
+        assert!(st
+            .pair_device_at(lock_time + 63, &fresh_code, "Replay", None)
+            .is_err());
+
         let _ = fs::remove_dir_all(&tmp);
     }
 }

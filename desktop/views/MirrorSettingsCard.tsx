@@ -160,44 +160,67 @@ export function MirrorSettingsCard() {
 
         {mirrorRunning() && snap() ? (
           <View class="flex-col gap-4 border-t border-line pt-4">
-            <View class="flex-row items-start gap-5">
-              <QrCodeCanvas value={() => snap()?.pairUrl ?? ""} size={148} />
-
-              <View class="min-w-0 flex-1 flex-col gap-2.5">
-                <View class="gap-0.5">
-                  <Text class="text-xs text-muted-foreground">
-                    4 位一次性配对码（{formatCountdown(snap()!.codeExpiresAt, nowSec())} 后刷新）
-                  </Text>
-                  <Text class="font-mono text-2xl font-bold tracking-[6px] text-foreground select-text">
-                    {snap()!.code}
-                  </Text>
-                </View>
-
-                <View class="gap-0.5">
-                  <Text class="text-xs text-muted-foreground">局域网地址</Text>
-                  <Text class="font-mono text-xs text-foreground select-text">
-                    {snap()!.host}:{snap()!.port} · {snap()!.libraryCount} 个可镜像视频
-                  </Text>
-                </View>
-
-                <View class="flex-row flex-wrap items-center gap-2 pt-1">
+            {snap()!.pairLocked ? (
+              <View class="flex-col gap-2.5 rounded-xl border border-destructive/40 bg-danger-soft p-3.5">
+                <Text class="text-xs font-semibold text-destructive">
+                  配对已临时锁定（连续输错配对码次数过多）
+                </Text>
+                <Text class="text-xs text-muted-foreground">
+                  {snap()!.pairLockedUntil
+                    ? `将在 ${formatCountdown(snap()!.pairLockedUntil!, nowSec())} 后自动解锁，或手动重新开启配对并生成新配对码。`
+                    : "请手动重新开启配对并生成新配对码。"}
+                </Text>
+                <View class="flex-row items-center gap-2 pt-0.5">
                   <Button
                     onPress={refreshMirrorCode}
-                    class="rounded-lg border border-line bg-raised px-3 py-1.5 transition active:bg-accent"
+                    class="rounded-lg bg-primary px-3 py-1.5 transition active:opacity-80"
                   >
-                    <Text class="text-xs font-medium text-foreground">刷新配对码</Text>
-                  </Button>
-                  <Button
-                    onPress={() => void handleCopyPairUrl()}
-                    class="rounded-lg border border-line bg-raised px-3 py-1.5 transition active:bg-accent"
-                  >
-                    <Text class="text-xs font-medium text-foreground">
-                      {copied() ? "已复制配对链接" : "复制配对链接"}
+                    <Text class="text-xs font-medium text-primary-foreground">
+                      重新开启配对
                     </Text>
                   </Button>
                 </View>
               </View>
-            </View>
+            ) : (
+              <View class="flex-row items-start gap-5">
+                <QrCodeCanvas value={() => snap()?.pairUrl ?? ""} size={148} />
+
+                <View class="min-w-0 flex-1 flex-col gap-2.5">
+                  <View class="gap-0.5">
+                    <Text class="text-xs text-muted-foreground">
+                      4 位一次性配对码（{formatCountdown(snap()!.codeExpiresAt, nowSec())} 后刷新）
+                    </Text>
+                    <Text class="font-mono text-2xl font-bold tracking-[6px] text-foreground select-text">
+                      {snap()!.code}
+                    </Text>
+                  </View>
+
+                  <View class="gap-0.5">
+                    <Text class="text-xs text-muted-foreground">局域网地址</Text>
+                    <Text class="font-mono text-xs text-foreground select-text">
+                      {snap()!.host}:{snap()!.port} · {snap()!.libraryCount} 个可镜像视频
+                    </Text>
+                  </View>
+
+                  <View class="flex-row flex-wrap items-center gap-2 pt-1">
+                    <Button
+                      onPress={refreshMirrorCode}
+                      class="rounded-lg border border-line bg-raised px-3 py-1.5 transition active:bg-accent"
+                    >
+                      <Text class="text-xs font-medium text-foreground">刷新配对码</Text>
+                    </Button>
+                    <Button
+                      onPress={() => void handleCopyPairUrl()}
+                      class="rounded-lg border border-line bg-raised px-3 py-1.5 transition active:bg-accent"
+                    >
+                      <Text class="text-xs font-medium text-foreground">
+                        {copied() ? "已复制配对链接" : "复制配对链接"}
+                      </Text>
+                    </Button>
+                  </View>
+                </View>
+              </View>
+            )}
 
             <View class="flex-col gap-2 border-t border-line pt-4">
               <Text class="text-xs font-semibold text-muted-foreground">
