@@ -93,7 +93,7 @@ async function queryDiskSpaceWithDf(dirPath: string): Promise<DiskSpaceInfo | nu
 
   for (const target of candidates) {
     try {
-      const res = await process.run("df", ["-Pk", target], { timeoutMs: 5000 });
+      const res = await process.run("df", ["-Pk", "--", target], { timeoutMs: 5000 });
       if (res.code === 0 && res.stdout) {
         const parsed = parseDfPkOutput(res.stdout, dirPath);
         if (parsed) return parsed;

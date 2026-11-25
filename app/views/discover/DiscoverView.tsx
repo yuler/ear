@@ -22,6 +22,7 @@ import type { DiscoverFilterState, DiscoverItem } from "./types";
 
 export function DiscoverView(props: {
   disabled?: () => boolean;
+  previewOpen?: () => boolean;
   /** A card was pressed: open it when downloaded, else load into the link bar to configure & download. */
   onSelectItem: (
     item: DiscoverItem,
@@ -66,8 +67,10 @@ export function DiscoverView(props: {
     }
   });
 
+  const keysDisabled = () => Boolean(props.disabled?.() || props.previewOpen?.());
+
   const move = (step: 1 | -1) => {
-    if (props.disabled?.()) return;
+    if (keysDisabled()) return;
     const len = filteredItems().length;
     if (len === 0) {
       if (focusedIndex() !== -1) focusedIndex.set(-1);
@@ -86,7 +89,7 @@ export function DiscoverView(props: {
       up: () => move(-1),
       left: () => move(-1),
       enter: () => {
-        if (props.disabled?.()) return;
+        if (keysDisabled()) return;
         const list = filteredItems();
         const cur = Math.min(focusedIndex(), list.length - 1);
         if (cur >= 0) props.onSelectItem(list[cur]);

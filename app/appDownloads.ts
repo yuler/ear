@@ -72,6 +72,7 @@ export function createDownloadController(deps: {
   const tasks = signal<Record<string, DownloadTaskProgress>>({});
   const controllers = new Map<string, AbortController>();
   const busy = new Set<string>();
+  const cancelled = new Set<string>();
 
   const setTask = (vid: string, task: DownloadTaskProgress | null) => {
     const next = { ...tasks() };
@@ -96,23 +97,33 @@ export function createDownloadController(deps: {
     return Object.values(all);
   };
 
-  const runDownload = async (lesson: LoadedLesson, qualityId: string) => {
+  const runDownload = async (
+    lesson: LoadedLesson,
+    qualityId: string,
+    existingCtrl?: AbortController,
+  ) => {
     const vid = lesson.video.videoId;
+    if (cancelled.has(vid)) return;
     patchTask(vid, {
       title: lesson.video.title || tasks()[vid]?.title || vid,
       subtitleLabel: lesson.track?.name ?? "",
       subtitleIsAuto: lesson.track?.isAuto ?? false,
     });
-    const ctrl = new AbortController();
+    const ctrl = existingCtrl ?? new AbortController();
     controllers.set(vid, ctrl);
     const { entry, audioNote } = await downloadLesson(lesson, {
       fetchImpl: hostFetch,
       downloadFolder: settings().downloadFolder,
       qualityId,
       signal: ctrl.signal,
-      onProgress: (prog) => setTask(vid, prog),
+      isCancelled: () => cancelled.has(vid),
+      onProgress: (prog) => {
+        if (cancelled.has(vid)) return;
+        setTask(vid, prog);
+      },
     });
-    controllers.delete(vid);
+    if (controllers.get(vid) === ctrl) controllers.delete(vid);
+    if (cancelled.has(vid)) return;
 
     if (entry.state === "paused") {
       patchTask(vid, { stage: "paused", speedBps: 0, etaSeconds: null });
@@ -129,6 +140,7 @@ export function createDownloadController(deps: {
     patchTask(vid, { percent: 100, stage: "done" });
     playDingSound();
     await delay(380);
+    if (cancelled.has(vid)) return;
     try {
       LayoutAnimation.configureNext({
         duration: 400,
@@ -141,6 +153,7 @@ export function createDownloadController(deps: {
     }
     // Hand the card over to the finished entry in the same tick.
     const entries = await listEntriesSafe();
+    if (cancelled.has(vid)) return;
     setTask(vid, null);
     deps.savedEntries.set(entries);
   };
@@ -167,8 +180,8 @@ export function createDownloadController(deps: {
     try {
       await job();
     } catch (e) {
-      // A pause aborts the transfer: that is no failure to report.
-      if (tasks()[vid]?.stage === "paused") return;
+      // A pause or cancel aborts the transfer: that is no failure to report.
+      if (cancelled.has(vid) || tasks()[vid]?.stage === "paused") return;
       setTask(vid, null);
       deps.onError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -177,8 +190,11 @@ export function createDownloadController(deps: {
     }
   };
 
-  const start = (req: DownloadRequest) =>
-    guarded(req.videoId, async () => {
+  const start = (req: DownloadRequest) => {
+    cancelled.delete(req.videoId);
+    return guarded(req.videoId, async () => {
+      const ctrl = new AbortController();
+      controllers.set(req.videoId, ctrl);
       setTask(req.videoId, {
         videoId: req.videoId,
         title: req.title,
@@ -196,8 +212,10 @@ export function createDownloadController(deps: {
         etaSeconds: null,
       });
       const lesson = await resolveLesson(req);
-      await runDownload(lesson, req.qualityId);
+      if (cancelled.has(req.videoId) || ctrl.signal.aborted) return;
+      await runDownload(lesson, req.qualityId, ctrl);
     });
+  };
 
   const pause = (vid: string) => {
     controllers.get(vid)?.abort();
@@ -206,6 +224,7 @@ export function createDownloadController(deps: {
   };
 
   const resume = async (vid: string) => {
+    cancelled.delete(vid);
     const existing = await readEntry(vid);
     if (!existing) return;
     const lesson = await loadLessonFromEntry(existing).catch(() => null);
@@ -228,11 +247,11 @@ export function createDownloadController(deps: {
   };
 
   const cancel = async (vid: string) => {
+    cancelled.add(vid);
     controllers.get(vid)?.abort();
     controllers.delete(vid);
-    busy.delete(vid);
     setTask(vid, null);
-    await deleteEntry(vid, { deleteMediaFile: true });
+    await deleteEntry(vid, { deleteMediaFile: true }).catch(() => {});
     await refresh();
   };
 

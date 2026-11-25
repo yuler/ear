@@ -1,5 +1,6 @@
 import { signal } from "nsh";
 import { expect, open, test } from "nsh/test";
+import { createDownloadController } from "./appDownloads";
 import {
   availableQualityIds,
   createPreviewController,
@@ -7,6 +8,7 @@ import {
   pickDefaultTrack,
 } from "./appPreview";
 import { buildVideoPreview, isLinkText } from "./clipboard";
+import type { LibraryEntry } from "./library/types";
 import nshConfig from "./nsh.json";
 import { partitionSubtitleTracks } from "./ui/ClipboardCard";
 import {
@@ -16,6 +18,7 @@ import {
   EAR_MARK_FLOW_START,
 } from "./ui/EarMark";
 import { MESSAGES } from "./ui/i18n";
+import { setEarSpawnHook, type SpawnChildLike } from "./youtube/earClient";
 import type { CaptionTrack } from "./youtube/types";
 
 const has = (texts: string[], s: string) => texts.some((t) => t.includes(s));
@@ -280,4 +283,73 @@ test("app configuration: single instance, icon, and window size limits", () => {
   expect(nshConfig.window.minSize).toEqual({ width: 800, height: 560 });
   expect(nshConfig.window.defaultSize).toEqual({ width: 1200, height: 800 });
   expect(nshConfig.window.restoreBounds).toBe(true);
+});
+
+test("cancelling a download during parsing never resurrects the task or reports an error", async () => {
+  const savedEntries = signal<LibraryEntry[]>([]);
+  const errors: string[] = [];
+  const finishParse: Array<() => void> = [];
+  const spawnedSubcommands: string[] = [];
+
+  setEarSpawnHook((_bin: string, args: string[]): SpawnChildLike => {
+    spawnedSubcommands.push(args[0] ?? "");
+    const listeners: Record<string, ((arg: any) => void)[]> = {};
+    if (args[0] === "parse") {
+      finishParse.push(() => {
+        listeners["stdout"]?.forEach((fn) =>
+          fn(
+            JSON.stringify({
+              type: "result",
+              video: {
+                videoId: "cancelTest1",
+                title: "Cancel Test",
+                thumbnailUrl: "https://i.ytimg.com/vi/cancelTest1/hqdefault.jpg",
+                audioUrl: null,
+                audioMimeType: null,
+                durationMs: 10000,
+                qualities: [],
+                captionTracks: [],
+              },
+            }),
+          ),
+        );
+        listeners["exit"]?.forEach((fn) => fn({ code: 0 }));
+      });
+    }
+    return {
+      on(event: string, handler: (arg: any) => void) {
+        listeners[event] = listeners[event] || [];
+        listeners[event].push(handler);
+        return this;
+      },
+    };
+  });
+
+  try {
+    const ctrl = createDownloadController({
+      savedEntries,
+      onError: (msg) => errors.push(msg),
+    });
+
+    const startPromise = ctrl.start({
+      videoId: "cancelTest1",
+      url: "https://www.youtube.com/watch?v=cancelTest1",
+      title: "Cancel Test",
+      qualityId: "360p",
+    });
+
+    expect(ctrl.list().some((t) => t.videoId === "cancelTest1")).toBe(true);
+    await ctrl.cancel("cancelTest1");
+    expect(ctrl.list().length).toBe(0);
+
+    // Resolving the in-flight parse after cancel must not start download or resurrect the task.
+    for (const fn of finishParse) fn();
+    await startPromise;
+
+    expect(spawnedSubcommands).toEqual(["parse"]);
+    expect(ctrl.list().length).toBe(0);
+    expect(errors).toEqual([]);
+  } finally {
+    setEarSpawnHook(null);
+  }
 });

@@ -86,7 +86,7 @@ pub fn parse_byte_pair(stdout: &str) -> Option<DiskSpace> {
 fn query_disk_space(path: &Path) -> Result<DiskSpace, String> {
     let existing = nearest_existing_ancestor(path);
     let out = Command::new("df")
-        .arg("-Pk")
+        .args(["-Pk", "--"])
         .arg(&existing)
         .output()
         .map_err(|e| format!("Failed to run df: {e}"))?;
@@ -101,26 +101,48 @@ fn query_disk_space(path: &Path) -> Result<DiskSpace, String> {
 
 #[cfg(target_os = "windows")]
 fn query_disk_space(path: &Path) -> Result<DiskSpace, String> {
-    let existing = nearest_existing_ancestor(path);
-    let abs = existing.canonicalize().unwrap_or(existing);
-    let clean = abs
-        .to_string_lossy()
-        .trim_start_matches(r"\\?\")
-        .replace('\'', "''");
-    let script = format!(
-        "$d = New-Object System.IO.DriveInfo('{clean}'); Write-Output \"$($d.AvailableFreeSpace) $($d.TotalSize)\""
-    );
-    let out = Command::new("powershell")
-        .args(["-NoProfile", "-NonInteractive", "-Command", &script])
-        .output()
-        .map_err(|e| format!("Failed to query Windows disk space: {e}"))?;
-    if !out.status.success() {
-        let stderr = String::from_utf8_lossy(&out.stderr);
-        return Err(format!("powershell failed: {}", stderr.trim()));
+    use std::os::windows::ffi::OsStrExt;
+
+    #[link(name = "kernel32")]
+    extern "system" {
+        fn GetDiskFreeSpaceExW(
+            lpDirectoryName: *const u16,
+            lpFreeBytesAvailableToCaller: *mut u64,
+            lpTotalNumberOfBytes: *mut u64,
+            lpTotalNumberOfFreeBytes: *mut u64,
+        ) -> i32;
     }
-    let stdout = String::from_utf8_lossy(&out.stdout);
-    parse_byte_pair(&stdout)
-        .ok_or_else(|| format!("Could not parse disk space output: {}", stdout.trim()))
+
+    let existing = nearest_existing_ancestor(path);
+    let query_path = if existing.is_file() {
+        existing.parent().unwrap_or(&existing)
+    } else {
+        &existing
+    };
+    let wide: Vec<u16> = query_path
+        .as_os_str()
+        .encode_wide()
+        .chain(std::iter::once(0))
+        .collect();
+    let mut avail: u64 = 0;
+    let mut total: u64 = 0;
+    let mut _total_free: u64 = 0;
+    let ok = unsafe {
+        GetDiskFreeSpaceExW(wide.as_ptr(), &mut avail, &mut total, &mut _total_free)
+    };
+    if ok == 0 {
+        return Err(format!(
+            "Failed to query Windows disk space: {}",
+            std::io::Error::last_os_error()
+        ));
+    }
+    if total == 0 {
+        return Err("Disk reported zero total capacity".to_string());
+    }
+    Ok(DiskSpace {
+        available_bytes: avail,
+        total_bytes: total,
+    })
 }
 
 pub fn run(args: &[String]) -> Result<(), String> {

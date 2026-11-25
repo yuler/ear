@@ -1,4 +1,4 @@
-import { effect, keymap, signal, untracked } from "nsh";
+import { cleanup, effect, keymap, signal, untracked } from "nsh";
 import type { LibraryEntry } from "../library/types";
 import { msToSeconds, type PlaybackRate } from "../player";
 import { setBlockerEnabled } from "../store";
@@ -68,17 +68,29 @@ export function createPlayerController(opts: {
     return list[clampSentenceIndex(activeIndex(), list.length)] ?? null;
   };
 
-  // Load sentences for the entry (length changes resegment locally, no refetch).
+  // Load sentences when the caption source changes (ignores metadata-only updates like videoWidth/Height).
+  let loadedCaptionKey: string | null = null;
+  let captionLoadSeq = 0;
+  cleanup(() => {
+    captionLoadSeq++;
+  });
   effect(() => {
     const cur = entry();
+    const key = `${cur.videoId}|${cur.captionsPath ?? ""}|${cur.url ?? ""}`;
+    if (key === loadedCaptionKey) return;
+    loadedCaptionKey = key;
+    const seq = ++captionLoadSeq;
     loadingSentences.set(true);
     void fetchLessonCaptions(cur, untracked(sentenceLength))
       .then((data) => {
+        if (seq !== captionLoadSeq) return;
         rawCues.set(data.cues);
         rawSentences.set(data.rawSentences);
         sentences.set(data.sentences);
       })
-      .finally(() => loadingSentences.set(false));
+      .finally(() => {
+        if (seq === captionLoadSeq) loadingSentences.set(false);
+      });
   });
 
   const setVideoNode = (node: VideoNode | null) => {

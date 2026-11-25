@@ -31,7 +31,7 @@ export function ToastHost() {
   return (
     <If when={current()}>
       {(toast) => (
-        <View class="pointer-events-none absolute right-0 bottom-4 left-0 z-40 items-center px-4">
+        <View class="pointer-events-none absolute right-0 bottom-4 left-0 z-[90] items-center px-4">
           <View
             role="alert"
             class={`pointer-events-auto max-w-[520px] flex-row items-center gap-2 rounded-lg border bg-popover py-2 pr-1.5 pl-3 shadow-lg ${

@@ -86,6 +86,8 @@ export type DownloadOptions = {
   qualityId?: string | null;
   /** Optional abort / pause signal */
   signal?: AbortSignal;
+  /** Returns true when the caller explicitly cancelled (vs paused) the download. */
+  isCancelled?: () => boolean;
   /** Real-time progress callback for Downbit-style background download UI. */
   onProgress?: (progress: DownloadTaskProgress) => void;
 };
@@ -153,6 +155,7 @@ export async function downloadLesson(
   const primaryTargetPath = isAudioOnly ? targetAudioPath : targetVideoPath;
 
   const emitProgress = (partial: Partial<DownloadTaskProgress>) => {
+    if (options.isCancelled?.()) return;
     options.onProgress?.({
       videoId: video.videoId,
       title: video.title,
@@ -170,6 +173,33 @@ export async function downloadLesson(
       ...partial,
     });
   };
+
+  if (options.isCancelled?.()) {
+    return {
+      entry: {
+        videoId: video.videoId,
+        url: watchUrl,
+        title: video.title,
+        thumbnailUrl,
+        site: "YouTube",
+        state: "paused",
+        captionsPath: null,
+        videoPath: null,
+        audioPath: null,
+        videoUrl: video.videoUrl ?? null,
+        audioUrl: video.audioUrl,
+        audioMimeType: video.audioMimeType,
+        durationMs: video.durationMs,
+        quality: qualityLabel,
+        subtitleLabel,
+        subtitleIsAuto,
+        note: "Cancelled",
+        createdAt: existing?.createdAt ?? now,
+        updatedAt: now,
+      },
+      audioNote: null,
+    };
+  }
 
   emitProgress({ stage: "starting", percent: 2 });
 
@@ -306,6 +336,31 @@ export async function downloadLesson(
       }
     } catch (e) {
       audioNote = e instanceof Error ? e.message : String(e);
+      if (options.isCancelled?.()) {
+        const entry: LibraryEntry = {
+          videoId: video.videoId,
+          url: watchUrl,
+          title: video.title,
+          thumbnailUrl,
+          site: "YouTube",
+          state: "paused",
+          captionsPath: null,
+          videoPath: null,
+          audioPath: null,
+          videoUrl: video.videoUrl ?? null,
+          audioUrl: video.audioUrl,
+          audioMimeType: video.audioMimeType,
+          durationMs: video.durationMs,
+          quality: qualityLabel,
+          subtitleLabel,
+          subtitleIsAuto,
+          sizeBytes: null,
+          note: "Cancelled",
+          createdAt: existing?.createdAt ?? now,
+          updatedAt: Date.now(),
+        };
+        return { entry, audioNote: null };
+      }
       const isPaused = options.signal?.aborted || audioNote.toLowerCase().includes("pause");
       const finalStage: DownloadStage = isPaused ? "paused" : "error";
       emitProgress({ stage: finalStage, error: isPaused ? null : audioNote });
@@ -336,15 +391,6 @@ export async function downloadLesson(
     }
   }
 
-  emitProgress({
-    stage: "done",
-    percent: 100,
-    downloadedBytes: finalSizeBytes ?? 0,
-    totalBytes: finalSizeBytes ?? 0,
-    speedBps: 0,
-    etaSeconds: 0,
-  });
-
   const entry: LibraryEntry = {
     videoId: video.videoId,
     url: watchUrl,
@@ -369,6 +415,19 @@ export async function downloadLesson(
     createdAt: existing?.createdAt ?? now,
     updatedAt: Date.now(),
   };
+  if (options.isCancelled?.()) {
+    return { entry, audioNote: null };
+  }
+
+  emitProgress({
+    stage: "done",
+    percent: 100,
+    downloadedBytes: finalSizeBytes ?? 0,
+    totalBytes: finalSizeBytes ?? 0,
+    speedBps: 0,
+    etaSeconds: 0,
+  });
+
   await upsertEntry(entry);
   return { entry, audioNote: null };
 }

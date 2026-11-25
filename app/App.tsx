@@ -81,7 +81,12 @@ function App() {
     );
     const curPlaying = playingEntry();
     const curDims = curPlaying ? updates[curPlaying.videoId] : undefined;
-    if (curPlaying && curDims) {
+    if (
+      curPlaying &&
+      curDims &&
+      (curPlaying.videoWidth !== curDims.width ||
+        curPlaying.videoHeight !== curDims.height)
+    ) {
       playingEntry.set({
         ...curPlaying,
         videoWidth: curDims.width,
@@ -164,22 +169,31 @@ function App() {
     }
   });
 
+  let lastQueriedDir: string | null = null;
   effect(() => {
     const dir = downloadFolder();
     // Re-query when library entry count changes or window becomes active.
     const _count = savedEntries().length;
     const _state = lifecycle();
     let cancelled = false;
-    void queryDiskSpace(dir).then((info) => {
+    const delayMs = lastQueriedDir !== null && lastQueriedDir !== dir ? 350 : 0;
+    const run = () => {
       if (cancelled) return;
-      if (info) {
-        diskSpace.set(info);
-      } else if (diskSpace()?.path !== dir) {
-        diskSpace.set(null);
-      }
-    });
+      lastQueriedDir = dir;
+      void queryDiskSpace(dir).then((info) => {
+        if (cancelled) return;
+        if (info) {
+          diskSpace.set(info);
+        } else if (diskSpace()?.path !== dir) {
+          diskSpace.set(null);
+        }
+      });
+    };
+    const timer = delayMs > 0 ? setTimeout(run, delayMs) : null;
+    if (!timer) run();
     return () => {
       cancelled = true;
+      if (timer) clearTimeout(timer);
     };
   });
 
@@ -406,6 +420,7 @@ function App() {
           <View class="mx-auto w-full max-w-[1440px] px-4 pt-2 pb-4">
             <DiscoverView
               disabled={isBackgroundDisabled}
+              previewOpen={() => Boolean(preview.active())}
               onBack={() => selectPage("library")}
               onSelectItem={(item, rect) => void selectDiscoverItem(item, rect)}
               savedEntries={savedEntries}
@@ -416,8 +431,6 @@ function App() {
           </View>
         </Scroll>
       </If>
-
-      <ToastHost />
 
       <If when={playingEntry() && playingSrc()}>
         {() => (
@@ -456,6 +469,8 @@ function App() {
       />
 
       <UpdateModal />
+
+      <ToastHost />
     </View>
   );
 }

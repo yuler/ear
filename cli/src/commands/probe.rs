@@ -65,7 +65,7 @@ fn parse_tkhd_dimensions(payload: &[u8]) -> Option<VideoDimensions> {
 
 fn iter_child_boxes(data: &[u8], mut f: impl FnMut([u8; 4], &[u8]) -> bool) {
     let mut pos = 0usize;
-    while pos + 8 <= data.len() {
+    while pos.checked_add(8).is_some_and(|e| e <= data.len()) {
         let Some(size32) = read_be_u32(data, pos) else {
             break;
         };
@@ -84,14 +84,17 @@ fn iter_child_boxes(data: &[u8], mut f: impl FnMut([u8; 4], &[u8]) -> bool) {
             (size32 as usize, 8)
         };
 
-        if box_size < header_len || pos + box_size > data.len() {
+        let Some(end) = pos.checked_add(box_size) else {
+            break;
+        };
+        if box_size < header_len || end > data.len() {
             break;
         }
-        let payload = &data[pos + header_len..pos + box_size];
+        let payload = &data[pos + header_len..end];
         if f(box_type, payload) {
             return;
         }
-        pos += box_size;
+        pos = end;
     }
 }
 
@@ -123,7 +126,7 @@ pub fn probe_mp4_dimensions(path: &Path) -> Option<VideoDimensions> {
     let mut pos = 0u64;
     let mut header = [0u8; 8];
 
-    while pos + 8 <= file_len {
+    while pos.checked_add(8).is_some_and(|e| e <= file_len) {
         file.seek(SeekFrom::Start(pos)).ok()?;
         file.read_exact(&mut header).ok()?;
         let size32 = u32::from_be_bytes([header[0], header[1], header[2], header[3]]);
@@ -139,7 +142,10 @@ pub fn probe_mp4_dimensions(path: &Path) -> Option<VideoDimensions> {
             (size32 as u64, 8)
         };
 
-        if box_size < header_len || pos + box_size > file_len {
+        let Some(end) = pos.checked_add(box_size) else {
+            break;
+        };
+        if box_size < header_len || end > file_len {
             break;
         }
 
@@ -153,7 +159,7 @@ pub fn probe_mp4_dimensions(path: &Path) -> Option<VideoDimensions> {
             return parse_moov_dimensions(&buf);
         }
 
-        pos = pos.checked_add(box_size)?;
+        pos = end;
     }
 
     None
@@ -187,6 +193,7 @@ pub fn parse_ffprobe_json(stdout: &str) -> Option<VideoDimensions> {
 }
 
 fn probe_with_ffprobe(path: &Path) -> Option<VideoDimensions> {
+    let target = path.canonicalize().unwrap_or_else(|_| path.to_path_buf());
     let out = Command::new("ffprobe")
         .args([
             "-v",
@@ -197,8 +204,9 @@ fn probe_with_ffprobe(path: &Path) -> Option<VideoDimensions> {
             "stream=width,height:stream_side_data=rotation",
             "-of",
             "json",
+            "-i",
         ])
-        .arg(path)
+        .arg(&target)
         .output()
         .ok()?;
     if !out.status.success() {
@@ -374,5 +382,34 @@ mod tests {
                 height: 1920
             })
         );
+    }
+
+    #[test]
+    fn test_mp4_parser_rejects_overflowing_64bit_box_sizes_without_panicking() {
+        // Malicious child box inside moov: valid 8-byte dummy box followed by a 64-bit box
+        // whose size wraps pos + box_size below data.len().
+        let mut moov_payload = Vec::new();
+        moov_payload.extend_from_slice(&make_box(b"free", &[0u8; 8])); // pos = 16
+        moov_payload.extend_from_slice(&1u32.to_be_bytes());
+        moov_payload.extend_from_slice(b"trak");
+        moov_payload.extend_from_slice(&(u64::MAX - 4).to_be_bytes());
+        moov_payload.extend_from_slice(&[0u8; 32]);
+        assert_eq!(parse_moov_dimensions(&moov_payload), None);
+
+        // Malicious top-level MP4 box with overflowing 64-bit size.
+        let stamp = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let path = std::env::temp_dir().join(format!("ear_probe_overflow_{stamp}.mp4"));
+        let mut crafted = Vec::new();
+        crafted.extend_from_slice(&make_box(b"ftyp", b"isom\0\0\x02\0isom"));
+        crafted.extend_from_slice(&1u32.to_be_bytes());
+        crafted.extend_from_slice(b"moov");
+        crafted.extend_from_slice(&(u64::MAX - 4).to_be_bytes());
+        crafted.extend_from_slice(&[0u8; 32]);
+        fs::write(&path, &crafted).unwrap();
+        assert_eq!(probe_mp4_dimensions(&path), None);
+        let _ = fs::remove_file(&path);
     }
 }

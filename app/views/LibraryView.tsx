@@ -165,9 +165,11 @@ export function LibraryView(props: {
     if (next.size > 0) selectionMode.set(true);
   };
 
+  const keysDisabled = () => Boolean(props.disabled?.() || props.previewOpen?.());
+
   /** X enters or exits multi-select mode without toggling individual items. */
   const toggleSelectionMode = () => {
-    if (props.disabled?.() || props.previewOpen?.()) return;
+    if (keysDisabled()) return;
     if (selectionMode()) {
       exitSelectionMode();
       return;
@@ -178,7 +180,7 @@ export function LibraryView(props: {
 
   /** Space toggles the focused item while selection mode is active. */
   const toggleFocusedInSelectionMode = () => {
-    if (props.disabled?.() || props.previewOpen?.()) return;
+    if (keysDisabled()) return;
     if (!selectionMode()) return;
     if (entries().length === 0) return;
     if (focusedIndex() < 0) focusedIndex.set(0);
@@ -281,7 +283,7 @@ export function LibraryView(props: {
   };
 
   const move = (step: 1 | -1) => {
-    if (props.disabled?.()) return;
+    if (keysDisabled()) return;
     const len = entries().length;
     if (len === 0) {
       if (focusedIndex() !== -1) focusedIndex.set(-1);
@@ -296,7 +298,7 @@ export function LibraryView(props: {
   };
 
   const withFocused = (fn: (entry: LibraryEntry) => void) => () => {
-    if (props.disabled?.()) return;
+    if (keysDisabled()) return;
     const entry = focused();
     if (entry) fn(entry);
   };
@@ -311,7 +313,7 @@ export function LibraryView(props: {
       x: toggleSelectionMode,
       space: toggleFocusedInSelectionMode,
       o: () => {
-        if (props.disabled?.()) return;
+        if (keysDisabled()) return;
         if (selectionMode()) {
           const selected = selectedEntries();
           if (selected.length === 1 && selected[0]) {
@@ -323,7 +325,7 @@ export function LibraryView(props: {
         if (entry) props.onOpenFolder(entry);
       },
       delete: () => {
-        if (props.disabled?.()) return;
+        if (keysDisabled()) return;
         if (selectionMode()) {
           void requestBatchDelete();
           return;
@@ -332,7 +334,7 @@ export function LibraryView(props: {
         if (entry) void requestDelete(entry);
       },
       backspace: () => {
-        if (props.disabled?.()) return;
+        if (keysDisabled()) return;
         if (selectionMode()) {
           void requestBatchDelete();
           return;
@@ -341,15 +343,15 @@ export function LibraryView(props: {
         if (entry) void requestDelete(entry);
       },
       a: () => {
-        if (props.disabled?.() || !selectionMode()) return;
+        if (keysDisabled() || !selectionMode()) return;
         toggleSelectAll();
       },
       "mod+a": () => {
-        if (props.disabled?.() || !selectionMode()) return;
+        if (keysDisabled() || !selectionMode()) return;
         toggleSelectAll();
       },
       escape: () => {
-        if (props.disabled?.() || props.previewOpen?.()) return;
+        if (keysDisabled()) return;
         if (selectionMode()) exitSelectionMode();
       },
     },

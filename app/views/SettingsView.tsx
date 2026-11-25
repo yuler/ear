@@ -1,4 +1,4 @@
-import { Scroll, Text, View, type JSX } from "nsh";
+import { cleanup, effect, Scroll, signal, Text, View, type JSX } from "nsh";
 import { Button, Input, Switch } from "nsh/base";
 import {
   CURRENT_APP_VERSION,
@@ -149,7 +149,19 @@ export function SettingsView(props?: {
   onOpenShortcuts?: () => void;
 }) {
   const m = () => t(settings().language);
-  const currentMediaDir = () => mediaRoot(settings().downloadFolder);
+  const folderDraft = signal(settings().downloadFolder);
+  effect(() => {
+    folderDraft.set(settings().downloadFolder);
+  });
+  const commitDownloadFolder = () => {
+    const next = folderDraft();
+    if (next !== settings().downloadFolder) {
+      updateSettings({ downloadFolder: next });
+    }
+  };
+  cleanup(commitDownloadFolder);
+
+  const currentMediaDir = () => mediaRoot(folderDraft());
   const hasUpdate = () =>
     globalUpdateAvailable() && !!globalUpdateResult()?.hasUpdate;
 
@@ -163,8 +175,10 @@ export function SettingsView(props?: {
     >
       <Row label={m().settingsDownloadFolder}>
         <Input
-          value={settings().downloadFolder}
-          onChange={(e) => updateSettings({ downloadFolder: e.value })}
+          value={folderDraft()}
+          onChange={(e) => folderDraft.set(e.value)}
+          onBlur={commitDownloadFolder}
+          onSubmit={commitDownloadFolder}
           placeholder={defaultDownloadFolder()}
           autoCapitalize="none"
           autoCorrect={false}
@@ -173,7 +187,10 @@ export function SettingsView(props?: {
         <SecondaryButton
           label={m().settingsOpenFolder}
           accessibilityLabel={m().settingsOpenFolderLabel}
-          onPress={() => void openDirectory(currentMediaDir())}
+          onPress={() => {
+            commitDownloadFolder();
+            void openDirectory(currentMediaDir());
+          }}
         />
       </Row>
 
