@@ -9,6 +9,7 @@
   "schemes": ["ear"],
   "ios": {
     "infoPlist": {
+      "ITSAppUsesNonExemptEncryption": false,
       "NSLocalNetworkUsageDescription": "Ear connects to Ear on your Mac or PC over the same Wi-Fi to mirror downloaded videos and captions for offline listening.",
       "NSAppTransportSecurity": {
         "NSAllowsLocalNetworking": true

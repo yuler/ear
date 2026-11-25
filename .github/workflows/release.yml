@@ -19,6 +19,10 @@ on:
         description: 'Force a full app update (omit OTA from the manifest)'
         type: boolean
         default: false
+      upload_testflight:
+        description: 'Upload iOS build to TestFlight'
+        type: boolean
+        default: true
 
 permissions:
   contents: write
@@ -112,10 +116,14 @@ jobs:
           cache_key_prefix: mise-nsh-v1
 
       - name: Typecheck
-        run: nsh check desktop
+        run: |
+          nsh check desktop
+          nsh check ios
 
-      - name: Test Desktop
-        run: nsh test desktop
+      - name: Test Desktop & iOS
+        run: |
+          nsh test desktop
+          nsh test ios
 
       - name: Test CLI
         run: cargo test --manifest-path cli/Cargo.toml
@@ -317,3 +325,13 @@ jobs:
           files: dist/*
           draft: false
           prerelease: false
+
+  ios-testflight:
+    name: Upload iOS TestFlight
+    needs: [prepare, publish-release]
+    if: github.event_name != 'workflow_dispatch' || inputs.upload_testflight != false
+    uses: ./.github/workflows/ios-release.yml
+    with:
+      version: ${{ needs.prepare.outputs.version }}
+      ref: ${{ github.sha }}
+    secrets: inherit

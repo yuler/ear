@@ -34,10 +34,11 @@ test("renders iOS onboarding home state and opens Pair and Settings sheets", asy
   expect(app.texts().some((t) => t.includes("Pair Computer"))).toBe(true);
 });
 
-test("ios/nsh.json declares Local Network permission, ATS local networking, and ear:// scheme", () => {
+test("ios/nsh.json declares Local Network permission, export compliance, ATS local networking, and ear:// scheme", () => {
   expect(nshConfig.id).toBe("dev.yuler.ear");
   expect(nshConfig.appearance).toBe("system");
   expect(nshConfig.schemes).toEqual(["ear"]);
+  expect(nshConfig.ios.infoPlist.ITSAppUsesNonExemptEncryption).toBe(false);
   expect(nshConfig.ios.infoPlist.NSLocalNetworkUsageDescription.length).toBeGreaterThan(10);
   expect(nshConfig.ios.infoPlist.NSAppTransportSecurity.NSAllowsLocalNetworking).toBe(true);
 });
