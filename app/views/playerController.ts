@@ -241,6 +241,7 @@ export function createPlayerController(opts: {
     durationSec,
     errorMsg,
     sentenceLength,
+    rawCues,
     sentences,
     loadingSentences,
     activeIndex,

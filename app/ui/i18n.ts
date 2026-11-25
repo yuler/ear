@@ -77,6 +77,11 @@ export interface I18nMessages {
   hideSentence: string;
   blindPeekHint: string;
   notePlaceholder: string;
+  rawSubtitles: string;
+  rawCuesTab: string;
+  rawJsonTab: string;
+  copyRawJson: string;
+  noRawCues: string;
 
   // VideoDetailView
   playerError: string;
@@ -183,6 +188,11 @@ export const MESSAGES: Record<EarLocale, I18nMessages> = {
     hideSentence: "Mask sentence",
     blindPeekHint: "Tap masked words to peek, or press M to reveal all",
     notePlaceholder: "Jot down a quick note for this sentence…",
+    rawSubtitles: "Raw subtitles",
+    rawCuesTab: "Raw Cues",
+    rawJsonTab: "Raw JSON",
+    copyRawJson: "Copy JSON",
+    noRawCues: "No raw caption cues available for this video.",
 
     playerError: "Player failed to load",
 
@@ -285,6 +295,11 @@ export const MESSAGES: Record<EarLocale, I18nMessages> = {
     hideSentence: "重新打码",
     blindPeekHint: "点击词块逐词揭晓，或按 M 显示整句",
     notePlaceholder: "给这一句记条简短笔记…",
+    rawSubtitles: "原始字幕数据",
+    rawCuesTab: "原始 Cues",
+    rawJsonTab: "原始 JSON",
+    copyRawJson: "复制 JSON",
+    noRawCues: "当前视频没有可用的原始字幕 cues。",
 
     playerError: "播放器加载失败",
 

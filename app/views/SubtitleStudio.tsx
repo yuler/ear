@@ -28,6 +28,7 @@ export type SubtitleStudioProps = {
   onToggleReveal: (index: number) => void;
   onListen: (sentence: Sentence) => void;
   onRepeatSentence: () => void;
+  onOpenRawSubtitles?: () => void;
   side: () => boolean;
   compact: () => boolean;
   large?: () => boolean;
@@ -69,6 +70,7 @@ function ActiveSentenceInspector(props: {
   onToggleReveal: (sentenceIdx: number) => void;
   onRepeatSentence: () => void;
   onCopySentence: (s: Sentence) => void;
+  onOpenRawSubtitles?: () => void;
 }) {
   const m = () => t(props.language());
   const cur = () => props.sentence();
@@ -294,6 +296,16 @@ function ActiveSentenceInspector(props: {
                 tone={props.isBookmarked() ? "brand" : "muted-foreground"}
               />
             </Button>
+            <If when={Boolean(props.onOpenRawSubtitles)}>
+              <Button
+                onPress={() => props.onOpenRawSubtitles?.()}
+                class="h-7 w-7 items-center justify-center rounded-lg transition hover:bg-well active:bg-accent"
+                accessibilityLabel={m().rawSubtitles}
+                tooltip={<AppTooltip label={m().rawSubtitles} />}
+              >
+                <Icon name="subtitles" size={14} tone="muted-foreground" />
+              </Button>
+            </If>
           </View>
           <Text class="font-mono text-[11px] tabular-nums text-dim">
             {cur().index + 1}/{props.totalCount()} · {cur().wpm} wpm
@@ -428,6 +440,7 @@ export function SubtitleStudio(props: SubtitleStudioProps) {
           onToggleReveal={props.onToggleReveal}
           onRepeatSentence={props.onRepeatSentence}
           onCopySentence={copySentence}
+          onOpenRawSubtitles={props.onOpenRawSubtitles}
         />
       )}
     </If>

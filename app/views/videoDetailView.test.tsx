@@ -18,6 +18,10 @@ import type { SentenceLengthMode } from "../youtube/captions";
 import { VideoDetailView } from "./VideoDetailView";
 import { shouldShowPlayerHeader } from "./VideoDetailHeader";
 import { shouldShowPlayerControls } from "./VideoPlayerControls";
+import {
+  buildRawSubtitlesJson,
+  RawSubtitlesModal,
+} from "./RawSubtitlesModal";
 import { SentenceRow } from "./SentenceRow";
 import {
   normalizeWordToken,
@@ -480,6 +484,28 @@ test("SentenceRow: shows clean 2D stream row without redundant badges or buttons
   expect(str.includes("Repeat")).toBe(false);
   expect(str.includes("i-1")).toBe(false);
   expect(str.includes("Masked")).toBe(false);
+});
+
+test("RawSubtitlesModal formats raw cues and sentences JSON for inspection", () => {
+  const cues = [
+    { startMs: 0, endMs: 3200, text: "Welcome to English listening practice." },
+  ];
+  const json = buildRawSubtitlesJson("/tmp/v1.captions.json", cues, sentences);
+  const parsed = JSON.parse(json);
+  expect(parsed.captionsPath).toBe("/tmp/v1.captions.json");
+  expect(parsed.cueCount).toBe(1);
+  expect(parsed.sentenceCount).toBe(sentences.length);
+  expect(parsed.cues[0].text).toBe("Welcome to English listening practice.");
+
+  const modal = RawSubtitlesModal({
+    open: () => true,
+    onClose: () => {},
+    captionsPath: () => "/tmp/v1.captions.json",
+    cues: () => cues,
+    sentences: () => sentences,
+    language: () => "zh",
+  });
+  expect(modal).toBeDefined();
 });
 
 

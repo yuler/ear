@@ -29,6 +29,7 @@ import {
   subtitleTextSize,
   type PlayerLayoutMode,
 } from "./playerLayout";
+import { RawSubtitlesModal } from "./RawSubtitlesModal";
 import { SubtitleStudio } from "./SubtitleStudio";
 import { VideoDetailHeader } from "./VideoDetailHeader";
 import { shouldShowPlayerControls, VideoPlayerControls } from "./VideoPlayerControls";
@@ -164,9 +165,12 @@ export function VideoDetailView(props: VideoDetailViewProps) {
     closeTimer = setTimeout(() => props.onClose(), CLOSE_DURATION_MS + 20);
   };
 
+  const rawSubtitlesOpen = signal(false);
+  const playerDisabled = () => Boolean(props.disabled?.()) || rawSubtitlesOpen();
+
   const ctl = createPlayerController({
     entry,
-    disabled: props.disabled,
+    disabled: playerDisabled,
     onClose: handleClose,
     onResegment: () => rowNodes.clear(),
   });
@@ -379,6 +383,7 @@ export function VideoDetailView(props: VideoDetailViewProps) {
         onToggleReveal={ctl.toggleReveal}
         onListen={ctl.playSentence}
         onRepeatSentence={ctl.repeatCurrent}
+        onOpenRawSubtitles={() => rawSubtitlesOpen.set(true)}
         side={side}
         compact={compactStudio}
         large={largeStudio}
@@ -477,6 +482,15 @@ export function VideoDetailView(props: VideoDetailViewProps) {
           width={() => layout().mainWidth}
         />
       </View>
+
+      <RawSubtitlesModal
+        open={rawSubtitlesOpen}
+        onClose={() => rawSubtitlesOpen.set(false)}
+        captionsPath={() => entry().captionsPath}
+        cues={ctl.rawCues}
+        sentences={ctl.sentences}
+        language={language}
+      />
     </View>
   );
 }
