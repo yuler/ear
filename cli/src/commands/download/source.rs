@@ -10,6 +10,8 @@ pub struct ResolvedStreams {
     pub video_title: String,
     pub video_url: Option<String>,
     pub audio_url: Option<String>,
+    pub video_width: Option<u32>,
+    pub video_height: Option<u32>,
     pub thumbnail_url: Option<String>,
     pub player_json: Option<serde_json::Value>,
 }
@@ -39,6 +41,8 @@ pub fn resolve_streams(video_id: &str, requested_quality: &str) -> ResolvedStrea
     let mut video_title = video_id.to_string();
     let mut video_url = None;
     let mut audio_url = None;
+    let mut video_width = None;
+    let mut video_height = None;
     let mut thumbnail_url = None;
     let mut player_json = None;
 
@@ -87,6 +91,8 @@ pub fn resolve_streams(video_id: &str, requested_quality: &str) -> ResolvedStrea
             {
                 video_url = q.video_url.clone();
                 audio_url = q.audio_url.clone();
+                video_width = q.video_width;
+                video_height = q.video_height;
             }
         }
         thumbnail_url = Some(format!("https://i.ytimg.com/vi/{video_id}/hqdefault.jpg"));
@@ -105,6 +111,8 @@ pub fn resolve_streams(video_id: &str, requested_quality: &str) -> ResolvedStrea
         video_title,
         video_url,
         audio_url,
+        video_width,
+        video_height,
         thumbnail_url,
         player_json,
     }

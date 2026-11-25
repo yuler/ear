@@ -4,7 +4,7 @@
 
 ## 目标
 
-- 删除写死的 `app/views/plaza/data.ts`。
+- 删除写死的 `desktop/views/plaza/data.ts`。
 - Discover 的数据放在本仓库 GitHub 上的 `api/discover/` 目录里,app 定时拉取。
 - 代码里所有 `plaza` / `Plaza` / 「广场」统一改名为 `discover` / `Discover`。
 - 所有网络请求和缓存都放在 Rust 的 `ear discover` 子命令里。TS 只负责 spawn、解析 JSON、筛选和展示。
@@ -126,11 +126,11 @@ api/discover/
 
 ## 改名:plaza → discover
 
-我扫过代码,`app/` 下有 10 个文件引用了 plaza 或「广场」。
+我扫过代码,`desktop/` 下有 10 个文件引用了 plaza 或「广场」。
 
 | 现在                                         | 改为                                                |
 | -------------------------------------------- | --------------------------------------------------- |
-| `app/views/plaza/`                           | `app/views/discover/`                               |
+| `desktop/views/plaza/`                       | `desktop/views/discover/`                           |
 | `PlazaView.tsx`、`PlazaCard.tsx`             | `DiscoverView.tsx`、`DiscoverCard.tsx`              |
 | `PlazaFilters.tsx`、`plaza.test.tsx`         | `DiscoverFilters.tsx`、`discover.test.tsx`          |
 | `PlazaItem`、`PlazaLevel`、`PlazaLanguage`   | `DiscoverItem`、`DiscoverLevel`、`DiscoverLanguage` |
@@ -145,7 +145,7 @@ api/discover/
 - 注释:`types.ts` 的 "plaza recommendations"、`Sidebar.tsx` 的 "Plaza recommendations moved to sidebar"、`App.tsx` 的 "Media list / Plaza"。
 - 测试:`App.test.tsx` 里等待和断言的标题文案;`plaza.test.tsx` 里的测试名 "Plaza filtering logic ..."。
 - 常量:`PLAZA_RECOMMENDATIONS` 在第 5 步随 `data.ts` 一起删除。第 1 步先改名为 `DISCOVER_ITEMS`,保证第 1 步只改名、不改行为。
-- 生成文件:`app/.nsh/test/plaza.test.tsx.run.js` 由 `nsh test` 生成,改名后删掉旧文件即可。
+- 生成文件:`desktop/.nsh/test/plaza.test.tsx.run.js` 由 `nsh test` 生成,改名后删掉旧文件即可。
 
 涉及文件:`App.tsx`、`App.test.tsx`、`ui/Sidebar.tsx`、`ui/TopBar.tsx` 和 `views/plaza/` 下的全部文件。tab id 没有写进 `store.ts` 的持久化设置,改名不需要迁移用户数据。
 

@@ -1,0 +1,172 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>方案 B · 双区精研工作台 — Ear Desktop 原型</title>
+<link rel="stylesheet" href="./detail-shared.css" />
+<style>
+  /* 方案 B: 横屏下方左右双区充分利用宽屏; 竖屏右侧上下双区; 800×560 自动收敛为单区 Tab */
+  .detail-root.is-landscape { --land-video-h: 52%; }
+  .detail-root.is-portrait { --port-sub-w: 46%; --port-sub-max: 560px; }
+
+  .b-studio {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: row;
+    width: 100%;
+    max-width: 1360px;
+    margin: 0 auto;
+    padding: 14px 18px;
+    gap: 16px;
+  }
+  .detail-root.is-portrait .b-studio {
+    flex-direction: column;
+    max-width: none;
+    padding: 12px 14px;
+    gap: 12px;
+  }
+
+  /* 左/上区：清爽双语字幕流 */
+  .b-stream {
+    flex: 1.05;
+    min-height: 0;
+    min-width: 0;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding-right: 6px;
+  }
+  .b-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 9px 12px;
+    border-radius: 11px;
+    border-left: 2.5px solid transparent;
+    text-align: left;
+    transition: 140ms;
+  }
+  .b-row:hover { background: var(--well); }
+  .b-row.is-cur {
+    background: var(--brand-soft);
+    border-left-color: var(--brand);
+  }
+  .b-time {
+    font: 11px/1.6 ui-monospace, monospace;
+    color: var(--dim);
+    flex-shrink: 0;
+    margin-top: 2px;
+  }
+  .b-row-body { min-width: 0; flex: 1; }
+  .b-row-en { font-size: 14px; font-weight: 500; color: var(--fg); line-height: 1.42; }
+  .b-row.is-cur .b-row-en { font-weight: 600; }
+  .b-row-zh { font-size: 12px; color: var(--muted); margin-top: 2px; }
+  .b-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--brand); margin-top: 7px; flex-shrink: 0; }
+
+  /* 右/下区：当前句精研卡 */
+  .b-inspector {
+    flex: 0.95;
+    min-height: 0;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    overflow-y: auto;
+  }
+  .detail-root.is-portrait .b-stream { flex: 1; }
+  .detail-root.is-portrait .b-inspector { flex: 0 0 auto; }
+
+  .b-card {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 16px;
+    padding: 15px 17px 11px;
+    box-shadow: var(--shadow-card);
+    display: flex;
+    flex-direction: column;
+    gap: 9px;
+  }
+  .b-card .sentence-words { font-size: 20px; }
+  .b-card-zh { font-size: 14px; color: var(--muted); padding-left: 3px; }
+  .b-note-input {
+    width: 100%;
+    min-height: 36px;
+    padding: 7px 10px;
+    border-radius: 9px;
+    border: 1px solid var(--line);
+    background: var(--well);
+    color: var(--fg);
+    font: 12px/1.45 inherit;
+    resize: none;
+    outline: none;
+  }
+  .b-note-input:focus { border-color: var(--brand); }
+
+  /* 800×560 最小窗口下，紧凑隐藏次要笔记框与时间戳保持舒适阅读 */
+  .app-window.win-sm .b-studio { padding: 10px 12px; gap: 10px; }
+  .app-window.win-sm .b-time { display: none; }
+  .app-window.win-sm .b-card { padding: 11px 13px 8px; gap: 6px; }
+  .app-window.win-sm .b-card .sentence-words { font-size: 17px; }
+  .app-window.win-sm .b-note-input { display: none; }
+  .app-window.win-sm .detail-root.is-portrait .b-stream { max-height: 38%; }
+
+  /* 大屏 1600+ 提升字号与精研卡宽度 */
+  .app-window.win-lg .b-card .sentence-words { font-size: 23px; }
+  .app-window.win-lg .b-row-en { font-size: 15px; }
+</style>
+</head>
+<body>
+<script src="./detail-data.js"></script>
+<script src="./detail-shared.js"></script>
+<script>
+  EarDetailProto.mountPrototype({
+    id: "b",
+    renderSubtitle(container, state, api) {
+      const list = api.transcript;
+      const cur = list[state.activeIdx];
+      const note = state.notes[cur.id] || "";
+
+      const rowsHtml = list
+        .map((s) => {
+          const isCur = s.id === state.activeIdx;
+          const text = state.blind && !isCur ? s.en.replace(/[A-Za-z']/g, "•") : s.en;
+          return `
+            <button class="b-row ${isCur ? "is-cur" : ""}" data-jump="${s.id}">
+              <span class="b-time">${s.time.split("–")[0].trim()}</span>
+              <div class="b-row-body">
+                <div class="b-row-en">${text}</div>
+                ${state.showTrans ? `<div class="b-row-zh">${s.zh}</div>` : ""}
+              </div>
+              ${state.bookmarks.has(s.id) ? '<span class="b-dot" title="已收藏"></span>' : ""}
+            </button>`;
+        })
+        .join("");
+
+      container.innerHTML = `
+        <div class="b-studio">
+          <div class="b-stream">${rowsHtml}</div>
+          <aside class="b-inspector">
+            ${api.renderCalloutHtml(cur)}
+            <div class="b-card">
+              <div class="sentence-words">${api.renderWordsHtml(cur)}</div>
+              ${state.showTrans ? `<div class="b-card-zh">${state.blind ? "（盲听态：点词逐个揭晓）" : cur.zh}</div>` : ""}
+              ${state.showAi ? `<div class="ai-box"><strong>AI 精讲：</strong>${cur.ai}</div>` : ""}
+              <textarea class="b-note-input" rows="1" id="bNote" placeholder="给这一句记条简短笔记…">${note}</textarea>
+              ${api.renderActionBarHtml(cur)}
+            </div>
+          </aside>
+        </div>
+      `;
+
+      const noteEl = container.querySelector("#bNote");
+      if (noteEl) {
+        noteEl.addEventListener("input", (e) => { state.notes[cur.id] = e.target.value; });
+      }
+    },
+  });
+</script>
+</body>
+</html>

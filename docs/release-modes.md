@@ -19,7 +19,7 @@ that delivery succeeded. A fresh retry or later UI commit still requires full
 delivery until the native change has a successful release run. Any change to these inputs
 requires a full update:
 
-- `app/icon.*` (including this PR's installed icon), `app/nsh.json` (platform
+- `desktop/icon.*` (including this PR's installed icon), `desktop/nsh.json` (platform
   metadata, capabilities and updater trust/configuration).
 - `cli/**`, `scripts/linux-launcher.sh` (native executable/bundle contents).
 - `mise.toml` (pinned NSH runtime), `.github/workflows/release.yml` (packaging).

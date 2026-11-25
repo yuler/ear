@@ -17,7 +17,7 @@ fi
 changed=$(git diff --name-only --no-renames "$base" "$head" --)
 while IFS= read -r path; do
   case "$path" in
-    app/icon.*|app/nsh.json|cli/*|mise.toml|scripts/linux-launcher.sh|.github/workflows/release.yml)
+    desktop/icon.*|desktop/nsh.json|cli/*|mise.toml|scripts/linux-launcher.sh|.github/workflows/release.yml)
       echo full
       exit 0
       ;;

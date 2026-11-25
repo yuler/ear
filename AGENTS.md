@@ -11,7 +11,7 @@ Guidelines for coding agents for this repo
 - **Commit & PR title format**: `emoji [scope] The main change` — example: `✨ [core] Adopt shared account slug tenancy for personal and team`. PR title follows the exact same format.
 - **No agent trailers**: Do not add agent trailers to commits (`Made-with:`, `Co-Authored-By: Claude`, Cursor, etc.). Message body only when it adds real context.
 - **Auto-PR on completion**: Once a feature or bugfix is implemented and verified (checks/tests pass), commit, push the branch, create a PR, and remove the worktree automatically unless the user explicitly says not to.
-- **Automated trunk release & versioning**: Single source of truth for versioning is Git Tags (`v*`). Releases are 100% automated by CI upon merge/push to `main`. Subprojects (`app/nsh.json`, `cli/Cargo.toml`) use `"0.0.0"` locally as development placeholders, and have their release version dynamically injected during CI packaging.
+- **Automated trunk release & versioning**: Single source of truth for versioning is Git Tags (`v*`). Releases are 100% automated by CI upon merge/push to `main`. Subprojects (`desktop/nsh.json`, `cli/Cargo.toml`) use `"0.0.0"` locally as development placeholders, and have their release version dynamically injected during CI packaging.
 
 ### Code & Architecture
 

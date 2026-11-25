@@ -1,0 +1,205 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>方案 C · 沉浸声波提词卡 — Ear Desktop 原型</title>
+<link rel="stylesheet" href="./detail-shared.css" />
+<style>
+  /* 方案 C: 视频略大(横屏 58:42, 竖屏 57:43), 带轻量声波桥接 + 一体化精听大卡 */
+  .detail-root.is-landscape { --land-video-h: 58%; }
+  .detail-root.is-portrait { --port-sub-w: 43%; --port-sub-max: 480px; }
+
+  .c-wrap {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    padding: 12px 20px 18px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+  .c-col {
+    width: 100%;
+    max-width: 700px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+    margin: auto 0;
+  }
+
+  /* 轻声波胶囊（承接参考图的音频呼吸感，同时高度极克制） */
+  .c-wave-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    height: 30px;
+    padding: 0 18px;
+    border-radius: 999px;
+    background: var(--card);
+    border: 1px solid var(--line);
+    box-shadow: var(--shadow-pill);
+  }
+  .c-bar {
+    width: 3px;
+    border-radius: 999px;
+    background: var(--brand);
+    opacity: 0.45;
+    animation: wavePulse 1.3s ease-in-out infinite alternate;
+  }
+  .c-bar.mid { opacity: 0.92; }
+  .c-wave-pill.paused .c-bar { animation-play-state: paused; opacity: 0.28; }
+  @keyframes wavePulse {
+    from { transform: scaleY(0.45); }
+    to { transform: scaleY(1); }
+  }
+
+  /* 一体化精听大卡：将重点表达融进卡片顶部带状区，视觉更整洁、省纵向空间 */
+  .c-card {
+    width: 100%;
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 18px;
+    overflow: hidden;
+    box-shadow: var(--shadow-card);
+  }
+  .c-card-top {
+    padding: 9px 16px;
+    background: var(--amber-grad);
+    border-bottom: 1px solid var(--amber-border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+  }
+  .c-card-top.is-word {
+    background: var(--brand-soft);
+    border-bottom-color: rgba(47, 124, 246, 0.25);
+  }
+  .c-card-body {
+    padding: 16px 18px 11px;
+    display: flex;
+    flex-direction: column;
+    gap: 9px;
+  }
+  .c-card-body .sentence-words { font-size: 23px; }
+  .c-zh { font-size: 14px; color: var(--muted); padding-left: 3px; }
+
+  /* 下方柔和单行预告条 */
+  .c-peek-row {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 4px 10px;
+  }
+  .c-peek-btn {
+    flex: 1;
+    min-width: 0;
+    text-align: left;
+    font-size: 13px;
+    color: var(--muted);
+    opacity: 0.6;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    padding: 4px 8px;
+    border-radius: 8px;
+    transition: 140ms;
+  }
+  .c-peek-btn:hover { opacity: 1; background: var(--well); }
+  .c-peek-btn.is-right { text-align: right; }
+
+  /* 竖屏右侧空间充裕：展示多句上下弱化流 */
+  .c-port-ctx {
+    width: 100%;
+    display: none;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .detail-root.is-portrait .c-port-ctx { display: flex; }
+  .detail-root.is-portrait .c-peek-row { display: none; }
+  .c-port-item {
+    text-align: left;
+    padding: 6px 12px;
+    border-radius: 10px;
+    opacity: 0.42;
+    transition: 140ms;
+  }
+  .c-port-item:hover { opacity: 0.88; background: var(--well); }
+  .c-port-en { font-size: 15px; font-weight: 600; color: var(--fg); }
+  .c-port-zh { font-size: 12px; color: var(--muted); margin-top: 2px; }
+
+  /* 800×560 最小窗口收紧 */
+  .app-window.win-sm .c-wrap { padding: 8px 14px 10px; }
+  .app-window.win-sm .c-col { gap: 7px; }
+  .app-window.win-sm .c-wave-pill { height: 24px; padding: 0 12px; }
+  .app-window.win-sm .c-card-top { padding: 6px 12px; }
+  .app-window.win-sm .c-card-body { padding: 11px 14px 8px; gap: 6px; }
+  .app-window.win-sm .c-card-body .sentence-words { font-size: 18px; }
+  .app-window.win-sm .c-zh { font-size: 12px; }
+  .app-window.win-lg .c-col { max-width: 780px; }
+  .app-window.win-lg .c-card-body .sentence-words { font-size: 26px; }
+</style>
+</head>
+<body>
+<script src="./detail-data.js"></script>
+<script src="./detail-shared.js"></script>
+<script>
+  const BARS = [6, 9, 13, 8, 17, 21, 14, 19, 11, 16, 9, 13, 7, 10, 6];
+  EarDetailProto.mountPrototype({
+    id: "c",
+    renderSubtitle(container, state, api) {
+      const list = api.transcript;
+      const cur = list[state.activeIdx];
+      const prev = list[state.activeIdx - 1];
+      const next = list[state.activeIdx + 1];
+      const next2 = list[state.activeIdx + 2];
+
+      const waveHtml = `
+        <div class="c-wave-pill ${state.playing ? "" : "paused"}" title="语音节奏波形">
+          ${BARS.map((h, i) => `<span class="c-bar ${i >= 4 && i <= 10 ? "mid" : ""}" style="height:${h}px;animation-delay:${(i * 70) % 500}ms"></span>`).join("")}
+        </div>`;
+
+      // Integrated top header inside the single card
+      const tempWrap = document.createElement("div");
+      tempWrap.innerHTML = api.renderCalloutHtml(cur);
+      const strip = tempWrap.firstElementChild;
+      const isWord = strip.classList.contains("is-word-mode");
+      const topBarHtml = `<div class="c-card-top ${isWord ? "is-word" : ""}">${strip.innerHTML}</div>`;
+
+      const portCtx = (s) =>
+        s ? `<button class="c-port-item" data-jump="${s.id}">
+              <div class="c-port-en">${state.blind ? s.en.replace(/[A-Za-z']/g, "•") : s.en}</div>
+              ${state.showTrans && !state.blind ? `<div class="c-port-zh">${s.zh}</div>` : ""}
+            </button>` : "";
+
+      container.innerHTML = `
+        <div class="c-wrap">
+          <div class="c-col">
+            ${waveHtml}
+            <div class="c-port-ctx">${portCtx(prev)}</div>
+            <article class="c-card">
+              ${topBarHtml}
+              <div class="c-card-body">
+                <div class="sentence-words">${api.renderWordsHtml(cur)}</div>
+                ${state.showTrans ? `<div class="c-zh">${state.blind ? "（盲听态：点词揭晓或按 M 显示原文）" : cur.zh}</div>` : ""}
+                ${state.showAi ? `<div class="ai-box"><strong>AI 精讲：</strong>${cur.ai}</div>` : ""}
+                ${api.renderActionBarHtml(cur)}
+              </div>
+            </article>
+            <div class="c-peek-row">
+              ${prev ? `<button class="c-peek-btn" data-jump="${prev.id}">← ${prev.en}</button>` : `<span></span>`}
+              ${next ? `<button class="c-peek-btn is-right" data-jump="${next.id}">${next.en} →</button>` : `<span></span>`}
+            </div>
+            <div class="c-port-ctx">${portCtx(next)}${portCtx(next2)}</div>
+          </div>
+        </div>
+      `;
+    },
+  });
+</script>
+</body>
+</html>

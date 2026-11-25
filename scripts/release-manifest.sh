@@ -10,7 +10,7 @@ esac
 pkg="dist/dev.yuler.ear-${build}.nshpkg"
 package_args=()
 if [ "$mode" = ota ] && [ -f keys/release.secret ] && [ -f keys/release.cert ]; then
-  nsh publish --key keys/release.secret --cert keys/release.cert --build "$build" -o "$pkg" app/
+  nsh publish --key keys/release.secret --cert keys/release.cert --build "$build" -o "$pkg" desktop/
   package_args=(--package "$pkg")
 fi
 key_args=()
@@ -18,10 +18,10 @@ if [ -f keys/update.secret ]; then
   key_args=(--key keys/update.secret)
 else
   echo "::warning::keys/update.secret is missing; using an unsigned fallback manifest"
-  jq 'del(.updater)' app/nsh.json > app/nsh.json.tmp
-  mv app/nsh.json.tmp app/nsh.json
+  jq 'del(.updater)' desktop/nsh.json > desktop/nsh.json.tmp
+  mv desktop/nsh.json.tmp desktop/nsh.json
 fi
-nsh update-manifest dist/Ear-*.tar.gz dist/Ear-*.zip "${package_args[@]}" "${key_args[@]}" --entry app/ --notes dist/release_notes.md -o dist/
+nsh update-manifest dist/Ear-*.tar.gz dist/Ear-*.zip "${package_args[@]}" "${key_args[@]}" --entry desktop/ --notes dist/release_notes.md -o dist/
 # Verify the actual generated manifest, before tagging or publishing anything.
 if [ "$mode" = full ]; then
   jq -e 'has("package") | not' dist/latest.json >/dev/null

@@ -112,10 +112,10 @@ jobs:
           cache_key_prefix: mise-nsh-v1
 
       - name: Typecheck
-        run: nsh check app
+        run: nsh check desktop
 
-      - name: Test App
-        run: nsh test app
+      - name: Test Desktop
+        run: nsh test desktop
 
       - name: Test CLI
         run: cargo test --manifest-path cli/Cargo.toml
@@ -160,7 +160,7 @@ jobs:
         shell: bash
         run: |
           VERSION="${{ needs.prepare.outputs.version }}"
-          jq --arg v "$VERSION" '.version = $v' app/nsh.json > app/nsh.json.tmp && mv app/nsh.json.tmp app/nsh.json
+          jq --arg v "$VERSION" '.version = $v' desktop/nsh.json > desktop/nsh.json.tmp && mv desktop/nsh.json.tmp desktop/nsh.json
           awk -v v="$VERSION" '!done && /^version = "/ { $0 = "version = \"" v "\""; done=1 } { print }' cli/Cargo.toml > cli/Cargo.toml.tmp && mv cli/Cargo.toml.tmp cli/Cargo.toml
           grep -q "^version = \"$VERSION\"$" cli/Cargo.toml
 
@@ -168,9 +168,9 @@ jobs:
         shell: bash
         run: cargo build --release --manifest-path cli/Cargo.toml
 
-      - name: Package NSH App (${{ matrix.target }})
+      - name: Package NSH Desktop (${{ matrix.target }})
         shell: bash
-        run: nsh package --target ${{ matrix.target }} app/
+        run: nsh package --target ${{ matrix.target }} desktop/
 
       # Linux archive assembly
       - name: Assemble Linux Bundle
@@ -233,7 +233,7 @@ jobs:
         shell: bash
         run: |
           VERSION="${{ needs.prepare.outputs.version }}"
-          jq --arg v "$VERSION" '.version = $v' app/nsh.json > app/nsh.json.tmp && mv app/nsh.json.tmp app/nsh.json
+          jq --arg v "$VERSION" '.version = $v' desktop/nsh.json > desktop/nsh.json.tmp && mv desktop/nsh.json.tmp desktop/nsh.json
 
       - name: Download all build artifacts
         uses: actions/download-artifact@v4
@@ -264,7 +264,7 @@ jobs:
           fi
 
           # Also keep raw bytecode bundle for fallback
-          nsh package --target linux app/
+          nsh package --target linux desktop/
           cp .nsh/out/Ear/nsh/bundle.nshc dist/bundle.nshc
 
           COMMIT_SUBJECT=$(git log -1 --format="%s" 2>/dev/null || echo "Release ${{ needs.prepare.outputs.tag }}")

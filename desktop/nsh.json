@@ -1,0 +1,88 @@
+{
+  "name": "Ear",
+  "id": "dev.yuler.ear",
+  "version": "0.0.0",
+  "build": 1,
+  "icon": "icon.png",
+  "singleInstance": true,
+  "window": {
+    "defaultSize": {
+      "width": 1200,
+      "height": 800
+    },
+    "minSize": {
+      "width": 800,
+      "height": 560
+    },
+    "restoreBounds": true
+  },
+  "updater": {
+    "github": "yuler/ear",
+    "publicKey": "afYAB8DPnOq0sIl2NOMFatEFS+DoPs6C01B4aReXyy4=",
+    "packages": {
+      "roots": [
+        "DyJPidhdmiTBxcizxAGmqxP4xJnNI/IIOV4au0Ni/u4="
+      ]
+    }
+  },
+  "appearance": "dark",
+  "theme": "theme.json",
+  "capabilities": {
+    "statusBar": true,
+    "clipboard": true,
+    "network": {
+      "hosts": [
+        "*.youtube.com",
+        "youtube.com",
+        "*.googlevideo.com",
+        "*.ytimg.com",
+        "api.github.com",
+        "github.com",
+        "objects.githubusercontent.com",
+        "raw.githubusercontent.com"
+      ]
+    },
+    "fs": {
+      "read": [
+        "${dataDir}",
+        "${homeDir}/Downloads"
+      ],
+      "write": [
+        "${dataDir}",
+        "${homeDir}/Downloads"
+      ]
+    },
+    "process": {
+      "env": [
+        "EAR_DATA_DIR",
+        "EAR_ENV",
+        "DISPLAY",
+        "WAYLAND_DISPLAY",
+        "XDG_RUNTIME_DIR",
+        "DBUS_SESSION_BUS_ADDRESS",
+        "XDG_CURRENT_DESKTOP",
+        "XDG_DATA_DIRS",
+        "XDG_CONFIG_DIRS",
+        "USER",
+        "LOGNAME",
+        "XAUTHORITY"
+      ],
+      "execute": [
+        "ear",
+        "/Applications/Ear.app/Contents/Helpers/ear",
+        "ear.exe",
+        "yt-dlp",
+        "ffmpeg",
+        "df",
+        "xdg-open",
+        "open",
+        "gio",
+        "nautilus",
+        "dolphin",
+        "dbus-send",
+        "gdbus",
+        "explorer"
+      ]
+    }
+  }
+}

@@ -12,6 +12,7 @@ use crate::commands::download::source::{fallback_yt_dlp, refresh_stream_url, res
 use crate::commands::download::transfer::{
     download_stream_parallel, download_stream_sequential, probe_remote_size, StreamDownloadParams,
 };
+use crate::commands::probe::probe_video_dimensions;
 use crate::emit::emit_json;
 use crate::youtube::{extract_video_id, is_valid_id};
 use serde_json::json;
@@ -136,6 +137,7 @@ pub fn run(args: &[String]) -> Result<(), String> {
     }
     let thumbnail_url = resolved.thumbnail_url;
     let player_json = resolved.player_json;
+    let resolved_dims = resolved.video_width.zip(resolved.video_height);
 
     // Initialize or update library entry with state: downloading
     if let Some(ref lib_dir) = library_dir {
@@ -149,6 +151,12 @@ pub fn run(args: &[String]) -> Result<(), String> {
             );
             entry.video_path = if is_audio_only { None } else { Some(output_path.to_string_lossy().to_string()) };
             entry.audio_path = if is_audio_only { Some(output_path.to_string_lossy().to_string()) } else { None };
+            if !is_audio_only {
+                if let Some((w, h)) = resolved_dims {
+                    entry.video_width = Some(w);
+                    entry.video_height = Some(h);
+                }
+            }
             entry.state = "downloading".to_string();
             let _ = entry.save(lib_dir);
         }
@@ -424,6 +432,13 @@ pub fn run(args: &[String]) -> Result<(), String> {
         }
 
         // Mark library entry as ready
+        let final_dims = if is_audio_only {
+            None
+        } else {
+            resolved_dims.or_else(|| {
+                probe_video_dimensions(&output_path).map(|d| (d.width, d.height))
+            })
+        };
         if let Some(ref lib) = library_dir {
             if !video_id.is_empty() {
                 sync_entry_ready(
@@ -433,6 +448,7 @@ pub fn run(args: &[String]) -> Result<(), String> {
                     saved_captions_path.as_deref(),
                     final_size,
                     is_audio_only,
+                    final_dims,
                 );
             }
         }
@@ -442,7 +458,9 @@ pub fn run(args: &[String]) -> Result<(), String> {
             "type": "done",
             "percent": 100.0,
             "path": output_path.to_string_lossy(),
-            "sizeBytes": final_size
+            "sizeBytes": final_size,
+            "videoWidth": final_dims.map(|d| d.0),
+            "videoHeight": final_dims.map(|d| d.1)
         }));
         return Ok(());
     }
@@ -460,6 +478,13 @@ pub fn run(args: &[String]) -> Result<(), String> {
                 }
             }
         }
+        let final_dims = if is_audio_only {
+            None
+        } else {
+            resolved_dims.or_else(|| {
+                probe_video_dimensions(&output_path).map(|d| (d.width, d.height))
+            })
+        };
         if let Some(ref lib) = library_dir {
             sync_entry_ready(
                 lib,
@@ -468,6 +493,7 @@ pub fn run(args: &[String]) -> Result<(), String> {
                 saved_captions_path.as_deref(),
                 size,
                 is_audio_only,
+                final_dims,
             );
         }
         emit_json(json!({
@@ -475,7 +501,9 @@ pub fn run(args: &[String]) -> Result<(), String> {
             "type": "done",
             "percent": 100.0,
             "path": output_path.to_string_lossy(),
-            "sizeBytes": size
+            "sizeBytes": size,
+            "videoWidth": final_dims.map(|d| d.0),
+            "videoHeight": final_dims.map(|d| d.1)
         }));
         return Ok(());
     }

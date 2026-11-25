@@ -1,5 +1,5 @@
 // PROTOTYPE. Poster → video shared-element transition, as in the desktop app
-// (app/views/viewTransition.ts): the tapped card's thumbnail flies into the player's video
+// (desktop/views/viewTransition.ts): the tapped card's thumbnail flies into the player's video
 // box; going back flies it into the card again. Uses `el`, `state` from ios-mvp.js and
 // openPlayer / closePlayer from ios-player.js.
 

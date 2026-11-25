@@ -25,7 +25,7 @@ Ear 桌面客户端通过 `nsh/updater` 做自动更新。本文说明 OTA（`.n
 
 ## 2. 客户端检查顺序
 
-`app/updater.ts` 与官方建议一致：
+`desktop/updater.ts` 与官方建议一致：
 
 1. `checkForPackage()` → 有则走增量（`isIncremental: true`）
 2. 否则 `checkForUpdate()` → 全量安装包（`isIncremental: false`）
@@ -47,7 +47,7 @@ Ear 桌面客户端通过 `nsh/updater` 做自动更新。本文说明 OTA（`.n
 
 Implemented full-update controls:
 
-- Automatic detection compares all changes since the last successful `release.yml` workflow on main (not merely a pushed tag or a partially published Release): `app/icon.*`, `app/nsh.json`, `cli/**`, `mise.toml`, `scripts/linux-launcher.sh`, and `.github/workflows/release.yml` require full delivery.
+- Automatic detection compares all changes since the last successful `release.yml` workflow on main (not merely a pushed tag or a partially published Release): `desktop/icon.*`, `desktop/nsh.json`, `cli/**`, `mise.toml`, `scripts/linux-launcher.sh`, and `.github/workflows/release.yml` require full delivery.
 - `workflow_dispatch` with `full_update: true` forces full delivery for other shell-affecting changes. `false` keeps automatic selection; it does not force OTA.
 - Full delivery skips OTA publication, never passes `--package`, and verifies that the generated manifest has no `package` field before publication. UI-only releases retain signed OTA when signing material is available.
 - Commit markers and PR labels are not implemented controls.
@@ -73,4 +73,4 @@ Implemented full-update controls:
 2. 换 icon / 改 capabilities / 升 runtime：该次发版走**全量**（manifest 不含 package）。
 3. 客户端文案区分增量与全量即可；无需在 check 里「检测是否改了 icon」。
 
-相关实现：[`app/updater.ts`](../app/updater.ts)、[`app/ui/UpdateModal.tsx`](../app/ui/UpdateModal.tsx)、[`.github/workflows/release.yml`](../.github/workflows/release.yml)、[`docs/release-design.md`](./release-design.md)。
+相关实现：[`desktop/updater.ts`](../desktop/updater.ts)、[`desktop/ui/UpdateModal.tsx`](../desktop/ui/UpdateModal.tsx)、[`.github/workflows/release.yml`](../.github/workflows/release.yml)、[`docs/release-design.md`](./release-design.md)。
