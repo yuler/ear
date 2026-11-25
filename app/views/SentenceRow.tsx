@@ -2,7 +2,7 @@ import { Text, View } from "nsh";
 import type { EarLocale } from "../ui/i18n";
 import type { Sentence } from "../youtube/types";
 import type { SubtitleTextSize } from "./playerLayout";
-import { displaySentenceText, formatSentenceTime } from "./sentencePlayer";
+import { formatSentenceTime, isSentenceMasked } from "./sentencePlayer";
 
 export type SentenceRowProps = {
   sentence: () => Sentence;
@@ -28,16 +28,15 @@ const TEXT_SIZE_CLASS: Record<SubtitleTextSize, string> = {
 
 /**
  * Clean 2D transcript stream row for the Dual-Zone Studio.
- * Shows optional compact timestamp, sentence text (masked or revealed), and a
- * subtle brand dot when bookmarked; clicking jumps to and plays the sentence.
+ * Keeps the real text mounted at all times and cross-fades translucent mask bars
+ * over it when masked so toggling mask/reveal causes zero height jump or flicker.
  */
 export function SentenceRow(props: SentenceRowProps) {
   const s = () => props.sentence();
   const active = () => props.isActive();
   const compact = () => Boolean(props.compact?.());
   const bookmarked = () => Boolean(props.isBookmarked?.());
-  const displayText = () =>
-    displaySentenceText(s().text, props.isMaskAll(), props.isRevealed());
+  const masked = () => isSentenceMasked(props.isMaskAll(), props.isRevealed());
   const sizeClass = () => TEXT_SIZE_CLASS[props.textSize?.() ?? "md"];
 
   const handleTextPress = () => {
@@ -48,14 +47,24 @@ export function SentenceRow(props: SentenceRowProps) {
   return (
     <View
       onPress={() => props.onListen(s())}
-      class={`cursor-pointer flex-row items-start gap-2.5 rounded-xl px-2.5 py-2 transition ${
+      style={{
+        transitionProperty: "background-color, opacity",
+        transitionDuration: "200ms",
+        transitionTimingFunction: "ease-out",
+      }}
+      class={`cursor-pointer flex-row items-start gap-2.5 rounded-xl px-2.5 py-2 ${
         active() ? "bg-brand-soft/85" : "hover:bg-card/70"
       }`}
     >
       <View
-        class={`mt-1 h-3.5 w-[3px] shrink-0 rounded-full transition ${
-          active() ? "bg-brand" : "bg-transparent"
-        }`}
+        style={{
+          transitionProperty: "background-color, transform, opacity",
+          transitionDuration: "200ms",
+          transitionTimingFunction: "ease-out",
+          transform: active() ? [{ scaleY: 1 }] : [{ scaleY: 0.4 }],
+          opacity: active() ? 1 : 0,
+        }}
+        class="mt-1 h-3.5 w-[3px] shrink-0 rounded-full bg-brand"
       />
       <If when={!compact()}>
         <Text
@@ -66,16 +75,49 @@ export function SentenceRow(props: SentenceRowProps) {
           {formatSentenceTime(s().startMs)}
         </Text>
       </If>
-      <View onPress={handleTextPress} selectable class="min-w-0 flex-1 select-text">
+      <View
+        onPress={handleTextPress}
+        selectable
+        class="relative min-w-0 flex-1 select-text"
+      >
         <Text
+          style={{
+            opacity: masked() ? 0 : 1,
+            transitionProperty: "opacity",
+            transitionDuration: "180ms",
+            transitionTimingFunction: "ease-out",
+          }}
           class={`select-text leading-snug ${sizeClass()} ${
             active()
               ? "font-semibold text-foreground"
               : "font-medium text-foreground/75"
           }`}
         >
-          {displayText()}
+          {s().text}
         </Text>
+        <View
+          style={{
+            opacity: masked() ? 1 : 0,
+            pointerEvents: "none",
+            transitionProperty: "opacity",
+            transitionDuration: "180ms",
+            transitionTimingFunction: "ease-out",
+          }}
+          class="absolute inset-0 justify-center gap-1.5 py-0.5"
+        >
+          <View
+            class={`h-2.5 w-4/5 rounded-full ${
+              active() ? "bg-brand/25" : "bg-foreground/10"
+            }`}
+          />
+          <If when={s().wordCount > 7}>
+            <View
+              class={`h-2.5 w-3/5 rounded-full ${
+                active() ? "bg-brand/18" : "bg-foreground/10"
+              }`}
+            />
+          </If>
+        </View>
       </View>
       <If when={bookmarked()}>
         <View class="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-brand" />

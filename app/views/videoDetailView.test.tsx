@@ -27,6 +27,7 @@ import {
 } from "./RawSubtitlesModal";
 import { SentenceRow } from "./SentenceRow";
 import {
+  computeSpokenWordProgress,
   normalizeWordToken,
   splitSentenceTokens,
   SubtitleStudio,
@@ -445,6 +446,22 @@ test("SubtitleStudio tokenizes words cleanly and renders Dual-Zone Studio in sta
   ]);
   expect(normalizeWordToken("coming.")).toBe("coming");
   expect(normalizeWordToken("“one's,”")).toBe("one's");
+
+  // Character-weighted word sweep advances monotonically across a sentence's speech window.
+  const tokens = splitSentenceTokens("The bottom line is coming.");
+  expect(computeSpokenWordProgress({ startMs: 1000, endMs: 4000 }, 0.5, tokens)).toEqual({
+    progress: 0,
+    spokenIndex: -1,
+  });
+  const mid = computeSpokenWordProgress({ startMs: 1000, endMs: 4000 }, 2.5, tokens);
+  expect(mid.progress).toBeGreaterThan(0.4);
+  expect(mid.progress).toBeLessThan(0.6);
+  expect(mid.spokenIndex).toBeGreaterThanOrEqual(1);
+  expect(mid.spokenIndex).toBeLessThan(tokens.length);
+  expect(computeSpokenWordProgress({ startMs: 1000, endMs: 4000 }, 4.5, tokens)).toEqual({
+    progress: 1,
+    spokenIndex: tokens.length,
+  });
 
   const stackedStudio = SubtitleStudio({
     sentences: () => sentences,

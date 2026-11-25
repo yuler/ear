@@ -377,6 +377,7 @@ export function VideoDetailView(props: VideoDetailViewProps) {
         sentences={ctl.sentences}
         loading={ctl.loadingSentences}
         activeIndex={ctl.activeIndex}
+        currentTimeSec={ctl.currentTimeSec}
         paused={ctl.paused}
         maskAll={ctl.maskAll}
         isRevealed={(idx) => Boolean(ctl.revealedMap()[idx])}

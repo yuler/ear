@@ -1,27 +1,34 @@
+// Word tokenization and spoken-word progress math: app/views/subtitleStudioHelpers.ts
+// Active sentence study inspector card: app/views/ActiveSentenceInspector.tsx
 import {
   Clipboard,
   effect,
   Scroll,
   signal,
-  Text,
   View,
   type ScrollRef,
   type ViewRef,
 } from "nsh";
-import { Button, Input } from "nsh/base";
-import { AppTooltip } from "../ui/AppTooltip";
-import { Icon } from "../ui/Icon";
 import { t, type EarLocale } from "../ui/i18n";
 import { showToast } from "../ui/Toast";
 import type { Sentence } from "../youtube/types";
+import { ActiveSentenceInspector } from "./ActiveSentenceInspector";
 import type { SubtitleTextSize } from "./playerLayout";
 import { SentenceList } from "./SentenceList";
-import { clampSentenceIndex, formatTimeRange } from "./sentencePlayer";
+import { clampSentenceIndex } from "./sentencePlayer";
+import {
+  computeSpokenWordProgress,
+  normalizeWordToken,
+  splitSentenceTokens,
+} from "./subtitleStudioHelpers";
+
+export { computeSpokenWordProgress, normalizeWordToken, splitSentenceTokens };
 
 export type SubtitleStudioProps = {
   sentences: () => Sentence[];
   loading: () => boolean;
   activeIndex: () => number;
+  currentTimeSec?: () => number;
   paused: () => boolean;
   maskAll: () => boolean;
   isRevealed: (index: number) => boolean;
@@ -39,282 +46,6 @@ export type SubtitleStudioProps = {
   onStreamLayout: (viewportH: number) => void;
   rowRef: (index: number, node: ViewRef | null) => void;
 };
-
-/** Normalize a word token for star/selection lookup (strips surrounding punctuation). */
-export function normalizeWordToken(raw: string): string {
-  return raw.toLowerCase().replace(/^[^\p{L}\p{N}']+|[^\p{L}\p{N}']+$/gu, "");
-}
-
-/** Split a sentence into clickable display tokens. */
-export function splitSentenceTokens(text: string): string[] {
-  return text.trim().split(/\s+/).filter(Boolean);
-}
-
-function ActiveSentenceInspector(props: {
-  sentence: () => Sentence;
-  totalCount: () => number;
-  masked: () => boolean;
-  compact: () => boolean;
-  large: () => boolean;
-  language: () => EarLocale;
-  selectedWord: () => { sentenceIdx: number; tokenIdx: number; raw: string } | null;
-  revealedWords: () => Set<string>;
-  isBookmarked: () => boolean;
-  isWordStarred: (raw: string) => boolean;
-  noteValue: () => string;
-  onNoteChange: (sentenceIdx: number, value: string) => void;
-  onWordPress: (s: Sentence, tokenIdx: number, raw: string) => void;
-  onClearWord: () => void;
-  onStarWord: (raw: string) => void;
-  onToggleBookmark: (sentenceIdx: number) => void;
-  onToggleReveal: (sentenceIdx: number) => void;
-  onRepeatSentence: () => void;
-  onCopySentence: (s: Sentence) => void;
-  onOpenRawSubtitles?: () => void;
-}) {
-  const m = () => t(props.language());
-  const cur = () => props.sentence();
-  const tokens = () => splitSentenceTokens(cur().text);
-  const selWord = () => {
-    const sel = props.selectedWord();
-    return sel && sel.sentenceIdx === cur().index ? sel : null;
-  };
-  const wordTextClass = () => {
-    if (props.compact()) return "text-[17px] leading-snug";
-    if (props.large()) return "text-[23px] leading-snug";
-    return "text-xl leading-snug";
-  };
-
-  return (
-    <View class={props.compact() ? "gap-2" : "gap-2.5"}>
-      {/* Top Callout Strip: warm amber sentence rhythm bar, or brand-blue selected word bar */}
-      <View
-        class={`flex-row items-center justify-between gap-2 rounded-xl border px-3.5 ${
-          props.compact() ? "py-1.5" : "py-2"
-        } ${
-          selWord()
-            ? "border-brand/35 bg-brand-soft"
-            : "border-amber/30 bg-amber-soft"
-        }`}
-      >
-        <If
-          when={Boolean(selWord())}
-          else={
-            <View class="min-w-0 flex-1 flex-row flex-wrap items-center gap-2">
-              <Text class="font-mono text-xs font-semibold tabular-nums text-foreground">
-                {formatTimeRange(cur().startMs, cur().endMs)}
-              </Text>
-              <Text class="text-xs text-muted-foreground">·</Text>
-              <Text class="font-mono text-xs tabular-nums text-muted-foreground">
-                {cur().wpm} wpm
-              </Text>
-              <View class="rounded-md bg-background/60 px-1.5 py-0.5">
-                <Text class="font-mono text-[10px] font-semibold text-amber">
-                  {cur().difficulty}
-                </Text>
-              </View>
-            </View>
-          }
-        >
-          <View class="min-w-0 flex-1 flex-row flex-wrap items-center gap-2">
-            <Text class="text-sm font-bold text-foreground">
-              {(selWord()?.raw ?? "").replace(/[.,!?;:]+$/, "")}
-            </Text>
-            <Text class="text-xs text-muted-foreground">{m().selectedWord}</Text>
-          </View>
-        </If>
-
-        <If
-          when={Boolean(selWord())}
-          else={
-            <Button
-              onPress={() => props.onToggleBookmark(cur().index)}
-              class="h-7 w-7 shrink-0 items-center justify-center rounded-lg transition hover:bg-background/50"
-              accessibilityLabel={
-                props.isBookmarked() ? m().unbookmarkSentence : m().bookmarkSentence
-              }
-              tooltip={
-                <AppTooltip
-                  label={
-                    props.isBookmarked() ? m().unbookmarkSentence : m().bookmarkSentence
-                  }
-                />
-              }
-            >
-              <Icon
-                name="bookmark"
-                size={14}
-                tone={props.isBookmarked() ? "brand" : "muted-foreground"}
-              />
-            </Button>
-          }
-        >
-          <View class="shrink-0 flex-row items-center gap-1">
-            <Button
-              onPress={() => {
-                const w = selWord();
-                if (w) props.onStarWord(w.raw);
-              }}
-              class="h-7 w-7 items-center justify-center rounded-lg transition hover:bg-background/50"
-              accessibilityLabel={m().starWord}
-              tooltip={<AppTooltip label={m().starWord} />}
-            >
-              <Icon
-                name="star"
-                size={14}
-                tone={
-                  selWord() && props.isWordStarred(selWord()!.raw)
-                    ? "amber"
-                    : "muted-foreground"
-                }
-              />
-            </Button>
-            <Button
-              onPress={props.onClearWord}
-              class="h-7 w-7 items-center justify-center rounded-lg transition hover:bg-background/50"
-              accessibilityLabel="Clear word selection"
-            >
-              <Icon name="x" size={13} tone="muted-foreground" />
-            </Button>
-          </View>
-        </If>
-      </View>
-
-      {/* Elevated Active Sentence Study Card */}
-      <View
-        class={`rounded-2xl border border-line bg-card shadow-sm ${
-          props.compact() ? "gap-2 px-3.5 pt-3 pb-2" : "gap-2.5 px-4 pt-4 pb-3"
-        }`}
-      >
-        {/* Interactive word chips (tap to focus or peek individual masked words) */}
-        <View class="flex-row flex-wrap items-center gap-x-1 gap-y-1.5">
-          <Each of={tokens()} key={(_tok, idx) => `${cur().index}-${idx}`}>
-            {(getTok, getIdx) => {
-              const wordHidden = () =>
-                props.masked() && !props.revealedWords().has(`${cur().index}:${getIdx()}`);
-              const isSel = () => {
-                const w = selWord();
-                return Boolean(w && w.tokenIdx === getIdx() && !wordHidden());
-              };
-              return (
-                <Button
-                  onPress={() => props.onWordPress(cur(), getIdx(), getTok())}
-                  class={`rounded-lg border px-1.5 py-0.5 transition ${
-                    wordHidden()
-                      ? "border-transparent bg-well hover:bg-brand-soft"
-                      : isSel()
-                        ? "border-brand bg-brand-soft"
-                        : "border-transparent hover:bg-brand-soft/60"
-                  }`}
-                  accessibilityLabel={wordHidden() ? "Peek masked word" : getTok()}
-                >
-                  <Text
-                    class={`font-semibold ${wordTextClass()} ${
-                      wordHidden() ? "text-transparent" : "text-foreground"
-                    }`}
-                  >
-                    {getTok()}
-                  </Text>
-                </Button>
-              );
-            }}
-          </Each>
-        </View>
-
-        <If when={props.masked()}>
-          <Text class="text-xs text-muted-foreground">{m().blindPeekHint}</Text>
-        </If>
-
-        {/* Compact per-sentence note input (hidden on 800x560 compact layout) */}
-        <If when={!props.compact()}>
-          <View class="rounded-lg border border-line bg-well px-2.5 py-1.5">
-            <Input
-              value={props.noteValue()}
-              onChange={(e) => props.onNoteChange(cur().index, e.value)}
-              placeholder={m().notePlaceholder}
-              class="w-full text-xs text-foreground placeholder:text-dim"
-            />
-          </View>
-        </If>
-
-        {/* Bottom Micro Action Bar */}
-        <View class="flex-row items-center justify-between gap-2 border-t border-line/70 pt-2">
-          <View class="flex-row items-center gap-1">
-            <Button
-              onPress={props.onRepeatSentence}
-              class="h-7 w-7 items-center justify-center rounded-lg transition hover:bg-well active:bg-accent"
-              accessibilityLabel={m().repeatSentence}
-              tooltip={<AppTooltip label={`${m().repeatSentence} (R)`} />}
-            >
-              <Icon name="repeat" size={14} tone="muted-foreground" />
-            </Button>
-            <Button
-              onPress={() => props.onToggleReveal(cur().index)}
-              class={`h-7 w-7 items-center justify-center rounded-lg transition ${
-                !props.masked() ? "bg-brand-soft" : "hover:bg-well active:bg-accent"
-              }`}
-              accessibilityLabel={props.masked() ? m().revealSentence : m().hideSentence}
-              tooltip={
-                <AppTooltip
-                  label={props.masked() ? m().revealSentence : m().hideSentence}
-                />
-              }
-            >
-              <Icon
-                name={props.masked() ? "eye-off" : "eye"}
-                size={14}
-                tone={!props.masked() ? "brand" : "muted-foreground"}
-              />
-            </Button>
-            <Button
-              onPress={() => props.onCopySentence(cur())}
-              class="h-7 w-7 items-center justify-center rounded-lg transition hover:bg-well active:bg-accent"
-              accessibilityLabel={m().copySentence}
-              tooltip={<AppTooltip label={m().copySentence} />}
-            >
-              <Icon name="clipboard" size={14} tone="muted-foreground" />
-            </Button>
-            <Button
-              onPress={() => props.onToggleBookmark(cur().index)}
-              class={`h-7 w-7 items-center justify-center rounded-lg transition ${
-                props.isBookmarked() ? "bg-brand-soft" : "hover:bg-well active:bg-accent"
-              }`}
-              accessibilityLabel={
-                props.isBookmarked() ? m().unbookmarkSentence : m().bookmarkSentence
-              }
-              tooltip={
-                <AppTooltip
-                  label={
-                    props.isBookmarked() ? m().unbookmarkSentence : m().bookmarkSentence
-                  }
-                />
-              }
-            >
-              <Icon
-                name="bookmark"
-                size={14}
-                tone={props.isBookmarked() ? "brand" : "muted-foreground"}
-              />
-            </Button>
-            <If when={Boolean(props.onOpenRawSubtitles)}>
-              <Button
-                onPress={() => props.onOpenRawSubtitles?.()}
-                class="h-7 w-7 items-center justify-center rounded-lg transition hover:bg-well active:bg-accent"
-                accessibilityLabel={m().rawSubtitles}
-                tooltip={<AppTooltip label={m().rawSubtitles} />}
-              >
-                <Icon name="subtitles" size={14} tone="muted-foreground" />
-              </Button>
-            </If>
-          </View>
-          <Text class="font-mono text-[11px] tabular-nums text-dim">
-            {cur().index + 1}/{props.totalCount()} · {cur().wpm} wpm
-          </Text>
-        </View>
-      </View>
-    </View>
-  );
-}
 
 /**
  * Dual-Zone Subtitle Studio (Proposal B):
@@ -421,6 +152,8 @@ export function SubtitleStudio(props: SubtitleStudioProps) {
         <ActiveSentenceInspector
           sentence={getCur}
           totalCount={() => props.sentences().length}
+          currentTimeSec={() => props.currentTimeSec?.() ?? 0}
+          paused={props.paused}
           masked={() => isSentenceMasked(getCur())}
           compact={props.compact}
           large={() => Boolean(props.large?.())}
