@@ -1,5 +1,5 @@
-// Playback / sentence state and key bindings: app/views/playerController.ts
-// Layout math (side-by-side vs stacked): app/views/playerLayout.ts
+// Playback / sentence state and key bindings: desktop/views/playerController.ts
+// Layout math (side-by-side vs stacked): desktop/views/playerLayout.ts
 import {
   effect,
   Image,

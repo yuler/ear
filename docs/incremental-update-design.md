@@ -151,7 +151,7 @@
 
 ## 5. 代码层设计与接口契约
 
-### 5.1 状态与设置扩展 (`app/store.ts`)
+### 5.1 状态与设置扩展 (`desktop/store.ts`)
 
 ```ts
 export type UpdateMode = "manual" | "auto";
@@ -163,7 +163,7 @@ export interface UpdateSettings {
 }
 ```
 
-### 5.2 核心更新器接口 (`app/updater.ts`)
+### 5.2 核心更新器接口 (`desktop/updater.ts`)
 
 ```ts
 /** 增量更新下载进度 */
@@ -194,9 +194,9 @@ export async function rollbackIncrementalUpdate(): Promise<boolean>;
 export async function restartApplication(): Promise<void>;
 ```
 
-### 5.3 启动辅助与能力补齐 (`app/nsh.json`)
+### 5.3 启动辅助与能力补齐 (`desktop/nsh.json`)
 
-在 `app/nsh.json` 中开放进程退出与自重启调用：
+在 `desktop/nsh.json` 中开放进程退出与自重启调用：
 ```json
 {
   "capabilities": {

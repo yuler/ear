@@ -18,7 +18,7 @@
   --shadow: rgba(0, 0, 0, 0.75);
 }
 
-/* Light ("白") palette, from app/theme.json */
+/* Light ("白") palette, from desktop/theme.json */
 [data-theme="light"] {
   --ground: #ffffff;
   --panel: #ffffff;

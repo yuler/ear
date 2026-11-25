@@ -1,5 +1,5 @@
-// Word tokenization and spoken-word progress math: app/views/subtitleStudioHelpers.ts
-// Active sentence study inspector card: app/views/ActiveSentenceInspector.tsx
+// Word tokenization and spoken-word progress math: desktop/views/subtitleStudioHelpers.ts
+// Active sentence study inspector card: desktop/views/ActiveSentenceInspector.tsx
 import {
   Clipboard,
   effect,

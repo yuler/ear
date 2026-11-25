@@ -16,15 +16,15 @@ Paste a YouTube link → download video/audio + subtitles → practice with Blin
 Referenced from [huacnlee/noop](https://github.com/huacnlee/noop):
 
 - `cli/` — Rust `ear` binary (`parse` / `captions` / `download`)
-- `app/` — Standalone Native Shell desktop application
-  - `app/App.tsx` — Root application shell & mode router
-  - `app/ui/` — Shared UI components, icons, and theme design system
-  - `app/views/` — Screen views (`LibraryView`, `SentencesView`, `BlindFlow`, `LoopDojo`)
-  - `app/youtube/` — YouTube parsing, subtitle merging, and host fetch
-  - `app/library/` — Local catalog, download management, and file persistence
-  - `app/store.ts` — Settings & progress persistence
-  - `app/player.ts` — Audio/video engine & playback rate controller
-  - `app/clipboard.ts` — System clipboard monitor
+- `desktop/` — Standalone Native Shell desktop application
+  - `desktop/App.tsx` — Root application shell & mode router
+  - `desktop/ui/` — Shared UI components, icons, and theme design system
+  - `desktop/views/` — Screen views (`LibraryView`, `DiscoverView`, `VideoDetailView`, `SettingsView`)
+  - `desktop/youtube/` — YouTube parsing, subtitle merging, and host fetch
+  - `desktop/library/` — Local catalog, download management, and file persistence
+  - `desktop/store.ts` — Settings & progress persistence
+  - `desktop/player.ts` — Audio/video engine & playback rate controller
+  - `desktop/clipboard.ts` — System clipboard monitor
 - `docs/` — Architecture & learning workflow design specs ([docs/modes-design.md](docs/modes-design.md), [docs/discover-design.md](docs/discover-design.md))
 - `api/discover/` — Static zero-backend Discover catalog (`index.json`, `en.json`, `ja.json`)
 - `scripts/` — Environment setup & host installation scripts
@@ -51,13 +51,13 @@ Community contributions are warmly welcome! You can recommend videos in two ways
 mise run setup            # installs nsh, release `ear` CLI, Linux WebKitGTK 6
 mise run doctor           # checks system dependencies (WebKitGTK, GStreamer, ffmpeg)
 mise run cli:build        # release-build + install `ear` → ~/.local/bin/ear
-mise run cli:dev          # debug-build + install `ear` (used by app:dev)
-mise run app:dev          # rebuilds CLI (debug) then starts native desktop app (alias: run)
+mise run cli:dev          # debug-build + install `ear` (used by desktop:dev)
+mise run desktop:dev      # rebuilds CLI (debug) then starts native desktop app (alias: run)
 mise run web:dev          # local preview for website & Cloudflare Worker (wrangler dev)
-mise run dev              # parallel all *:dev (cli + app + web)
+mise run dev              # parallel all *:dev (cli + desktop + web)
 mise run web:deploy       # deploy website & Cloudflare Worker (wrangler deploy)
-mise run test             # `cargo test` (cli) + `nsh test app`
-mise run check            # runs `nsh check app`
+mise run test             # `cargo test` (cli) + `nsh test desktop`
+mise run check            # runs `nsh check desktop`
 ```
 
 ### Linux Dependencies

@@ -18,7 +18,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       cli: ${{ steps.filter.outputs.cli }}
-      app: ${{ steps.filter.outputs.app }}
+      desktop: ${{ steps.filter.outputs.desktop }}
       web: ${{ steps.filter.outputs.web }}
     steps:
       - name: Checkout
@@ -35,8 +35,8 @@ jobs:
               - 'Cargo.*'
               - 'scripts/**'
               - '.github/workflows/ci.yml'
-            app:
-              - 'app/**'
+            desktop:
+              - 'desktop/**'
               - 'api/**'
               - 'mise.toml'
               - 'scripts/**'
@@ -68,10 +68,10 @@ jobs:
       - name: Run Ear CLI Tests
         run: cargo test --manifest-path cli/Cargo.toml
 
-  app:
-    name: App (Native Shell)
+  desktop:
+    name: Desktop (Native Shell)
     needs: detect-changes
-    if: needs.detect-changes.outputs.app == 'true'
+    if: needs.detect-changes.outputs.desktop == 'true'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -84,10 +84,10 @@ jobs:
           cache_key_prefix: mise-nsh-v1
 
       - name: Typecheck
-        run: nsh check app
+        run: nsh check desktop
 
-      - name: Run App Tests
-        run: nsh test app
+      - name: Run Desktop Tests
+        run: nsh test desktop
 
   web:
     name: Web (Landing & Worker)
@@ -114,7 +114,7 @@ jobs:
 
   ci-status:
     name: Check & Test
-    needs: [detect-changes, cli, app, web]
+    needs: [detect-changes, cli, desktop, web]
     if: always()
     runs-on: ubuntu-latest
     steps:
@@ -131,7 +131,7 @@ jobs:
         run: |
           DETECT_RES="${{ needs.detect-changes.result }}"
           CLI_RES="${{ needs.cli.result }}"
-          APP_RES="${{ needs.app.result }}"
+          DESKTOP_RES="${{ needs.desktop.result }}"
           WEB_RES="${{ needs.web.result }}"
 
           echo "Change detection result: $DETECT_RES"
@@ -141,10 +141,10 @@ jobs:
           fi
 
           echo "CLI result: $CLI_RES"
-          echo "App result: $APP_RES"
+          echo "Desktop result: $DESKTOP_RES"
           echo "Web result: $WEB_RES"
 
-          for res in "$CLI_RES" "$APP_RES" "$WEB_RES"; do
+          for res in "$CLI_RES" "$DESKTOP_RES" "$WEB_RES"; do
             if [ "$res" = "failure" ] || [ "$res" = "cancelled" ]; then
               echo "Error: One or more parallel CI jobs failed." >&2
               exit 1

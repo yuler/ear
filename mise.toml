@@ -19,24 +19,24 @@ run = "cargo build --manifest-path cli/Cargo.toml"
 description = "Run Ear CLI Rust test suite"
 run = "cargo test --manifest-path cli/Cargo.toml"
 
-[tasks."app:dev"]
+[tasks."desktop:dev"]
 description = "Rebuild CLI (debug) then start native host"
 alias = ["run"]
 depends = ["cli:dev"]
-run = 'PATH="$PWD/cli/target/debug:$PATH" nsh run app'
+run = 'PATH="$PWD/cli/target/debug:$PATH" nsh run desktop'
 
 [tasks.dev]
-description = "Run all *:dev tasks in parallel (cli + app + web)"
+description = "Run all *:dev tasks in parallel (cli + desktop + web)"
 depends = ["*:dev"]
 
-[tasks."app:check"]
+[tasks."desktop:check"]
 description = "Run TypeScript and styling checks on Native Shell desktop app"
 alias = ["check"]
-run = "nsh check app"
+run = "nsh check desktop"
 
-[tasks."app:test"]
+[tasks."desktop:test"]
 description = "Run tests on Native Shell desktop app"
-run = "nsh test app"
+run = "nsh test desktop"
 
 [tasks."web:dev"]
 description = "Start Cloudflare Worker & static site preview locally via Wrangler"
@@ -51,8 +51,8 @@ dir = "web"
 run = "wrangler deploy"
 
 [tasks.test]
-description = "Run all tests across subprojects (CLI + App)"
-depends = ["cli:test", "app:test"]
+description = "Run all tests across subprojects (CLI + Desktop)"
+depends = ["cli:test", "desktop:test"]
 
 [tasks.doctor]
 description = "Check system dependencies (WebKitGTK, GStreamer, ffmpeg)"

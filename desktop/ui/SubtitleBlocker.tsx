@@ -1,4 +1,4 @@
-// Sibling logic, pure math & geometry helpers: app/ui/subtitleBlockerLogic.ts
+// Sibling logic, pure math & geometry helpers: desktop/ui/subtitleBlockerLogic.ts
 import {
   Canvas,
   effect,

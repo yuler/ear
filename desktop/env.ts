@@ -6,7 +6,7 @@ export type EnvMap = Record<string, string | undefined>;
 /**
  * Returns true when running in local development mode.
  *
- * Production CI builds inject the release semver into `app/nsh.json`,
+ * Production CI builds inject the release semver into `desktop/nsh.json`,
  * whereas local development keeps `"0.0.0"`. `EAR_ENV` can override this
  * explicitly (`"dev"` or `"prod"`).
  */
