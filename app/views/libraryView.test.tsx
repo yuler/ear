@@ -530,7 +530,7 @@ test("storage helpers shorten home paths and format disk capacities", () => {
   });
 });
 
-test("Library multi-select uses X to check the focused item, keeps batch bar buttons permanently mounted, and shows download path + free space under Library header", async () => {
+test("Library multi-select toggles mode with X, selects focused items with Space, keeps batch bar buttons permanently mounted, and shows download path + free space under Library header", async () => {
   const app = await open("../ui/overlayFixture.tsx", { width: 1000, height: 700 });
 
   // Download folder and disk capacity appear tightly below the Library title
@@ -544,29 +544,24 @@ test("Library multi-select uses X to check the focused item, keeps batch bar but
   await app.keyboard.press("space");
   expect(app.shows("label:Delete selected")).toBe(false);
 
-  // Clicking the header multi-select button enters selection mode; Space selects the focused card
-  await app.press("label:Multi-select");
-  await app.waitFor("Select all");
-  await app.keyboard.press("space");
-  await app.waitFor("1");
-  expect(app.texts().some((t) => t === "1")).toBe(true);
-  await app.keyboard.press("escape");
-  await app.waitFor("/tmp/ear-downloads");
-  expect(app.shows("label:Delete selected")).toBe(false);
-
-  // X checks the focused card
+  // X enters selection mode with 0 selected items (does not select an item by itself)
   await app.keyboard.press("x");
   await app.waitFor("Select all");
   expect(app.texts().some((t) => t === "X")).toBe(true);
   expect(app.texts().some((t) => t === "A")).toBe(true);
   expect(app.texts().some((t) => t.includes("Ctrl+A"))).toBe(false);
-  expect(app.texts().some((t) => t === "1")).toBe(true);
+  expect(app.texts().some((t) => t === "0")).toBe(true);
   // Download folder + disk capacity stay visible under Library without layout jump
   expect(app.texts().some((t) => t.includes("/tmp/ear-downloads"))).toBe(true);
   expect(app.texts().some((t) => t.includes("120 GB free / 500 GB"))).toBe(true);
   // Both Open folder and Delete stay permanently mounted at 0 selections
   expect(app.shows("label:Open folder")).toBe(true);
   expect(app.shows("label:Delete selected")).toBe(true);
+
+  // Space selects the focused card (first card when nothing is focused yet)
+  await app.keyboard.press("space");
+  await app.waitFor("1");
+  expect(app.texts().some((t) => t === "1")).toBe(true);
 
   // Arrow right moves focus to v2 and Space toggles its selection in selection mode
   await app.keyboard.press("right");
@@ -610,7 +605,17 @@ test("Library multi-select uses X to check the focused item, keeps batch bar but
   await app.keyboard.press("mod+a");
   await app.waitFor("Deselect all");
 
-  // Escape exits multi-select cleanly
+  // Pressing X again exits selection mode cleanly and clears selection
+  await app.keyboard.press("x");
+  await app.waitFor("/tmp/ear-downloads");
+  expect(app.shows("label:Delete selected")).toBe(false);
+
+  // Clicking the header multi-select button enters selection mode, Space selects, Escape exits
+  await app.press("label:Multi-select");
+  await app.waitFor("Select all");
+  await app.keyboard.press("space");
+  await app.waitFor("1");
+  expect(app.texts().some((t) => t === "1")).toBe(true);
   await app.keyboard.press("escape");
   await app.waitFor("/tmp/ear-downloads");
   expect(app.shows("label:Delete selected")).toBe(false);

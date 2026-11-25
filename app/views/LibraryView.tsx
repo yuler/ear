@@ -165,16 +165,15 @@ export function LibraryView(props: {
     if (next.size > 0) selectionMode.set(true);
   };
 
-  /** Gmail / Linear: X checks the focused row and drops the bar when none remain. */
-  const toggleFocusedSelection = () => {
+  /** X enters or exits multi-select mode without toggling individual items. */
+  const toggleSelectionMode = () => {
     if (props.disabled?.() || props.previewOpen?.()) return;
+    if (selectionMode()) {
+      exitSelectionMode();
+      return;
+    }
     if (entries().length === 0) return;
-    if (focusedIndex() < 0) focusedIndex.set(0);
-    const entry = focused();
-    if (!entry) return;
-    const next = toggleSelectedId(selectedIds(), entry.videoId);
-    selectedIds.set(next);
-    selectionMode.set(next.size > 0);
+    enterSelectionMode();
   };
 
   /** Space toggles the focused item while selection mode is active. */
@@ -309,7 +308,7 @@ export function LibraryView(props: {
       up: () => move(-1),
       left: () => move(-1),
       enter: withFocused((e) => props.onOpenEntry(e)),
-      x: toggleFocusedSelection,
+      x: toggleSelectionMode,
       space: toggleFocusedInSelectionMode,
       o: () => {
         if (props.disabled?.()) return;
