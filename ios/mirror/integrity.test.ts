@@ -10,6 +10,7 @@ import {
   createMirrorEngine,
   MAX_CONSECUTIVE_TRANSFER_FAILURES,
 } from "./engine";
+import { sha256Bytes } from "./sha256";
 import { emptyPersistedData, type MirrorFileStore } from "./storage";
 import type { PairedMac, PersistedMobileData, RemoteCatalogItem } from "./types";
 
@@ -60,6 +61,9 @@ function createMemoryStore() {
       chunks.set(key, new Uint8Array(bytes));
       return key;
     },
+    async readChunk(videoId, idx) {
+      return chunks.get(`${videoId}/chunk-${idx}`) ?? null;
+    },
     async writeDirectMedia(videoId, ext, bytes) {
       const key = `${videoId}/media.${ext}`;
       direct.set(key, new Uint8Array(bytes));
@@ -103,6 +107,8 @@ test("failover across Macs with equal-size different-content files discards part
   const totalBytes = 9 * 1024 * 1024;
   const fileA = new Uint8Array(totalBytes).fill(0xaa);
   const fileB = new Uint8Array(totalBytes).fill(0xbb);
+  const shaA = sha256Bytes(fileA);
+  const shaB = sha256Bytes(fileB);
 
   const macA = makeMac("mac-a", "Home", "192.168.1.10");
   const macB = makeMac("mac-b", "Office", "10.0.0.10");
@@ -121,7 +127,7 @@ test("failover across Macs with equal-size different-content files discards part
     },
     async fetchLibrary(mac) {
       if (offline.has(mac.id)) throw new MirrorApiError("unreachable", "offline");
-      const sha = mac.id === "mac-a" ? "a".repeat(64) : "b".repeat(64);
+      const sha = mac.id === "mac-a" ? shaA : shaB;
       return {
         serverId: mac.id,
         serverName: mac.name,
@@ -189,7 +195,7 @@ test("failover across Macs with identical contentSha256 resumes cleanly from com
   sharedBytes.fill(0x11, 0, chunkBytes);
   sharedBytes.fill(0x22, chunkBytes, chunkBytes * 2);
   sharedBytes.fill(0x33, chunkBytes * 2, totalBytes);
-  const sharedSha = "c".repeat(64);
+  const sharedSha = sha256Bytes(sharedBytes);
 
   const macA = makeMac("mac-a", "Home", "192.168.1.10");
   const macB = makeMac("mac-b", "Office", "10.0.0.10");

@@ -1,5 +1,10 @@
 import { createTransport } from "./transport";
 import type { PairedMac, RemoteCatalogItem, TransportKind } from "./types";
+import {
+  MAX_CAPTIONS_BYTES,
+  validateCatalogResponse,
+  validatePairResponse,
+} from "./validation";
 
 export type MirrorApiErrorCode =
   | "invalid_code"
@@ -155,7 +160,11 @@ export function createHttpMirrorClient(): MirrorApiClient {
         }
         throw new MirrorApiError("http_error", `Pair failed (${res.status})`, res.status);
       }
-      return (await res.json()) as PairResponse;
+      const parsed = validatePairResponse(await res.json());
+      if (!parsed) {
+        throw new MirrorApiError("http_error", "Malformed pair response from server", res.status);
+      }
+      return parsed;
     },
 
     async fetchLibrary(mac, signal) {
@@ -172,7 +181,11 @@ export function createHttpMirrorClient(): MirrorApiClient {
       if (!res.ok) {
         throw new MirrorApiError("http_error", `Catalog failed (${res.status})`, res.status);
       }
-      return (await res.json()) as CatalogResponse;
+      const parsed = validateCatalogResponse(await res.json());
+      if (!parsed) {
+        throw new MirrorApiError("http_error", "Malformed catalog response from server", res.status);
+      }
+      return parsed;
     },
 
     async fetchMediaRange(mac, videoId, start, end, signal, options) {
@@ -256,6 +269,18 @@ export function createHttpMirrorClient(): MirrorApiClient {
         }
       }
 
+      const rawContentLen = res.headers?.get("content-length")?.trim();
+      if (rawContentLen !== undefined && rawContentLen !== "") {
+        const declaredLen = Number(rawContentLen);
+        if (!Number.isSafeInteger(declaredLen) || declaredLen !== expectedLength) {
+          throw new MirrorApiError(
+            "invalid_range_response",
+            `Range Content-Length ${rawContentLen} did not match expected ${expectedLength}`,
+            206,
+          );
+        }
+      }
+
       const buf = await res.arrayBuffer();
       const bytes = new Uint8Array(buf);
       if (bytes.byteLength !== expectedLength) {
@@ -284,7 +309,15 @@ export function createHttpMirrorClient(): MirrorApiClient {
         throw new MirrorApiError("unpaired", "Device was unpaired by computer", 401);
       }
       if (!res.ok) return null;
-      return await res.text();
+      const rawLen = res.headers?.get("content-length")?.trim();
+      if (rawLen && Number(rawLen) > MAX_CAPTIONS_BYTES) {
+        return null;
+      }
+      const text = await res.text();
+      if (text.length > MAX_CAPTIONS_BYTES) {
+        return null;
+      }
+      return text;
     },
 
     async reportStatus(mac, syncedCount, totalCount, background) {

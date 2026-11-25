@@ -207,14 +207,9 @@ cmd_push_secrets() {
       run_cmd gh secret set "$key" --body "<from $ENV_FILE>"
     done
   else
-    local tmp_env
-    tmp_env="$(mktemp)"
-    chmod 600 "$tmp_env"
-    trap 'rm -f "$tmp_env"' RETURN
     for key in "${REQUIRED_SECRETS[@]}"; do
-      printf '%s=%s\n' "$key" "$(read_env_value "$key" "$ENV_FILE")" >> "$tmp_env"
-    done
-    gh secret set -f "$tmp_env"
+      printf '%s=%s\n' "$key" "$(read_env_value "$key" "$ENV_FILE")"
+    done | gh secret set -f -
   fi
 
   if [[ -n "$APP_ID" ]]; then

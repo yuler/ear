@@ -1,4 +1,5 @@
 import type { PairPayload, TransportKind } from "./types";
+import { isValidLanHost } from "./validation";
 
 export const DEFAULT_MIRROR_PORT = 7890;
 
@@ -9,22 +10,26 @@ export interface Transport {
   pairUrl(code: string, serverName?: string): string;
 }
 
-/** Direct LAN HTTP transport (same Wi-Fi). */
+/** Direct LAN HTTP transport (same Wi-Fi). Rejects malformed or URL-injection hosts. */
 export function createLanTransport(host: string, port = DEFAULT_MIRROR_PORT): Transport {
   const cleanHost = host.trim();
+  if (!isValidLanHost(cleanHost)) {
+    throw new Error(`Invalid LAN host: ${cleanHost.slice(0, 64)}`);
+  }
   const cleanPort = Number.isInteger(port) && port > 0 && port <= 65535 ? port : DEFAULT_MIRROR_PORT;
   const address = `${cleanHost}:${cleanPort}`;
   return {
     kind: "lan",
     address,
     baseUrl: () => `http://${address}`,
-    pairUrl: (code: string, serverName?: string) => buildPairUrl({
-      transport: "lan",
-      host: cleanHost,
-      port: cleanPort,
-      code,
-      name: serverName,
-    }),
+    pairUrl: (code: string, serverName?: string) =>
+      buildPairUrl({
+        transport: "lan",
+        host: cleanHost,
+        port: cleanPort,
+        code,
+        name: serverName,
+      }),
   };
 }
 
@@ -70,7 +75,7 @@ function parseQueryString(query: string): Record<string, string> {
   return out;
 }
 
-/** Parse an `ear://pair?transport=lan&host=...&port=...&code=...` URL. */
+/** Parse an `ear://pair?transport=lan&host=...&port=...&code=...` URL with strict host validation. */
 export function parsePairUrl(raw: string): PairPayload | null {
   const trimmed = raw.trim();
   if (!trimmed.toLowerCase().startsWith("ear://pair?")) {
@@ -78,17 +83,21 @@ export function parsePairUrl(raw: string): PairPayload | null {
   }
   const qIndex = trimmed.indexOf("?");
   if (qIndex === -1) return null;
+  const hashIndex = trimmed.indexOf("#", qIndex);
+  const query = hashIndex === -1 ? trimmed.slice(qIndex + 1) : trimmed.slice(qIndex + 1, hashIndex);
   let params: Record<string, string>;
   try {
-    params = parseQueryString(trimmed.slice(qIndex + 1));
+    params = parseQueryString(query);
   } catch {
     return null;
   }
   const transport = params.transport === "relay" ? "relay" : "lan";
   const host = (params.host ?? "").trim();
-  const port = Number.parseInt(params.port ?? String(DEFAULT_MIRROR_PORT), 10);
+  const portRaw = (params.port ?? String(DEFAULT_MIRROR_PORT)).trim();
+  if (!/^\d{1,5}$/.test(portRaw)) return null;
+  const port = Number.parseInt(portRaw, 10);
   const code = (params.code ?? "").trim();
-  if (!host || !Number.isInteger(port) || port <= 0 || port > 65535 || !/^\d{4}$/.test(code)) {
+  if (!isValidLanHost(host) || port <= 0 || port > 65535 || !/^\d{4}$/.test(code)) {
     return null;
   }
   return {
@@ -96,7 +105,7 @@ export function parsePairUrl(raw: string): PairPayload | null {
     host,
     port,
     code,
-    name: params.name?.trim() || undefined,
+    name: params.name?.trim().slice(0, 128) || undefined,
   };
 }
 
@@ -104,15 +113,33 @@ export function parsePairUrl(raw: string): PairPayload | null {
 export function parseHostAndPort(input: string): { host: string; port: number } | null {
   let clean = input.trim();
   if (!clean) return null;
-  clean = clean.replace(/^https?:\/\//i, "").replace(/\/.*$/, "");
-  if (!clean) return null;
+  if (/[\s?#\\@]/.test(clean)) return null;
+  clean = clean.replace(/^https?:\/\//i, "").replace(/\/+$/, "");
+  if (!clean || clean.includes("/")) return null;
+
+  // Bracketed IPv6 with optional port: [::1] or [::1]:7890
+  if (clean.startsWith("[")) {
+    const close = clean.indexOf("]");
+    if (close === -1) return null;
+    const host = clean.slice(0, close + 1);
+    const rest = clean.slice(close + 1);
+    if (!isValidLanHost(host)) return null;
+    if (!rest) return { host, port: DEFAULT_MIRROR_PORT };
+    if (!/^:\d{1,5}$/.test(rest)) return null;
+    const port = Number.parseInt(rest.slice(1), 10);
+    if (port <= 0 || port > 65535) return null;
+    return { host, port };
+  }
 
   const colon = clean.lastIndexOf(":");
   if (colon !== -1 && clean.indexOf(":") === colon) {
     const host = clean.slice(0, colon).trim();
-    const port = Number.parseInt(clean.slice(colon + 1).trim(), 10);
-    if (!host || !Number.isInteger(port) || port <= 0 || port > 65535) return null;
+    const portRaw = clean.slice(colon + 1).trim();
+    if (!isValidLanHost(host) || !/^\d{1,5}$/.test(portRaw)) return null;
+    const port = Number.parseInt(portRaw, 10);
+    if (port <= 0 || port > 65535) return null;
     return { host, port };
   }
+  if (!isValidLanHost(clean)) return null;
   return { host: clean, port: DEFAULT_MIRROR_PORT };
 }

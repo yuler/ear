@@ -79,6 +79,8 @@ export interface MobileCopy {
   pairScanGuideDesc: string;
   pasteFromClipboard: string;
   pairUrlPlaceholder: string;
+  pairConfirmTitle: string;
+  pairConfirmDesc: (target: string) => string;
   connectNow: string;
   hostLabel: string;
   hostPlaceholder: string;
@@ -180,6 +182,8 @@ export const COPY: Record<Locale, MobileCopy> = {
     pairScanGuideDesc: "打开电脑端 Ear 的「设置 → 手机镜像」，用 iPhone 系统相机扫描屏幕二维码即可自动打开 Ear 完成配对，或粘贴配对链接。",
     pasteFromClipboard: "从剪贴板粘贴配对链接",
     pairUrlPlaceholder: "ear://pair?transport=lan&host=192.168.1.42&port=7890&code=1234",
+    pairConfirmTitle: "请核对电脑地址后确认配对",
+    pairConfirmDesc: (target) => `目标电脑：${target}。请确认这是你局域网内信任的电脑，再点击下方按钮完成配对。`,
     connectNow: "立即配对",
     hostLabel: "电脑局域网地址",
     hostPlaceholder: "192.168.1.42:7890",
@@ -278,6 +282,8 @@ export const COPY: Record<Locale, MobileCopy> = {
     pairScanGuideDesc: "Open Settings → Phone Mirror in Ear on your computer and scan the QR code with the system Camera app, or paste the pairing link below.",
     pasteFromClipboard: "Paste Pair Link from Clipboard",
     pairUrlPlaceholder: "ear://pair?transport=lan&host=192.168.1.42&port=7890&code=1234",
+    pairConfirmTitle: "Verify Computer Before Pairing",
+    pairConfirmDesc: (target) => `Target: ${target}. Confirm this is your trusted computer on the local network before pairing.`,
     connectNow: "Pair Now",
     hostLabel: "Computer LAN Address",
     hostPlaceholder: "192.168.1.42:7890",

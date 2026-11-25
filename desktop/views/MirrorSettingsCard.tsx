@@ -163,12 +163,10 @@ export function MirrorSettingsCard() {
             {snap()!.pairLocked ? (
               <View class="flex-col gap-2.5 rounded-xl border border-destructive/40 bg-danger-soft p-3.5">
                 <Text class="text-xs font-semibold text-destructive">
-                  配对已临时锁定（连续输错配对码次数过多）
+                  配对已锁定（连续输错配对码次数过多）
                 </Text>
                 <Text class="text-xs text-muted-foreground">
-                  {snap()!.pairLockedUntil
-                    ? `将在 ${formatCountdown(snap()!.pairLockedUntil!, nowSec())} 后自动解锁，或手动重新开启配对并生成新配对码。`
-                    : "请手动重新开启配对并生成新配对码。"}
+                  为防止局域网暴力尝试，配对已关闭，请手动点击下方按钮重新开启配对并生成新配对码。
                 </Text>
                 <View class="flex-row items-center gap-2 pt-0.5">
                   <Button

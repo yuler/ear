@@ -119,21 +119,22 @@ export function PairModal(props: {
       }
       pairUrlInput.set(text.trim());
       errorText.set(null);
-      await submitPairUrl(text);
     } catch {
       errorText.set(c().errClipboardEmpty);
     }
   };
 
-  // If opened from an ear://pair?... deep link, auto-submit immediately.
+  // Pre-fill incoming ear://pair?... deep link for explicit user confirmation — never auto-submit.
   effect(() => {
     const incoming = props.initialUrl?.();
-    if (props.open() && incoming && phase() === "idle") {
+    if (props.open() && incoming && phase() === "idle" && pairUrlInput() !== incoming) {
       mode.set("link");
       pairUrlInput.set(incoming);
-      void submitPairUrl(incoming);
+      errorText.set(null);
     }
   });
+
+  const parsedPreview = () => parsePairUrl(pairUrlInput());
 
   const modeOptions = (): { value: PairMode; label: string }[] => [
     { value: "link", label: c().pairModeLink },
@@ -226,6 +227,20 @@ export function PairModal(props: {
 
                   <IosGroupedSection>
                     <View class="flex-col gap-3 p-4">
+                      {parsedPreview() ? (
+                        <View class="flex-col gap-1 rounded-xl border border-tint/30 bg-tint-soft/50 px-3 py-2.5">
+                          <Text class="text-[13px] font-semibold text-foreground">
+                            {c().pairConfirmTitle}
+                          </Text>
+                          <Text class="text-[12px] leading-relaxed text-muted-foreground">
+                            {c().pairConfirmDesc(
+                              parsedPreview()!.name
+                                ? `${parsedPreview()!.name} (${parsedPreview()!.host}:${parsedPreview()!.port})`
+                                : `${parsedPreview()!.host}:${parsedPreview()!.port}`,
+                            )}
+                          </Text>
+                        </View>
+                      ) : null}
                       <Input
                         value={pairUrlInput()}
                         onChange={(e) => {

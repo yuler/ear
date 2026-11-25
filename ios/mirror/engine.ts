@@ -30,6 +30,7 @@ import {
 } from "./storage";
 import { transferVideoToLocal } from "./transfer";
 import { parseHostAndPort } from "./transport";
+import { hasOwn, isSafeVideoId } from "./validation";
 import type {
   LocalItemRecord,
   MirrorItemView,
@@ -182,7 +183,13 @@ export function createMirrorEngine(deps: MirrorEngineDeps): MirrorEngine {
   const stats = () => computeSyncStats(library());
   const macSyncCounts = (macId: string) => computeMacSyncCounts(macId, catalogs(), localItems());
 
+  function getLocalRecord(videoId: string): LocalItemRecord | undefined {
+    const items = localItems();
+    return hasOwn(items, videoId) ? items[videoId] : undefined;
+  }
+
   function updateLocalRecord(videoId: string, record: LocalItemRecord | null): void {
+    if (!isSafeVideoId(videoId)) return;
     const next = { ...localItems() };
     if (record === null) delete next[videoId];
     else next[videoId] = record;
@@ -228,7 +235,7 @@ export function createMirrorEngine(deps: MirrorEngineDeps): MirrorEngine {
         chunkSize,
         remote,
         mac,
-        existing: localItems()[videoId],
+        existing: getLocalRecord(videoId),
         signal: controller.signal,
         onProgress: (rec) => {
           if (!owns()) return;
@@ -259,7 +266,8 @@ export function createMirrorEngine(deps: MirrorEngineDeps): MirrorEngine {
       if (err instanceof MirrorApiError && err.status === 404) {
         // Evict stale catalog entry and clear/remove stale partial files BEFORE releasing the slot.
         dropCatalogItem(mac.id, videoId);
-        if (localItems()[videoId]?.state === "partial" && localItems()[videoId]?.sourceMacId === mac.id) {
+        const cur = getLocalRecord(videoId);
+        if (cur?.state === "partial" && cur.sourceMacId === mac.id) {
           updateLocalRecord(videoId, null);
           await removeVideoFilesSerialized(videoId);
         }
@@ -267,7 +275,7 @@ export function createMirrorEngine(deps: MirrorEngineDeps): MirrorEngine {
       }
       if (err instanceof MirrorApiError && err.code === "representation_changed") {
         // Clear and remove stale partial files BEFORE releasing the slot and applying backoff.
-        if (localItems()[videoId]?.state === "partial") {
+        if (getLocalRecord(videoId)?.state === "partial") {
           updateLocalRecord(videoId, null);
           await removeVideoFilesSerialized(videoId);
         }
@@ -342,13 +350,18 @@ export function createMirrorEngine(deps: MirrorEngineDeps): MirrorEngine {
         currentMacs.map(async (mac) => ({ mac, cat: await deps.client.fetchLibrary(mac) })),
       );
 
+      const liveMacIds = new Set(macs().map((m) => m.id));
       const prevCatalogs = catalogs();
       const nextOnline: string[] = [];
-      const nextCatalogs = { ...prevCatalogs };
+      const nextCatalogs: Record<string, RemoteCatalogItem[]> = {};
+      for (const [id, list] of Object.entries(prevCatalogs)) {
+        if (liveMacIds.has(id)) nextCatalogs[id] = list;
+      }
       const revokedIds: string[] = [];
 
       results.forEach((res, idx) => {
         const mac = currentMacs[idx]!;
+        if (!liveMacIds.has(mac.id)) return;
         if (res.status === "fulfilled") {
           nextOnline.push(mac.id);
           const prevById = new Map((prevCatalogs[mac.id] ?? []).map((it) => [it.videoId, it]));
@@ -485,7 +498,8 @@ export function createMirrorEngine(deps: MirrorEngineDeps): MirrorEngine {
   }
 
   function deleteLocal(videoId: string): LocalItemRecord | null {
-    const before = localItems()[videoId] ? { ...localItems()[videoId]! } : null;
+    const existingRec = getLocalRecord(videoId);
+    const before = existingRec ? { ...existingRec } : null;
     abortTransfer(videoId);
     backoff.clear(videoId);
     priorityQueue.set(priorityQueue().filter((id) => id !== videoId));
@@ -544,7 +558,7 @@ export function createMirrorEngine(deps: MirrorEngineDeps): MirrorEngine {
     scheduleTransfers,
     deleteLocal,
     commitDeleteFiles: async (videoId) => {
-      if (localItems()[videoId]?.state === "removed") {
+      if (getLocalRecord(videoId)?.state === "removed") {
         await removeVideoFilesSerialized(videoId);
       }
     },

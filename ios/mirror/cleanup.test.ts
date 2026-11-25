@@ -1,6 +1,7 @@
 import { expect, test } from "nsh/test";
 import { MirrorApiError, type MirrorApiClient } from "./client";
 import { createMirrorEngine } from "./engine";
+import { sha256Bytes } from "./sha256";
 import { emptyPersistedData, type MirrorFileStore } from "./storage";
 import type { PairedMac, PersistedMobileData, RemoteCatalogItem } from "./types";
 
@@ -47,6 +48,9 @@ function createDelayedStore() {
       const key = `${videoId}/chunk-${idx}`;
       chunks.set(key, new Uint8Array(bytes));
       return key;
+    },
+    async readChunk(videoId, idx) {
+      return chunks.get(`${videoId}/chunk-${idx}`) ?? null;
     },
     async writeDirectMedia(videoId, ext, bytes) {
       const key = `${videoId}/media.${ext}`;
@@ -98,6 +102,8 @@ test("delayed 404 stale-file cleanup completes before failover transfer writes r
   const totalBytes = 9 * 1024 * 1024;
   const fileA = new Uint8Array(totalBytes).fill(0xaa);
   const fileB = new Uint8Array(totalBytes).fill(0xbb);
+  const shaA = sha256Bytes(fileA);
+  const shaB = sha256Bytes(fileB);
 
   const macA = makeMac("mac-a", "Home", "192.168.1.10");
   const macB = makeMac("mac-b", "Office", "10.0.0.10");
@@ -112,7 +118,7 @@ test("delayed 404 stale-file cleanup completes before failover transfer writes r
       throw new Error("unused");
     },
     async fetchLibrary(mac) {
-      const sha = mac.id === "mac-a" ? "a".repeat(64) : "b".repeat(64);
+      const sha = mac.id === "mac-a" ? shaA : shaB;
       return {
         serverId: mac.id,
         serverName: mac.name,
@@ -174,12 +180,14 @@ test("delayed representation_changed cleanup blocks retry until stale partial re
   const totalBytes = 9 * 1024 * 1024;
   const oldBytes = new Uint8Array(totalBytes).fill(0x11);
   const newBytes = new Uint8Array(totalBytes).fill(0x22);
+  const oldSha = sha256Bytes(oldBytes);
+  const newSha = sha256Bytes(newBytes);
 
   const mac = makeMac("mac-a", "Home", "192.168.1.10");
   const store = createDelayedStore();
 
   let callCount = 0;
-  let currentSha = "1".repeat(64);
+  let currentSha = oldSha;
   let persisted: PersistedMobileData = { ...emptyPersistedData(), macs: [mac] };
 
   const client: MirrorApiClient = {
@@ -198,7 +206,7 @@ test("delayed representation_changed cleanup blocks retry until stale partial re
       callCount += 1;
       if (callCount === 1) return oldBytes.subarray(start, end + 1);
       if (callCount === 2) {
-        currentSha = "2".repeat(64);
+        currentSha = newSha;
         throw new MirrorApiError("representation_changed", "Precondition Failed", 412);
       }
       return newBytes.subarray(start, end + 1);
@@ -249,8 +257,8 @@ test("delayed incompatible-partial cleanup serializes across background/foregrou
   const chunkBytes = 4 * 1024 * 1024;
   const totalBytes = 9 * 1024 * 1024;
   const oldSha = "1".repeat(64);
-  const newSha = "2".repeat(64);
   const newBytes = new Uint8Array(totalBytes).fill(0xbb);
+  const newSha = sha256Bytes(newBytes);
 
   const mac = makeMac("mac-a", "Home", "192.168.1.10");
   const chunks = new Map<string, Uint8Array>();
@@ -265,6 +273,9 @@ test("delayed incompatible-partial cleanup serializes across background/foregrou
       const key = `${videoId}/chunk-${idx}`;
       chunks.set(key, new Uint8Array(bytes));
       return key;
+    },
+    async readChunk(videoId, idx) {
+      return chunks.get(`${videoId}/chunk-${idx}`) ?? null;
     },
     async writeDirectMedia(videoId, ext, bytes) {
       const key = `${videoId}/media.${ext}`;
@@ -383,9 +394,9 @@ test("delayed incompatible-partial cleanup serializes across background/foregrou
 test("cancelling incompatible-partial cleanup clears stale checkpoint even if original source returns", async () => {
   const chunkBytes = 4 * 1024 * 1024;
   const totalBytes = 9 * 1024 * 1024;
-  const shaA = "a".repeat(64);
-  const shaB = "b".repeat(64);
   const bytesA = new Uint8Array(totalBytes).fill(0xaa);
+  const shaA = sha256Bytes(bytesA);
+  const shaB = "b".repeat(64);
 
   const macA = makeMac("mac-a", "Home", "192.168.1.10");
   const macB = makeMac("mac-b", "Office", "10.0.0.10");
@@ -401,6 +412,9 @@ test("cancelling incompatible-partial cleanup clears stale checkpoint even if or
       const key = `${videoId}/chunk-${idx}`;
       chunks.set(key, new Uint8Array(bytes));
       return key;
+    },
+    async readChunk(videoId, idx) {
+      return chunks.get(`${videoId}/chunk-${idx}`) ?? null;
     },
     async writeDirectMedia(videoId, ext, bytes) {
       const key = `${videoId}/media.${ext}`;
@@ -514,10 +528,10 @@ test("cancelling incompatible-partial cleanup clears stale checkpoint even if or
 test("cancelled transfer mid-writeChunk cannot publish stale checkpoint or race replacement write", async () => {
   const chunkBytes = 4 * 1024 * 1024;
   const totalBytes = 9 * 1024 * 1024;
-  const sha1 = "1".repeat(64);
-  const sha2 = "2".repeat(64);
   const bytes1 = new Uint8Array(totalBytes).fill(0x11);
   const bytes2 = new Uint8Array(totalBytes).fill(0x22);
+  const sha1 = sha256Bytes(bytes1);
+  const sha2 = sha256Bytes(bytes2);
 
   const mac = makeMac("mac-a", "Home", "192.168.1.10");
   const chunks = new Map<string, Uint8Array>();

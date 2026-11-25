@@ -1,21 +1,32 @@
+use crate::commands::serve::catalog::MediaCatalog;
 use crate::commands::serve::state::{MirrorState, PairError, ServerSnapshot};
 use serde::Deserialize;
 use serde_json::json;
 use std::collections::HashMap;
 use std::fs::File;
-use std::io::{BufRead, BufReader, Read, Seek, SeekFrom, Write};
+use std::io::{Read, Seek, SeekFrom, Write};
 use std::net::TcpStream;
 use std::sync::{Arc, Mutex};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 const MAX_HEADER_BYTES: usize = 32 * 1024;
 const MAX_BODY_BYTES: usize = 256 * 1024;
+const HEADER_READ_DEADLINE: Duration = Duration::from_secs(10);
+const BODY_READ_DEADLINE: Duration = Duration::from_secs(15);
 
 struct HttpRequest {
     method: String,
     path: String,
     headers: HashMap<String, String>,
     body: Vec<u8>,
+}
+
+enum HttpReadError {
+    Eof,
+    BadRequest,
+    HeaderTooLarge,
+    BodyTooLarge,
+    Timeout,
 }
 
 #[derive(Deserialize)]
@@ -37,38 +48,87 @@ struct DeviceStatusBody {
 pub fn handle_connection(
     mut stream: TcpStream,
     state: Arc<Mutex<MirrorState>>,
+    catalog: Arc<MediaCatalog>,
     on_change: &(dyn Fn(ServerSnapshot) + Send + Sync),
 ) {
-    let _ = stream.set_read_timeout(Some(Duration::from_secs(15)));
     let _ = stream.set_write_timeout(Some(Duration::from_secs(60)));
 
-    let Some(req) = read_request(&mut stream) else {
-        return;
+    let req = match read_request(&mut stream) {
+        Ok(req) => req,
+        Err(HttpReadError::Eof) => return,
+        Err(HttpReadError::HeaderTooLarge) => {
+            let _ = write_json(
+                &mut stream,
+                431,
+                "Request Header Fields Too Large",
+                &json!({ "error": "header_too_large" }),
+            );
+            return;
+        }
+        Err(HttpReadError::BodyTooLarge) => {
+            let _ = write_json(
+                &mut stream,
+                413,
+                "Payload Too Large",
+                &json!({ "error": "body_too_large" }),
+            );
+            return;
+        }
+        Err(HttpReadError::Timeout) => {
+            let _ = write_json(
+                &mut stream,
+                408,
+                "Request Timeout",
+                &json!({ "error": "request_timeout" }),
+            );
+            return;
+        }
+        Err(HttpReadError::BadRequest) => {
+            let _ = write_json(
+                &mut stream,
+                400,
+                "Bad Request",
+                &json!({ "error": "bad_request" }),
+            );
+            return;
+        }
     };
+
+    // Native iOS mirror clients never send browser Origin headers; reject browser CSRF/LAN probing.
+    if req.headers.contains_key("origin") {
+        let _ = write_json(
+            &mut stream,
+            403,
+            "Forbidden",
+            &json!({ "error": "origin_not_allowed" }),
+        );
+        return;
+    }
 
     let clean_path = req.path.split('?').next().unwrap_or(&req.path);
     match (req.method.as_str(), clean_path) {
-        ("OPTIONS", _) => {
-            let _ = write_empty(&mut stream, 204, "No Content");
-        }
         ("GET", "/v1/health") => {
-            let guard = state.lock().unwrap();
-            let body = json!({
-                "ok": true,
-                "serverId": guard.server_id,
-                "serverName": guard.server_name,
-                "shortName": guard.short_name(),
-                "version": env!("CARGO_PKG_VERSION"),
-                "transport": "lan",
-            });
+            let body = {
+                let guard = state.lock().unwrap();
+                json!({
+                    "ok": true,
+                    "serverId": guard.server_id,
+                    "serverName": guard.server_name,
+                    "shortName": guard.short_name(),
+                    "version": env!("CARGO_PKG_VERSION"),
+                    "transport": "lan",
+                })
+            };
             let _ = write_json(&mut stream, 200, "OK", &body);
         }
-        ("POST", "/v1/pair") => handle_pair(&mut stream, &req, &state, on_change),
-        ("GET", "/v1/library") => handle_library(&mut stream, &req, &state),
-        ("POST", "/v1/device/status") => handle_device_status(&mut stream, &req, &state, on_change),
-        ("POST", "/v1/unpair") => handle_unpair(&mut stream, &req, &state, on_change),
+        ("POST", "/v1/pair") => handle_pair(&mut stream, &req, &state, &catalog, on_change),
+        ("GET", "/v1/library") => handle_library(&mut stream, &req, &state, &catalog),
+        ("POST", "/v1/device/status") => {
+            handle_device_status(&mut stream, &req, &state, &catalog, on_change);
+        }
+        ("POST", "/v1/unpair") => handle_unpair(&mut stream, &req, &state, &catalog, on_change),
         ("GET", p) if p.starts_with("/v1/videos/") => {
-            handle_video_asset(&mut stream, &req, p, &state);
+            handle_video_asset(&mut stream, &req, p, &state, &catalog);
         }
         _ => {
             let _ = write_json(&mut stream, 404, "Not Found", &json!({ "error": "not_found" }));
@@ -76,10 +136,21 @@ pub fn handle_connection(
     }
 }
 
+pub fn write_service_unavailable(stream: &mut TcpStream) {
+    let _ = stream.set_write_timeout(Some(Duration::from_secs(5)));
+    let _ = write_json(
+        stream,
+        503,
+        "Service Unavailable",
+        &json!({ "error": "too_many_connections" }),
+    );
+}
+
 fn handle_pair(
     stream: &mut TcpStream,
     req: &HttpRequest,
     state: &Arc<Mutex<MirrorState>>,
+    catalog: &Arc<MediaCatalog>,
     on_change: &(dyn Fn(ServerSnapshot) + Send + Sync),
 ) {
     let Ok(payload) = serde_json::from_slice::<PairRequestBody>(&req.body) else {
@@ -91,36 +162,38 @@ fn handle_pair(
         );
         return;
     };
+    let library_count = catalog.scan().len();
     let (result, snap) = {
         let mut guard = state.lock().unwrap();
         let res = guard.pair_device(
             &payload.code,
             payload.device_name.as_deref().unwrap_or("iPhone"),
             payload.device_id.as_deref(),
+            library_count,
         );
-        let snapshot = guard.snapshot();
+        let snapshot = guard.snapshot(library_count);
         (res, snapshot)
     };
     match result {
-        Ok(device) => {
+        Ok(issued) => {
             on_change(snap.clone());
             let body = json!({
                 "serverId": snap.server_id,
                 "serverName": snap.server_name,
                 "shortName": snap.short_name,
-                "deviceId": device.id,
-                "token": device.token,
+                "deviceId": issued.device.id,
+                "token": issued.token,
                 "transport": "lan",
             });
             let _ = write_json(stream, 200, "OK", &body);
         }
-        Err(PairError::Locked { retry_after_secs }) => {
+        Err(PairError::Locked) => {
             on_change(snap);
             let _ = write_json(
                 stream,
                 429,
                 "Too Many Requests",
-                &json!({ "error": "pair_locked", "retryAfterSecs": retry_after_secs }),
+                &json!({ "error": "pair_locked" }),
             );
         }
         Err(PairError::CodeExpired) => {
@@ -152,17 +225,22 @@ fn handle_pair(
     }
 }
 
-fn handle_library(stream: &mut TcpStream, req: &HttpRequest, state: &Arc<Mutex<MirrorState>>) {
+fn handle_library(
+    stream: &mut TcpStream,
+    req: &HttpRequest,
+    state: &Arc<Mutex<MirrorState>>,
+    catalog: &Arc<MediaCatalog>,
+) {
     let Some(_device_id) = require_auth(stream, req, state) else {
         return;
     };
-    let (server_id, server_name, short_name, items) = {
+    let items = catalog.scan();
+    let (server_id, server_name, short_name) = {
         let guard = state.lock().unwrap();
         (
             guard.server_id.clone(),
             guard.server_name.clone(),
             guard.short_name(),
-            guard.scan_catalog(),
         )
     };
     let body = json!({
@@ -178,6 +256,7 @@ fn handle_device_status(
     stream: &mut TcpStream,
     req: &HttpRequest,
     state: &Arc<Mutex<MirrorState>>,
+    catalog: &Arc<MediaCatalog>,
     on_change: &(dyn Fn(ServerSnapshot) + Send + Sync),
 ) {
     let Some(device_id) = require_auth(stream, req, state) else {
@@ -192,6 +271,7 @@ fn handle_device_status(
         );
         return;
     };
+    let library_count = catalog.scan().len();
     let snap = {
         let mut guard = state.lock().unwrap();
         guard.update_device_status(
@@ -200,7 +280,7 @@ fn handle_device_status(
             payload.total_count,
             payload.background.unwrap_or(false),
         );
-        guard.snapshot()
+        guard.snapshot(library_count)
     };
     on_change(snap);
     let _ = write_json(stream, 200, "OK", &json!({ "ok": true }));
@@ -210,15 +290,17 @@ fn handle_unpair(
     stream: &mut TcpStream,
     req: &HttpRequest,
     state: &Arc<Mutex<MirrorState>>,
+    catalog: &Arc<MediaCatalog>,
     on_change: &(dyn Fn(ServerSnapshot) + Send + Sync),
 ) {
     let Some(device_id) = require_auth(stream, req, state) else {
         return;
     };
+    let library_count = catalog.scan().len();
     let snap = {
         let mut guard = state.lock().unwrap();
         guard.remove_device(&device_id);
-        guard.snapshot()
+        guard.snapshot(library_count)
     };
     on_change(snap);
     let _ = write_json(stream, 200, "OK", &json!({ "ok": true }));
@@ -229,6 +311,7 @@ fn handle_video_asset(
     req: &HttpRequest,
     path: &str,
     state: &Arc<Mutex<MirrorState>>,
+    catalog: &Arc<MediaCatalog>,
 ) {
     let Some(_device_id) = require_auth(stream, req, state) else {
         return;
@@ -242,11 +325,7 @@ fn handle_video_asset(
     let (video_id, kind) = (parts[0], parts[1]);
     match kind {
         "captions" => {
-            let cap_path = {
-                let guard = state.lock().unwrap();
-                guard.resolve_captions(video_id)
-            };
-            let Some(p) = cap_path else {
+            let Some(p) = catalog.resolve_captions(video_id) else {
                 let _ = write_json(stream, 404, "Not Found", &json!({ "error": "no_captions" }));
                 return;
             };
@@ -262,11 +341,7 @@ fn handle_video_asset(
             let _ = write_bytes(stream, 200, "OK", "application/json; charset=utf-8", &bytes);
         }
         "media" => {
-            let media = {
-                let guard = state.lock().unwrap();
-                guard.resolve_media(video_id)
-            };
-            let Some(m) = media else {
+            let Some(m) = catalog.resolve_media(video_id) else {
                 let _ = write_json(stream, 404, "Not Found", &json!({ "error": "no_media" }));
                 return;
             };
@@ -408,7 +483,7 @@ fn stream_file_with_range(
     let mut remaining = len;
     let mut buf = [0u8; 64 * 1024];
     while remaining > 0 {
-        let to_read = (remaining as usize).min(buf.len());
+        let to_read = remaining.min(buf.len() as u64) as usize;
         let n = file.read(&mut buf[..to_read])?;
         if n == 0 {
             break;
@@ -419,50 +494,122 @@ fn stream_file_with_range(
     stream.flush()
 }
 
-fn read_request(stream: &mut TcpStream) -> Option<HttpRequest> {
-    let mut reader = BufReader::new(stream.try_clone().ok()?);
-    let mut request_line = String::new();
-    if reader.read_line(&mut request_line).ok()? == 0 {
-        return None;
+fn find_header_end(buf: &[u8]) -> Option<(usize, usize)> {
+    for i in 0..buf.len() {
+        if i + 4 <= buf.len() && &buf[i..i + 4] == b"\r\n\r\n" {
+            return Some((i, i + 4));
+        }
+        if i + 2 <= buf.len() && &buf[i..i + 2] == b"\n\n" {
+            return Some((i, i + 2));
+        }
     }
-    let mut parts = request_line.trim_end().split_whitespace();
-    let method = parts.next()?.to_string();
-    let path = parts.next()?.to_string();
+    None
+}
+
+fn read_request(stream: &mut TcpStream) -> Result<HttpRequest, HttpReadError> {
+    let head_deadline = Instant::now() + HEADER_READ_DEADLINE;
+    let mut raw = Vec::with_capacity(1024);
+    let mut chunk = [0u8; 4096];
+
+    let (head_end, body_start) = loop {
+        if let Some(pos) = find_header_end(&raw) {
+            break pos;
+        }
+        if raw.len() >= MAX_HEADER_BYTES {
+            return Err(HttpReadError::HeaderTooLarge);
+        }
+        let now = Instant::now();
+        if now >= head_deadline {
+            return Err(HttpReadError::Timeout);
+        }
+        let _ = stream.set_read_timeout(Some(head_deadline.saturating_duration_since(now)));
+        let max_to_read = (MAX_HEADER_BYTES + 4 - raw.len()).min(chunk.len());
+        match stream.read(&mut chunk[..max_to_read]) {
+            Ok(0) => {
+                return if raw.is_empty() {
+                    Err(HttpReadError::Eof)
+                } else {
+                    Err(HttpReadError::BadRequest)
+                };
+            }
+            Ok(n) => raw.extend_from_slice(&chunk[..n]),
+            Err(e)
+                if matches!(
+                    e.kind(),
+                    std::io::ErrorKind::WouldBlock | std::io::ErrorKind::TimedOut
+                ) =>
+            {
+                return Err(HttpReadError::Timeout);
+            }
+            Err(_) => return Err(HttpReadError::Eof),
+        }
+    };
+
+    if head_end > MAX_HEADER_BYTES {
+        return Err(HttpReadError::HeaderTooLarge);
+    }
+
+    let head_str = std::str::from_utf8(&raw[..head_end]).map_err(|_| HttpReadError::BadRequest)?;
+    let mut lines = head_str.split('\n');
+    let request_line = lines
+        .next()
+        .ok_or(HttpReadError::BadRequest)?
+        .trim_end_matches('\r');
+    let mut parts = request_line.split_whitespace();
+    let method = parts.next().ok_or(HttpReadError::BadRequest)?.to_string();
+    let path = parts.next().ok_or(HttpReadError::BadRequest)?.to_string();
+    if parts.next().is_none() {
+        return Err(HttpReadError::BadRequest);
+    }
 
     let mut headers = HashMap::new();
-    let mut header_bytes = request_line.len();
-    loop {
-        let mut line = String::new();
-        let n = reader.read_line(&mut line).ok()?;
-        if n == 0 {
-            break;
-        }
-        header_bytes += n;
-        if header_bytes > MAX_HEADER_BYTES {
-            return None;
-        }
-        let trimmed = line.trim_end_matches(&['\r', '\n'][..]);
+    for line in lines {
+        let trimmed = line.trim_end_matches('\r');
         if trimmed.is_empty() {
-            break;
+            continue;
         }
         if let Some((k, v)) = trimmed.split_once(':') {
             headers.insert(k.trim().to_ascii_lowercase(), v.trim().to_string());
         }
     }
 
-    let content_len = headers
-        .get("content-length")
-        .and_then(|v| v.parse::<usize>().ok())
-        .unwrap_or(0);
+    let content_len = match headers.get("content-length") {
+        Some(v) => v.parse::<usize>().map_err(|_| HttpReadError::BadRequest)?,
+        None => 0,
+    };
     if content_len > MAX_BODY_BYTES {
-        return None;
-    }
-    let mut body = vec![0u8; content_len];
-    if content_len > 0 {
-        reader.read_exact(&mut body).ok()?;
+        return Err(HttpReadError::BodyTooLarge);
     }
 
-    Some(HttpRequest {
+    let mut body = Vec::with_capacity(content_len);
+    let already = &raw[body_start..];
+    let take_initial = already.len().min(content_len);
+    body.extend_from_slice(&already[..take_initial]);
+
+    let body_deadline = Instant::now() + BODY_READ_DEADLINE;
+    while body.len() < content_len {
+        let now = Instant::now();
+        if now >= body_deadline {
+            return Err(HttpReadError::Timeout);
+        }
+        let _ = stream.set_read_timeout(Some(body_deadline.saturating_duration_since(now)));
+        let want = (content_len - body.len()).min(chunk.len());
+        match stream.read(&mut chunk[..want]) {
+            Ok(0) => return Err(HttpReadError::BadRequest),
+            Ok(n) => body.extend_from_slice(&chunk[..n]),
+            Err(e)
+                if matches!(
+                    e.kind(),
+                    std::io::ErrorKind::WouldBlock | std::io::ErrorKind::TimedOut
+                ) =>
+            {
+                return Err(HttpReadError::Timeout);
+            }
+            Err(_) => return Err(HttpReadError::Eof),
+        }
+    }
+
+    Ok(HttpRequest {
         method,
         path,
         headers,
@@ -488,18 +635,10 @@ fn write_bytes(
     bytes: &[u8],
 ) -> std::io::Result<()> {
     let head = format!(
-        "HTTP/1.1 {status} {reason}\r\nContent-Type: {content_type}\r\nContent-Length: {}\r\nAccess-Control-Allow-Origin: *\r\nAccess-Control-Allow-Headers: Authorization, Content-Type, Range, If-Match\r\nAccess-Control-Allow-Methods: GET, POST, OPTIONS\r\nConnection: close\r\n\r\n",
+        "HTTP/1.1 {status} {reason}\r\nContent-Type: {content_type}\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
         bytes.len()
     );
     stream.write_all(head.as_bytes())?;
     stream.write_all(bytes)?;
-    stream.flush()
-}
-
-fn write_empty(stream: &mut TcpStream, status: u16, reason: &str) -> std::io::Result<()> {
-    let head = format!(
-        "HTTP/1.1 {status} {reason}\r\nContent-Length: 0\r\nAccess-Control-Allow-Origin: *\r\nAccess-Control-Allow-Headers: Authorization, Content-Type, Range, If-Match\r\nAccess-Control-Allow-Methods: GET, POST, OPTIONS\r\nConnection: close\r\n\r\n"
-    );
-    stream.write_all(head.as_bytes())?;
     stream.flush()
 }

@@ -7,6 +7,7 @@ import type {
   RemoteCatalogItem,
   SyncStats,
 } from "./types";
+import { hasOwn } from "./validation";
 
 export interface LibraryProjectionInput {
   macs: PairedMac[];
@@ -78,7 +79,7 @@ export function buildLibraryView(input: LibraryProjectionInput): MirrorItemView[
   const views: MirrorItemView[] = [];
 
   for (const videoId of ids) {
-    const rec = input.localItems[videoId];
+    const rec = hasOwn(input.localItems, videoId) ? input.localItems[videoId] : undefined;
     const remote = catalogMetaForVideo(videoId, input.macs, input.catalogs);
     const sources = sourcesForVideo(
       videoId,
@@ -174,8 +175,12 @@ export function computeMacSyncCounts(
   catalogs: Record<string, RemoteCatalogItem[]>,
   localItems: Record<string, LocalItemRecord>,
 ): { done: number; total: number } {
-  const list = catalogs[macId] ?? [];
-  const wanted = list.filter((x) => localItems[x.videoId]?.state !== "removed");
-  const done = wanted.filter((x) => localItems[x.videoId]?.state === "ready").length;
+  const list = hasOwn(catalogs, macId) ? (catalogs[macId] ?? []) : [];
+  const wanted = list.filter(
+    (x) => !(hasOwn(localItems, x.videoId) && localItems[x.videoId]?.state === "removed"),
+  );
+  const done = wanted.filter(
+    (x) => hasOwn(localItems, x.videoId) && localItems[x.videoId]?.state === "ready",
+  ).length;
   return { done, total: wanted.length };
 }

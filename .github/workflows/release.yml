@@ -56,16 +56,21 @@ jobs:
         id: vars
         env:
           FORCE_FULL_UPDATE: ${{ inputs.full_update || false }}
+          OVERRIDE_TAG: ${{ github.event.inputs.tag || '' }}
           GH_TOKEN: ${{ github.token }}
         shell: bash
         run: |
+          set -euo pipefail
           LATEST_TAG=$(git for-each-ref --sort=-version:refname --count=1 --format='%(refname:short)' 'refs/tags/v*')
           RELEASE_BASELINE=$(bash scripts/release-baseline.sh)
           RELEASE_MODE=$(bash scripts/release-mode.sh "$RELEASE_BASELINE" HEAD "$FORCE_FULL_UPDATE")
           echo "release_mode=$RELEASE_MODE" >> "$GITHUB_OUTPUT"
 
-          OVERRIDE_TAG="${{ github.event.inputs.tag }}"
           if [ -n "$OVERRIDE_TAG" ]; then
+            if [[ ! "$OVERRIDE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z]+)*$ ]]; then
+              echo "::error::Invalid override tag format: $OVERRIDE_TAG"
+              exit 1
+            fi
             TAG="$OVERRIDE_TAG"
             VERSION="${TAG#v}"
           else
@@ -166,8 +171,10 @@ jobs:
 
       - name: Inject Release Version
         shell: bash
+        env:
+          VERSION: ${{ needs.prepare.outputs.version }}
         run: |
-          VERSION="${{ needs.prepare.outputs.version }}"
+          set -euo pipefail
           jq --arg v "$VERSION" '.version = $v' desktop/nsh.json > desktop/nsh.json.tmp && mv desktop/nsh.json.tmp desktop/nsh.json
           awk -v v="$VERSION" '!done && /^version = "/ { $0 = "version = \"" v "\""; done=1 } { print }' cli/Cargo.toml > cli/Cargo.toml.tmp && mv cli/Cargo.toml.tmp cli/Cargo.toml
           grep -q "^version = \"$VERSION\"$" cli/Cargo.toml
@@ -178,39 +185,49 @@ jobs:
 
       - name: Package NSH Desktop (${{ matrix.target }})
         shell: bash
-        run: nsh package --target ${{ matrix.target }} desktop/
+        env:
+          MATRIX_TARGET: ${{ matrix.target }}
+        run: nsh package --target "$MATRIX_TARGET" desktop/
 
       # Linux archive assembly
       - name: Assemble Linux Bundle
         if: matrix.target == 'linux'
         shell: bash
+        env:
+          VERSION: ${{ needs.prepare.outputs.version }}
         run: |
+          set -euo pipefail
           cp cli/target/release/ear .nsh/out/Ear/ear
           chmod +x .nsh/out/Ear/ear
           mv .nsh/out/Ear/Ear .nsh/out/Ear/Ear.bin
           cp scripts/linux-launcher.sh .nsh/out/Ear/Ear
           chmod +x .nsh/out/Ear/Ear
-          tar -czf "Ear-${{ needs.prepare.outputs.version }}-linux-x86_64.tar.gz" -C .nsh/out Ear
+          tar -czf "Ear-${VERSION}-linux-x86_64.tar.gz" -C .nsh/out Ear
 
       # macOS zip assembly
       - name: Assemble macOS Bundle
         if: matrix.target == 'macos'
         shell: bash
+        env:
+          VERSION: ${{ needs.prepare.outputs.version }}
         run: |
+          set -euo pipefail
           mkdir -p .nsh/out/Ear.app/Contents/Helpers
           cp cli/target/release/ear .nsh/out/Ear.app/Contents/Helpers/ear
           chmod +x .nsh/out/Ear.app/Contents/Helpers/ear
           codesign --force --deep --sign - .nsh/out/Ear.app
           codesign --verify --deep --strict .nsh/out/Ear.app
-          ditto -c -k --keepParent .nsh/out/Ear.app "Ear-${{ needs.prepare.outputs.version }}-macos-aarch64.zip"
+          ditto -c -k --keepParent .nsh/out/Ear.app "Ear-${VERSION}-macos-aarch64.zip"
 
       # Windows zip assembly
       - name: Assemble Windows Bundle
         if: matrix.target == 'windows'
         shell: pwsh
+        env:
+          VERSION: ${{ needs.prepare.outputs.version }}
         run: |
           Copy-Item "cli/target/release/ear.exe" -Destination ".nsh/out/Ear/ear.exe"
-          Compress-Archive -Path ".nsh/out/Ear/*" -DestinationPath "Ear-${{ needs.prepare.outputs.version }}-windows-x86_64.zip"
+          Compress-Archive -Path ".nsh/out/Ear/*" -DestinationPath "Ear-$($env:VERSION)-windows-x86_64.zip"
 
       - name: Upload Platform Asset
         uses: actions/upload-artifact@v4
@@ -239,8 +256,10 @@ jobs:
 
       - name: Inject Release Version
         shell: bash
+        env:
+          VERSION: ${{ needs.prepare.outputs.version }}
         run: |
-          VERSION="${{ needs.prepare.outputs.version }}"
+          set -euo pipefail
           jq --arg v "$VERSION" '.version = $v' desktop/nsh.json > desktop/nsh.json.tmp && mv desktop/nsh.json.tmp desktop/nsh.json
 
       - name: Download all build artifacts
@@ -260,14 +279,20 @@ jobs:
         env:
           NSH_RELEASE_KEY: ${{ secrets.NSH_RELEASE_KEY }}
           NSH_UPDATE_KEY: ${{ secrets.NSH_UPDATE_KEY }}
+          RELEASE_TAG: ${{ needs.prepare.outputs.tag }}
+          RELEASE_MODE: ${{ needs.prepare.outputs.release_mode }}
+          RELEASE_BUILD: ${{ needs.prepare.outputs.build }}
+          REPO_SLUG: ${{ github.repository }}
         run: |
+          set -euo pipefail
+          umask 077
           mkdir -p keys
           if [ -n "$NSH_RELEASE_KEY" ]; then
-            echo "$NSH_RELEASE_KEY" > keys/release.secret
+            printf '%s\n' "$NSH_RELEASE_KEY" > keys/release.secret
             chmod 600 keys/release.secret
           fi
           if [ -n "$NSH_UPDATE_KEY" ]; then
-            echo "$NSH_UPDATE_KEY" > keys/update.secret
+            printf '%s\n' "$NSH_UPDATE_KEY" > keys/update.secret
             chmod 600 keys/update.secret
           fi
 
@@ -275,16 +300,16 @@ jobs:
           nsh package --target linux desktop/
           cp .nsh/out/Ear/nsh/bundle.nshc dist/bundle.nshc
 
-          COMMIT_SUBJECT=$(git log -1 --format="%s" 2>/dev/null || echo "Release ${{ needs.prepare.outputs.tag }}")
+          COMMIT_SUBJECT=$(git log -1 --format="%s" 2>/dev/null || echo "Release $RELEASE_TAG")
           COMMIT_BODY=$(git log -1 --format="%b" 2>/dev/null || true)
           SHORT_SHA=$(git log -1 --format="%h" 2>/dev/null || echo "")
           COMMIT_SHA=$(git log -1 --format="%H" 2>/dev/null || echo "")
           AUTHOR=$(git log -1 --format="%an" 2>/dev/null || echo "Maintainer")
 
-          printf "### What's Changed\n**%s**\n\n%s\n\n---\n- **Commit**: [\`%s\`](https://github.com/${{ github.repository }}/commit/%s)\n- **Author**: %s\n" \
-            "${COMMIT_SUBJECT}" "${COMMIT_BODY}" "${SHORT_SHA}" "${COMMIT_SHA}" "${AUTHOR}" > dist/release_notes.md
+          printf "### What's Changed\n**%s**\n\n%s\n\n---\n- **Commit**: [\`%s\`](https://github.com/%s/commit/%s)\n- **Author**: %s\n" \
+            "${COMMIT_SUBJECT}" "${COMMIT_BODY}" "${SHORT_SHA}" "${REPO_SLUG}" "${COMMIT_SHA}" "${AUTHOR}" > dist/release_notes.md
 
-          bash scripts/release-manifest.sh "${{ needs.prepare.outputs.release_mode }}" "${{ needs.prepare.outputs.build }}"
+          bash scripts/release-manifest.sh "$RELEASE_MODE" "$RELEASE_BUILD"
 
           # Also run checksums
           cd dist
@@ -303,16 +328,19 @@ jobs:
 
       - name: Create & Push Git Tag
         shell: bash
+        env:
+          TAG: ${{ needs.prepare.outputs.tag }}
+          RELEASE_TITLE: ${{ needs.prepare.outputs.release_title }}
         run: |
+          set -euo pipefail
           git fetch --tags --force
-          TAG="${{ needs.prepare.outputs.tag }}"
           if git rev-parse -q --verify "refs/tags/$TAG" >/dev/null; then
             echo "Tag $TAG already exists."
           else
             echo "Tagging commit with $TAG..."
             git config user.name "github-actions[bot]"
             git config user.email "github-actions[bot]@users.noreply.github.com"
-            git tag -a "$TAG" -m "${{ needs.prepare.outputs.release_title }}"
+            git tag -a "$TAG" -m "$RELEASE_TITLE"
             git push origin "$TAG"
           fi
 
@@ -334,4 +362,10 @@ jobs:
     with:
       version: ${{ needs.prepare.outputs.version }}
       ref: ${{ github.sha }}
-    secrets: inherit
+    secrets:
+      APP_STORE_CONNECT_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
+      APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+      APP_STORE_CONNECT_API_KEY_BASE64: ${{ secrets.APP_STORE_CONNECT_API_KEY_BASE64 }}
+      IOS_DEVELOPMENT_TEAM: ${{ secrets.IOS_DEVELOPMENT_TEAM }}
+      IOS_DISTRIBUTION_CERT_P12_BASE64: ${{ secrets.IOS_DISTRIBUTION_CERT_P12_BASE64 }}
+      IOS_DISTRIBUTION_CERT_PASSWORD: ${{ secrets.IOS_DISTRIBUTION_CERT_PASSWORD }}

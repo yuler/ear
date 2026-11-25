@@ -4,19 +4,21 @@ pub use crate::commands::serve::catalog::{
     ResolvedMedia,
 };
 use crate::commands::serve::catalog::{default_computer_name, url_encode};
-use crate::commands::serve::crypto::{constant_time_eq, generate_hex_secret, generate_pair_code};
+use crate::commands::serve::crypto::{
+    constant_time_eq, generate_hex_secret, generate_pair_code, sha256_bytes,
+};
 use serde::{Deserialize, Serialize};
-use std::fs;
+use std::fs::{self, OpenOptions};
+use std::io::Write;
 use std::path::PathBuf;
 
 pub const PAIR_TTL_SECS: u64 = 120;
 pub const PAIR_MAX_FAILED_ATTEMPTS: u32 = 5;
-pub const PAIR_LOCKOUT_SECS: u64 = 300;
 pub const DEFAULT_PORT: u16 = 7890;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PairError {
-    Locked { retry_after_secs: u64 },
+    Locked,
     CodeExpired,
     InvalidCode { attempts_remaining: u32 },
     EntropyUnavailable(String),
@@ -27,12 +29,22 @@ pub enum PairError {
 pub struct PairedDevice {
     pub id: String,
     pub name: String,
-    pub token: String,
+    #[serde(default)]
+    pub token_sha256: String,
+    /// Legacy plaintext token accepted only during one-time migration on load; never written back.
+    #[serde(default, skip_serializing)]
+    token: Option<String>,
     pub paired_at: u64,
     pub last_seen_at: u64,
     pub synced_count: usize,
     pub total_count: usize,
     pub background: bool,
+}
+
+#[derive(Debug, Clone)]
+pub struct PairIssuedDevice {
+    pub device: PairedDevice,
+    pub token: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -83,14 +95,12 @@ pub struct MirrorState {
     pub code: String,
     pub code_expires_at: u64,
     pub pair_failed_attempts: u32,
-    pub pair_locked_until: Option<u64>,
+    pub pair_locked: bool,
     pub devices: Vec<PairedDevice>,
-    catalog: MediaCatalog,
 }
 
 impl MirrorState {
     pub fn load_or_init(
-        library_dir: PathBuf,
         state_file: PathBuf,
         server_name: Option<String>,
         host: String,
@@ -105,19 +115,39 @@ impl MirrorState {
             .unwrap_or_else(default_computer_name);
 
         let (server_id, resolved_name, devices) = match loaded {
-            Some(p) => (
-                if p.server_id.is_empty() {
-                    generate_hex_secret(16)?
-                } else {
-                    p.server_id
-                },
-                if p.server_name.trim().is_empty() {
-                    default_name
-                } else {
-                    p.server_name
-                },
-                p.devices,
-            ),
+            Some(p) => {
+                let migrated: Vec<PairedDevice> = p
+                    .devices
+                    .into_iter()
+                    .filter_map(|mut dev| {
+                        if dev.token_sha256.is_empty() {
+                            if let Some(legacy) = dev.token.take().filter(|t| !t.is_empty()) {
+                                dev.token_sha256 = sha256_bytes(legacy.as_bytes());
+                            }
+                        } else {
+                            dev.token = None;
+                        }
+                        if dev.token_sha256.len() == 64 {
+                            Some(dev)
+                        } else {
+                            None
+                        }
+                    })
+                    .collect();
+                (
+                    if p.server_id.is_empty() {
+                        generate_hex_secret(16)?
+                    } else {
+                        p.server_id
+                    },
+                    if p.server_name.trim().is_empty() {
+                        default_name
+                    } else {
+                        p.server_name
+                    },
+                    migrated,
+                )
+            }
             None => (generate_hex_secret(16)?, default_name, Vec::new()),
         };
 
@@ -130,9 +160,8 @@ impl MirrorState {
             code: String::new(),
             code_expires_at: 0,
             pair_failed_attempts: 0,
-            pair_locked_until: None,
+            pair_locked: false,
             devices,
-            catalog: MediaCatalog::new(library_dir),
         };
         state.rotate_code_at(now_secs())?;
         let _ = state.persist();
@@ -143,12 +172,8 @@ impl MirrorState {
         derive_short_name(&self.server_name)
     }
 
-    pub fn is_pair_locked(&self, now: u64) -> bool {
-        self.pair_locked_until.is_some_and(|until| now < until)
-    }
-
-    pub fn rotate_code(&mut self) -> Result<(), String> {
-        self.rotate_code_at(now_secs())
+    pub fn is_pair_locked(&self) -> bool {
+        self.pair_locked
     }
 
     pub fn rotate_code_at(&mut self, now: u64) -> Result<(), String> {
@@ -164,28 +189,21 @@ impl MirrorState {
     }
 
     pub fn reopen_pairing_at(&mut self, now: u64) -> Result<(), String> {
-        self.pair_locked_until = None;
+        self.pair_locked = false;
         self.pair_failed_attempts = 0;
         self.rotate_code_at(now)
     }
 
     /// Periodic ticker maintenance:
-    /// - While locked, keeps pairing closed until `pair_locked_until` elapses.
-    /// - Once lockout elapses, resets attempt budget and rotates a fresh code.
+    /// - While locked, keeps pairing closed indefinitely until explicit desktop `reopen_pairing()`.
     /// - On normal 2-min code expiry, rotates the code without resetting prior failed attempts.
     pub fn ensure_fresh_code(&mut self) -> Result<bool, String> {
         self.ensure_fresh_code_at(now_secs())
     }
 
     pub fn ensure_fresh_code_at(&mut self, now: u64) -> Result<bool, String> {
-        if let Some(until) = self.pair_locked_until {
-            if now < until {
-                return Ok(false);
-            }
-            self.pair_locked_until = None;
-            self.pair_failed_attempts = 0;
-            self.rotate_code_at(now)?;
-            return Ok(true);
+        if self.pair_locked {
+            return Ok(false);
         }
         if self.code.is_empty() || now >= self.code_expires_at {
             self.rotate_code_at(now)?;
@@ -195,7 +213,7 @@ impl MirrorState {
     }
 
     pub fn pair_url(&self) -> String {
-        if self.code.is_empty() || self.is_pair_locked(now_secs()) {
+        if self.code.is_empty() || self.pair_locked {
             return String::new();
         }
         format!(
@@ -212,8 +230,9 @@ impl MirrorState {
         code: &str,
         device_name: &str,
         device_id: Option<&str>,
-    ) -> Result<PairedDevice, PairError> {
-        self.pair_device_at(now_secs(), code, device_name, device_id)
+        library_count: usize,
+    ) -> Result<PairIssuedDevice, PairError> {
+        self.pair_device_at(now_secs(), code, device_name, device_id, library_count)
     }
 
     pub fn pair_device_at(
@@ -222,17 +241,10 @@ impl MirrorState {
         code: &str,
         device_name: &str,
         device_id: Option<&str>,
-    ) -> Result<PairedDevice, PairError> {
-        if let Some(until) = self.pair_locked_until {
-            if now < until {
-                return Err(PairError::Locked {
-                    retry_after_secs: until.saturating_sub(now).max(1),
-                });
-            }
-            self.pair_locked_until = None;
-            self.pair_failed_attempts = 0;
-            self.rotate_code_at(now)
-                .map_err(PairError::EntropyUnavailable)?;
+        library_count: usize,
+    ) -> Result<PairIssuedDevice, PairError> {
+        if self.pair_locked {
+            return Err(PairError::Locked);
         }
 
         if self.code.is_empty() || now >= self.code_expires_at {
@@ -247,10 +259,8 @@ impl MirrorState {
             if self.pair_failed_attempts >= PAIR_MAX_FAILED_ATTEMPTS {
                 self.code.clear();
                 self.code_expires_at = 0;
-                self.pair_locked_until = Some(now + PAIR_LOCKOUT_SECS);
-                return Err(PairError::Locked {
-                    retry_after_secs: PAIR_LOCKOUT_SECS,
-                });
+                self.pair_locked = true;
+                return Err(PairError::Locked);
             }
             let remaining = PAIR_MAX_FAILED_ATTEMPTS.saturating_sub(self.pair_failed_attempts);
             return Err(PairError::InvalidCode {
@@ -269,6 +279,7 @@ impl MirrorState {
             ),
         };
         let token = generate_hex_secret(32).map_err(PairError::EntropyUnavailable)?;
+        let token_sha256 = sha256_bytes(token.as_bytes());
         let clean_name = {
             let trimmed = device_name.trim();
             if trimmed.is_empty() {
@@ -282,29 +293,31 @@ impl MirrorState {
         let dev = PairedDevice {
             id,
             name: clean_name,
-            token,
+            token_sha256,
+            token: None,
             paired_at: now,
             last_seen_at: now,
             synced_count: 0,
-            total_count: self.scan_catalog().len(),
+            total_count: library_count,
             background: false,
         };
         self.devices.insert(0, dev.clone());
         self.pair_failed_attempts = 0;
-        self.pair_locked_until = None;
+        self.pair_locked = false;
         // One-use code: invalidate before rotating so the code can never be replayed.
         self.code.clear();
         self.code_expires_at = 0;
         let _ = self.rotate_code_at(now);
         let _ = self.persist();
-        Ok(dev)
+        Ok(PairIssuedDevice { device: dev, token })
     }
 
     pub fn verify_token(&mut self, token: &str) -> Option<String> {
         let now = now_secs();
-        let token_bytes = token.as_bytes();
+        let digest = sha256_bytes(token.as_bytes());
+        let digest_bytes = digest.as_bytes();
         for d in &mut self.devices {
-            if constant_time_eq(d.token.as_bytes(), token_bytes) {
+            if constant_time_eq(d.token_sha256.as_bytes(), digest_bytes) {
                 d.last_seen_at = now;
                 return Some(d.id.clone());
             }
@@ -343,10 +356,9 @@ impl MirrorState {
         removed
     }
 
-    pub fn snapshot(&self) -> ServerSnapshot {
+    pub fn snapshot(&self, library_count: usize) -> ServerSnapshot {
         let now = now_secs();
-        let library_count = self.scan_catalog().len();
-        let locked = self.is_pair_locked(now);
+        let locked = self.pair_locked;
         let pair_attempts_remaining = if locked {
             0
         } else {
@@ -380,7 +392,7 @@ impl MirrorState {
             code_expires_at: if locked { 0 } else { self.code_expires_at },
             pair_url: if locked { String::new() } else { self.pair_url() },
             pair_locked: locked,
-            pair_locked_until: if locked { self.pair_locked_until } else { None },
+            pair_locked_until: None,
             pair_attempts_remaining,
             library_count,
             devices,
@@ -398,18 +410,40 @@ impl MirrorState {
         };
         let body = serde_json::to_string_pretty(&persisted)
             .map_err(|e| format!("serialize mirror state: {e}"))?;
-        fs::write(&self.state_file, body).map_err(|e| format!("write mirror state: {e}"))
-    }
 
-    pub fn scan_catalog(&self) -> Vec<CatalogItem> {
-        self.catalog.scan()
-    }
+        let tmp_name = format!(
+            ".{}.tmp.{}",
+            self.state_file
+                .file_name()
+                .and_then(|n| n.to_str())
+                .unwrap_or("mirror-state.json"),
+            std::process::id()
+        );
+        let tmp_path = self.state_file.with_file_name(tmp_name);
 
-    pub fn resolve_media(&self, video_id: &str) -> Option<ResolvedMedia> {
-        self.catalog.resolve_media(video_id)
-    }
+        let mut opts = OpenOptions::new();
+        opts.create(true).write(true).truncate(true);
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::OpenOptionsExt;
+            opts.mode(0o600);
+        }
+        let mut file = opts
+            .open(&tmp_path)
+            .map_err(|e| format!("open temp mirror state: {e}"))?;
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let _ = file.set_permissions(fs::Permissions::from_mode(0o600));
+        }
+        file.write_all(body.as_bytes())
+            .map_err(|e| format!("write temp mirror state: {e}"))?;
+        let _ = file.sync_all();
+        drop(file);
 
-    pub fn resolve_captions(&self, video_id: &str) -> Option<PathBuf> {
-        self.catalog.resolve_captions(video_id)
+        fs::rename(&tmp_path, &self.state_file).map_err(|e| {
+            let _ = fs::remove_file(&tmp_path);
+            format!("rename mirror state: {e}")
+        })
     }
 }

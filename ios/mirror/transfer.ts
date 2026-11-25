@@ -1,6 +1,8 @@
 import { MirrorApiError, type MediaRangeOptions, type MirrorApiClient } from "./client";
+import { Sha256, sha256Bytes } from "./sha256";
 import { SINGLE_FILE_MAX_BYTES, type MirrorFileStore } from "./storage";
 import type { LocalItemRecord, PairedMac, RemoteCatalogItem } from "./types";
+import { isSafeMediaExt, isSafeVideoId, MAX_REMOTE_MEDIA_BYTES } from "./validation";
 
 export interface TransferContext {
   client: MirrorApiClient;
@@ -48,8 +50,8 @@ export function isPartialRecordReusable(
 
 /**
  * Download media (via HTTP Range chunks, resuming from verified completedChunks) and captions
- * to sandboxed local storage. Returns the completed `ready` record, or `null` if aborted
- * or paused due to a storage write error.
+ * to sandboxed local storage. Verifies downloaded media bytes against `remote.contentSha256`
+ * before marking `ready`. Returns `null` if aborted or paused due to a storage write error.
  */
 export async function transferVideoToLocal(
   ctx: TransferContext,
@@ -57,6 +59,15 @@ export async function transferVideoToLocal(
   const { remote, mac, chunkSize, existing, signal } = ctx;
   if (signal.aborted) return null;
   const videoId = remote.videoId;
+  if (
+    !isSafeVideoId(videoId) ||
+    !isSafeMediaExt(remote.mediaExt) ||
+    !Number.isSafeInteger(remote.sizeBytes) ||
+    remote.sizeBytes < 0 ||
+    remote.sizeBytes > MAX_REMOTE_MEDIA_BYTES
+  ) {
+    throw new MirrorApiError("invalid_range_response", `Invalid remote catalog item: ${videoId}`);
+  }
   const totalBytes = Math.max(0, remote.sizeBytes);
   const totalChunks = totalBytes === 0 ? 0 : Math.ceil(totalBytes / chunkSize);
   const reusable = isPartialRecordReusable(existing, remote, mac, chunkSize, totalBytes);
@@ -119,6 +130,12 @@ export async function transferVideoToLocal(
         `Expected ${totalBytes} bytes for media range 0-${totalBytes - 1}, got ${bytes.byteLength}`,
       );
     }
+    if (remote.contentSha256 && sha256Bytes(bytes) !== remote.contentSha256.toLowerCase()) {
+      throw new MirrorApiError(
+        "invalid_range_response",
+        "Downloaded media SHA-256 digest did not match expected contentSha256",
+      );
+    }
     try {
       localPath = await ctx.files.writeDirectMedia(videoId, remote.mediaExt, bytes);
     } catch (err) {
@@ -131,6 +148,38 @@ export async function transferVideoToLocal(
     downloadedBytes = bytes.byteLength;
     ctx.onProgress(makeRecord("partial"));
   } else {
+    // Prepare incremental SHA-256 verification across all chunks (including resumed chunks).
+    let hasher: Sha256 | null = null;
+    if (remote.contentSha256 && totalChunks > 0) {
+      if (completedChunks === 0) {
+        hasher = new Sha256();
+      } else if (ctx.files.readChunk) {
+        const resumedHasher = new Sha256();
+        let allPriorReadable = true;
+        for (let i = 0; i < completedChunks; i++) {
+          if (signal.aborted) return null;
+          const prevChunk = await ctx.files.readChunk(videoId, i);
+          if (!prevChunk) {
+            allPriorReadable = false;
+            break;
+          }
+          resumedHasher.update(prevChunk);
+        }
+        if (allPriorReadable) {
+          hasher = resumedHasher;
+        } else {
+          // On-disk prior chunks missing: reset cleanly from chunk 0.
+          ctx.onProgress(null);
+          await ctx.files.removeVideoFiles(videoId);
+          if (signal.aborted) return null;
+          completedChunks = 0;
+          downloadedBytes = 0;
+          localPath = null;
+          hasher = new Sha256();
+        }
+      }
+    }
+
     while (completedChunks < totalChunks) {
       if (signal.aborted) return null;
       const start = completedChunks * chunkSize;
@@ -159,9 +208,22 @@ export async function transferVideoToLocal(
         return null;
       }
       if (signal.aborted) return null;
+      hasher?.update(chunk);
       completedChunks += 1;
       downloadedBytes += chunk.byteLength;
       ctx.onProgress(makeRecord("partial"));
+    }
+
+    if (hasher && remote.contentSha256) {
+      const actualSha = hasher.digestHex();
+      if (actualSha !== remote.contentSha256.toLowerCase()) {
+        ctx.onProgress(null);
+        await ctx.files.removeVideoFiles(videoId);
+        throw new MirrorApiError(
+          "invalid_range_response",
+          `Downloaded media SHA-256 mismatch (got ${actualSha})`,
+        );
+      }
     }
   }
 
