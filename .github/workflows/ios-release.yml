@@ -277,7 +277,7 @@ jobs:
               exit 1
             fi
             PROFILE_ID="$(asc profiles create \
-              --name "Ear App Store" \
+              --name "Ear App Store ${CERT_SERIAL:0:8}" \
               --profile-type IOS_APP_STORE \
               --bundle "$BUNDLE_RES_ID" \
               --certificate "$CERT_RES_ID" \

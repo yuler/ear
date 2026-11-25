@@ -238,9 +238,31 @@ jobs:
             Ear-${{ needs.prepare.outputs.version }}-*.zip
           if-no-files-found: error
 
+  ios-testflight:
+    name: Upload iOS TestFlight
+    needs: [quality-gate, prepare]
+    if: github.event_name != 'workflow_dispatch' || inputs.upload_testflight != false
+    uses: ./.github/workflows/ios-release.yml
+    with:
+      version: ${{ needs.prepare.outputs.version }}
+      ref: ${{ github.sha }}
+    secrets:
+      APP_STORE_CONNECT_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
+      APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+      APP_STORE_CONNECT_API_KEY_BASE64: ${{ secrets.APP_STORE_CONNECT_API_KEY_BASE64 }}
+      IOS_DEVELOPMENT_TEAM: ${{ secrets.IOS_DEVELOPMENT_TEAM }}
+      IOS_DISTRIBUTION_CERT_P12_BASE64: ${{ secrets.IOS_DISTRIBUTION_CERT_P12_BASE64 }}
+      IOS_DISTRIBUTION_CERT_PASSWORD: ${{ secrets.IOS_DISTRIBUTION_CERT_PASSWORD }}
+
   publish-release:
     name: Publish Release & Manifest
-    needs: [quality-gate, prepare, build-desktop]
+    needs: [quality-gate, prepare, build-desktop, ios-testflight]
+    if: >-
+      always() &&
+      needs.quality-gate.result == 'success' &&
+      needs.prepare.result == 'success' &&
+      needs.build-desktop.result == 'success' &&
+      (needs.ios-testflight.result == 'success' || needs.ios-testflight.result == 'skipped')
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -353,19 +375,3 @@ jobs:
           files: dist/*
           draft: false
           prerelease: false
-
-  ios-testflight:
-    name: Upload iOS TestFlight
-    needs: [prepare, publish-release]
-    if: github.event_name != 'workflow_dispatch' || inputs.upload_testflight != false
-    uses: ./.github/workflows/ios-release.yml
-    with:
-      version: ${{ needs.prepare.outputs.version }}
-      ref: ${{ github.sha }}
-    secrets:
-      APP_STORE_CONNECT_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
-      APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
-      APP_STORE_CONNECT_API_KEY_BASE64: ${{ secrets.APP_STORE_CONNECT_API_KEY_BASE64 }}
-      IOS_DEVELOPMENT_TEAM: ${{ secrets.IOS_DEVELOPMENT_TEAM }}
-      IOS_DISTRIBUTION_CERT_P12_BASE64: ${{ secrets.IOS_DISTRIBUTION_CERT_P12_BASE64 }}
-      IOS_DISTRIBUTION_CERT_PASSWORD: ${{ secrets.IOS_DISTRIBUTION_CERT_PASSWORD }}
