@@ -10,7 +10,7 @@ export interface TransferContext {
   mac: PairedMac;
   existing: LocalItemRecord | undefined;
   signal: AbortSignal;
-  onProgress: (record: LocalItemRecord) => void;
+  onProgress: (record: LocalItemRecord | null) => void;
   onStorageError: (message: string) => void;
 }
 
@@ -55,15 +55,19 @@ export async function transferVideoToLocal(
   ctx: TransferContext,
 ): Promise<LocalItemRecord | null> {
   const { remote, mac, chunkSize, existing, signal } = ctx;
+  if (signal.aborted) return null;
   const videoId = remote.videoId;
   const totalBytes = Math.max(0, remote.sizeBytes);
   const totalChunks = totalBytes === 0 ? 0 : Math.ceil(totalBytes / chunkSize);
   const reusable = isPartialRecordReusable(existing, remote, mac, chunkSize, totalBytes);
 
   // If incompatible partial chunks exist on disk (e.g. failover to a Mac with different
-  // bytes of the same length, or an in-place file replacement), discard them before starting fresh.
+  // bytes of the same length, or an in-place file replacement), clear the stale checkpoint
+  // first and remove the old files through the serialized store before starting fresh.
   if (existing?.state === "partial" && !reusable) {
+    ctx.onProgress(null);
     await ctx.files.removeVideoFiles(videoId);
+    if (signal.aborted) return null;
   }
 
   let completedChunks = reusable ? existing.completedChunks : 0;
@@ -93,16 +97,13 @@ export async function transferVideoToLocal(
     updatedAt: remote.updatedAt,
   });
 
-  if (existing?.state === "partial" && !reusable) {
-    ctx.onProgress(makeRecord("partial"));
-  }
-
   const rangeOpts: MediaRangeOptions = {
     expectedTotalBytes: totalBytes,
     expectedContentSha256: remote.contentSha256,
   };
 
   if (totalBytes <= SINGLE_FILE_MAX_BYTES && totalBytes > 0 && completedChunks === 0) {
+    if (signal.aborted) return null;
     const bytes = await ctx.client.fetchMediaRange(
       mac,
       videoId,
@@ -121,9 +122,11 @@ export async function transferVideoToLocal(
     try {
       localPath = await ctx.files.writeDirectMedia(videoId, remote.mediaExt, bytes);
     } catch (err) {
+      if (signal.aborted) return null;
       ctx.onStorageError(err instanceof Error ? err.message : "Storage write failed");
       return null;
     }
+    if (signal.aborted) return null;
     completedChunks = totalChunks;
     downloadedBytes = bytes.byteLength;
     ctx.onProgress(makeRecord("partial"));
@@ -151,9 +154,11 @@ export async function transferVideoToLocal(
       try {
         localPath = await ctx.files.writeChunk(videoId, completedChunks, chunk);
       } catch (err) {
+        if (signal.aborted) return null;
         ctx.onStorageError(err instanceof Error ? err.message : "Storage write failed");
         return null;
       }
+      if (signal.aborted) return null;
       completedChunks += 1;
       downloadedBytes += chunk.byteLength;
       ctx.onProgress(makeRecord("partial"));
@@ -168,15 +173,18 @@ export async function transferVideoToLocal(
   }
 
   if (remote.hasCaptions && !captionsPath) {
+    if (signal.aborted) return null;
     const capJson = await ctx.client.fetchCaptions(mac, videoId, signal);
     if (signal.aborted) return null;
     if (capJson) {
       try {
         captionsPath = await ctx.files.writeCaptions(videoId, capJson);
       } catch (err) {
+        if (signal.aborted) return null;
         ctx.onStorageError(err instanceof Error ? err.message : "Storage write failed");
         return null;
       }
+      if (signal.aborted) return null;
     }
   }
 

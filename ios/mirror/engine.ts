@@ -1,4 +1,4 @@
-// Projection helpers live in ./selectors.ts; chunked transfer in ./transfer.ts; retry backoff in ./backoff.ts.
+// Projection helpers live in ./selectors.ts; chunked transfer in ./transfer.ts; retry backoff in ./backoff.ts; file-op serialization in ./fileOps.ts.
 import { setColorScheme, signal, type Signal } from "nsh";
 import {
   MAX_CONSECUTIVE_TRANSFER_FAILURES,
@@ -11,6 +11,7 @@ import {
   MirrorApiError,
   type MirrorApiClient,
 } from "./client";
+import { VideoFileCoordinator } from "./fileOps";
 import {
   buildLibraryView,
   catalogMetaForVideo,
@@ -137,7 +138,9 @@ export function createMirrorEngine(deps: MirrorEngineDeps): MirrorEngine {
 
   let appState: "active" | "inactive" | "background" = "active";
   const activeTransfers = new Map<string, ActiveTransfer>();
-  const pendingCleanups = new Map<string, Promise<void>>();
+  const fileOps = new VideoFileCoordinator(deps.files, (videoId) => {
+    if (!activeTransfers.has(videoId)) scheduleTransfers();
+  });
 
   const persistNow = () => {
     void deps.saveState({
@@ -151,26 +154,9 @@ export function createMirrorEngine(deps: MirrorEngineDeps): MirrorEngine {
   const pausedInBackground = () => appState === "background" && !settings().backgroundSync;
   const syncActiveIdsSignal = () => activeVideoIds.set([...activeTransfers.keys()]);
   const isMacOnline = (macId: string) => onlineMacIds().includes(macId) && !pausedInBackground();
-
-  /**
-   * Serialize directory removal per videoId and block replacement transfers until cleanup settles,
-   * preventing an in-flight async deletion from wiping freshly downloaded chunks.
-   */
-  function removeVideoFilesSerialized(videoId: string): Promise<void> {
-    const prev = pendingCleanups.get(videoId) ?? Promise.resolve();
-    const task = prev
-      .catch(() => {})
-      .then(() => deps.files.removeVideoFiles(videoId))
-      .catch(() => {});
-    const tracked = task.finally(() => {
-      if (pendingCleanups.get(videoId) === tracked) {
-        pendingCleanups.delete(videoId);
-        scheduleTransfers();
-      }
-    });
-    pendingCleanups.set(videoId, tracked);
-    return tracked;
-  }
+  const isTransferOwner = (videoId: string, controller: AbortController) =>
+    !controller.signal.aborted && activeTransfers.get(videoId)?.controller === controller;
+  const removeVideoFilesSerialized = (videoId: string) => fileOps.removeVideoFiles(videoId);
 
   function dropCatalogItem(macId: string, videoId: string): void {
     const list = catalogs()[macId];
@@ -227,34 +213,41 @@ export function createMirrorEngine(deps: MirrorEngineDeps): MirrorEngine {
   async function runTransfer(videoId: string, mac: PairedMac, controller: AbortController): Promise<void> {
     const remote = (catalogs()[mac.id] ?? []).find((x) => x.videoId === videoId);
     if (!remote) {
-      activeTransfers.delete(videoId);
-      syncActiveIdsSignal();
+      if (activeTransfers.get(videoId)?.controller === controller) {
+        activeTransfers.delete(videoId);
+        syncActiveIdsSignal();
+      }
       return;
     }
 
+    const owns = () => isTransferOwner(videoId, controller);
     try {
       const done = await transferVideoToLocal({
         client: deps.client,
-        files: deps.files,
+        files: fileOps.forTransfer(videoId, owns),
         chunkSize,
         remote,
         mac,
         existing: localItems()[videoId],
         signal: controller.signal,
-        onProgress: (rec) => updateLocalRecord(videoId, rec),
+        onProgress: (rec) => {
+          if (!owns()) return;
+          updateLocalRecord(videoId, rec);
+        },
         onStorageError: (msg) => {
+          if (!owns()) return;
           storagePaused.set(msg);
           lastNotice.set({ kind: "storageError", message: msg });
           stopAllTransfers();
         },
       });
-      if (done) {
+      if (done && owns()) {
         backoff.clear(videoId);
         priorityQueue.set(priorityQueue().filter((id) => id !== videoId));
         void reportMacProgress(mac);
       }
     } catch (err) {
-      if (controller.signal.aborted) return;
+      if (!owns()) return;
       if (err instanceof MirrorApiError && err.code === "unpaired") {
         void unpairMac(mac.id, true);
         return;
@@ -264,25 +257,21 @@ export function createMirrorEngine(deps: MirrorEngineDeps): MirrorEngine {
         return;
       }
       if (err instanceof MirrorApiError && err.status === 404) {
-        // Evict stale catalog entry and await file cleanup BEFORE releasing the slot.
+        // Evict stale catalog entry and clear/remove stale partial files BEFORE releasing the slot.
         dropCatalogItem(mac.id, videoId);
         if (localItems()[videoId]?.state === "partial" && localItems()[videoId]?.sourceMacId === mac.id) {
+          updateLocalRecord(videoId, null);
           await removeVideoFilesSerialized(videoId);
-          if (localItems()[videoId]?.state === "partial" && localItems()[videoId]?.sourceMacId === mac.id) {
-            updateLocalRecord(videoId, null);
-          }
         }
         return;
       }
       if (err instanceof MirrorApiError && err.code === "representation_changed") {
-        // Await stale partial removal BEFORE releasing the slot and applying backoff.
+        // Clear and remove stale partial files BEFORE releasing the slot and applying backoff.
         if (localItems()[videoId]?.state === "partial") {
+          updateLocalRecord(videoId, null);
           await removeVideoFilesSerialized(videoId);
-          if (localItems()[videoId]?.state === "partial") {
-            updateLocalRecord(videoId, null);
-          }
         }
-        backoff.recordFailure(videoId, scheduleTransfers);
+        if (owns()) backoff.recordFailure(videoId, scheduleTransfers);
         return;
       }
       backoff.recordFailure(videoId, scheduleTransfers);
@@ -307,7 +296,7 @@ export function createMirrorEngine(deps: MirrorEngineDeps): MirrorEngine {
       .filter(
         (item) =>
           item.status === "queued" &&
-          !pendingCleanups.has(item.videoId) &&
+          !fileOps.hasPending(item.videoId) &&
           backoff.canSchedule(item.videoId),
       )
       .sort((a, b) => {
@@ -320,7 +309,7 @@ export function createMirrorEngine(deps: MirrorEngineDeps): MirrorEngine {
       });
 
     for (const item of candidates) {
-      if (activeTransfers.has(item.videoId) || pendingCleanups.has(item.videoId)) continue;
+      if (activeTransfers.has(item.videoId) || fileOps.hasPending(item.videoId)) continue;
       if (activeTransfers.size >= MAX_PARALLEL_TRANSFERS) {
         if (!item.priority) break;
         const victim = [...activeTransfers.values()].find((a) => !prioIndex.has(a.videoId));
