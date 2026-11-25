@@ -5,4 +5,5 @@ pub mod download;
 pub mod open;
 pub mod parse;
 pub mod probe;
+pub mod serve;
 pub mod storage;

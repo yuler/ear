@@ -151,6 +151,7 @@ test("checkForUpdates falls back to full app update when no package is found", a
     notes: "Full runtime package upgrade",
     url: "https://example.com/Ear-1.0.0.tar.gz",
     canInstall: true,
+    shell: true,
   };
 
   const res = await checkForUpdates({
@@ -210,6 +211,7 @@ test("applyUpdate triggers downloadUpdate and installAndRestart for full app upd
       version: "1.0.0",
       url: "https://example.com/archive.tar.gz",
       canInstall: true,
+      shell: true,
     },
   };
 

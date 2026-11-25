@@ -1,5 +1,5 @@
 [tools]
-"github:longbridge/nsh" = "0.5.0"
+"github:longbridge/nsh" = "0.6.1"
 wrangler = "latest"
 
 [env]
@@ -38,6 +38,18 @@ run = "nsh check desktop"
 description = "Run tests on Native Shell desktop app"
 run = "nsh test desktop"
 
+[tasks."ios:dev"]
+description = "Run Ear iOS mobile app in development host (use --target ios on macOS)"
+run = "nsh run ios --target ios"
+
+[tasks."ios:check"]
+description = "Run TypeScript and styling checks on Native Shell iOS app"
+run = "nsh check ios"
+
+[tasks."ios:test"]
+description = "Run headless tests on Native Shell iOS app"
+run = "nsh test ios"
+
 [tasks."web:dev"]
 description = "Start Cloudflare Worker & static site preview locally via Wrangler"
 alias = ["www:dev"]
@@ -51,8 +63,8 @@ dir = "web"
 run = "wrangler deploy"
 
 [tasks.test]
-description = "Run all tests across subprojects (CLI + Desktop)"
-depends = ["cli:test", "desktop:test"]
+description = "Run all tests across subprojects (CLI + Desktop + iOS)"
+depends = ["cli:test", "desktop:test", "ios:test"]
 
 [tasks.doctor]
 description = "Check system dependencies (WebKitGTK, GStreamer, ffmpeg)"

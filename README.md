@@ -1,4 +1,4 @@
-# Ear
+# Ear（浸耳）
 
 Comprehensible-input English listening on [Native Shell](https://nsh.dev) (TSX).
 
@@ -25,7 +25,8 @@ Referenced from [huacnlee/noop](https://github.com/huacnlee/noop):
   - `desktop/store.ts` — Settings & progress persistence
   - `desktop/player.ts` — Audio/video engine & playback rate controller
   - `desktop/clipboard.ts` — System clipboard monitor
-- `docs/` — Architecture & learning workflow design specs ([docs/modes-design.md](docs/modes-design.md), [docs/discover-design.md](docs/discover-design.md))
+- `ios/` — Native Shell iOS companion app (`dev.yuler.ear`), mirroring desktop videos and captions over LAN for offline listening
+- `docs/` — Architecture & learning workflow design specs ([docs/modes-design.md](docs/modes-design.md), [docs/discover-design.md](docs/discover-design.md), [docs/mobile.md](docs/mobile.md))
 - `api/discover/` — Static zero-backend Discover catalog (`index.json`, `en.json`, `ja.json`)
 - `scripts/` — Environment setup & host installation scripts
 
@@ -78,5 +79,6 @@ GitHub writes: Cozilla41.
 
 - **CI** ([.github/workflows/ci.yml](.github/workflows/ci.yml)): Runs on pull requests to `main`, installing tools via [mise](https://mise.jdx.dev) (`jdx/mise-action`) and running `mise run check` + `mise run test`.
 - **Website & Worker Deployment** ([.github/workflows/web-deploy.yml](.github/workflows/web-deploy.yml)): Automatically deploys the landing website and Cloudflare Worker (`ear.yuler.dev`) on pushes to `main` touching `web/**` when `CLOUDFLARE_API_TOKEN` is configured.
-- **Automated Trunk Release** ([.github/workflows/release.yml](.github/workflows/release.yml)): Every merged PR or direct push to `main` (excluding pure doc changes) triggers an automated release. CI passes quality gates, resolves the next patch version, tags the commit, matrix-builds Linux x86_64, macOS aarch64, and Windows x86_64 packages with the bundled Rust `ear` CLI, and outputs signed incremental OTA packages (`dev.yuler.ear-*.nshpkg`, ~200KB) + signed `latest.json` manifest via `nsh update-manifest`. See [docs/release-design.md](docs/release-design.md) for full architecture details.
+- **Automated Trunk Release** ([.github/workflows/release.yml](.github/workflows/release.yml)): Every merged PR or direct push to `main` (excluding pure doc changes) triggers an automated release. CI passes quality gates, resolves the next patch version, tags the commit, matrix-builds Linux x86_64, macOS aarch64, and Windows x86_64 packages with the bundled Rust `ear` CLI, outputs signed incremental OTA packages (`dev.yuler.ear-*.nshpkg`, ~200KB) + signed `latest.json` manifest via `nsh update-manifest`, and chains the iOS TestFlight upload. See [docs/release-design.md](docs/release-design.md) for full architecture details.
+- **iOS TestFlight** ([.github/workflows/ios-release.yml](.github/workflows/ios-release.yml)): Triggered automatically by `release.yml`, by pushing a `v*` tag, or manually via `workflow_dispatch`. Packages `ios/` with `nsh package --target ios` on `macos-latest`, uploads to App Store Connect (`dev.yuler.ear`, App ID `6839099514`), and distributes to the `External` TestFlight group ([Join TestFlight](https://testflight.apple.com/join/qCAcBV77)). Use `./scripts/setup-testflight.sh check` to verify local TestFlight prerequisites.
 - **Auto Update**: Ear uses `nsh/updater` to check and install updates. UI and logic changes are applied incrementally via signed packages without touching macOS code signatures or requiring Linux root permissions, restarting instantly with `restartToPackage()`; major engine updates prompt full installer downloads.
