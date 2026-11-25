@@ -3,9 +3,11 @@ set -euo pipefail
 
 # Regression test:
 # - On Linux: install-prod.sh must preserve legacy $XDG_DATA_HOME/ear/library
-#   across both initial installation and reinstallation.
+#   and prod user data, clear stale NSH OTA updates, and install the packaged
+#   dev.yuler.ear.png icon while removing the stale scalable ear.svg.
 # - On macOS: install-prod.sh must install Ear.app with distinct GUI and CLI
-#   binaries and symlink ~/.local/bin/ear to Contents/Helpers/ear.
+#   binaries, symlink ~/.local/bin/ear to Contents/Helpers/ear, and clear
+#   stale NSH OTA updates while preserving user library data.
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 TMP_ROOT="$(mktemp -d)"
@@ -22,9 +24,22 @@ OS="$(uname -s)"
 ARCH="$(uname -m)"
 
 if [[ "$OS" == "Linux" && "$ARCH" == "x86_64" ]]; then
-  mkdir -p "$MOCK_XDG/ear/library" "$MOCK_STAGE/Ear"
+  mkdir -p "$MOCK_XDG/ear/library" \
+    "$MOCK_XDG/dev.yuler.ear/library" \
+    "$MOCK_XDG/dev.yuler.ear/updates/packages" \
+    "$MOCK_XDG/icons/hicolor/scalable/apps" \
+    "$MOCK_STAGE/Ear"
   SENTINEL="$MOCK_XDG/ear/library/sentinel.json"
+  PROD_ENTRY="$MOCK_XDG/dev.yuler.ear/library/prod-123.json"
+  PROD_STORAGE="$MOCK_XDG/dev.yuler.ear/storage.json"
+  STALE_OTA="$MOCK_XDG/dev.yuler.ear/updates/current.nshpkg"
+  STALE_SVG="$MOCK_XDG/icons/hicolor/scalable/apps/ear.svg"
   echo '{"videoId":"legacy-123"}' > "$SENTINEL"
+  echo '{"videoId":"prod-123"}' > "$PROD_ENTRY"
+  echo '{"theme":"dark"}' > "$PROD_STORAGE"
+  echo 'stale-ota-pkg' > "$STALE_OTA"
+  echo '<svg>old</svg>' > "$STALE_SVG"
+  printf '\x89PNG\r\n\x1a\nfake-icon' > "$MOCK_STAGE/Ear/dev.yuler.ear.png"
 
   cat > "$MOCK_STAGE/Ear/Ear" << 'EOF'
 #!/usr/bin/env bash
@@ -46,7 +61,14 @@ EOF
   tar -czf "$ARCHIVE_DIR/Ear-0.0.99-linux-x86_64.tar.gz" -C "$MOCK_STAGE" Ear
   (cd "$ARCHIVE_DIR" && sha256sum Ear-0.0.99-linux-x86_64.tar.gz > checksums.txt)
 elif [[ "$OS" == "Darwin" && "$ARCH" == "arm64" ]]; then
-  mkdir -p "$MOCK_STAGE/Ear.app/Contents/MacOS" "$MOCK_STAGE/Ear.app/Contents/Helpers"
+  mkdir -p "$MOCK_STAGE/Ear.app/Contents/MacOS" \
+    "$MOCK_STAGE/Ear.app/Contents/Helpers" \
+    "$MOCK_HOME/Library/Application Support/dev.yuler.ear/library" \
+    "$MOCK_HOME/Library/Application Support/dev.yuler.ear/updates"
+  PROD_ENTRY="$MOCK_HOME/Library/Application Support/dev.yuler.ear/library/prod-123.json"
+  STALE_OTA="$MOCK_HOME/Library/Application Support/dev.yuler.ear/updates/current.nshpkg"
+  echo '{"videoId":"prod-123"}' > "$PROD_ENTRY"
+  echo 'stale-ota-pkg' > "$STALE_OTA"
   cat > "$MOCK_STAGE/Ear.app/Contents/MacOS/Ear" << 'EOF'
 #!/usr/bin/env bash
 echo "Ear GUI"
@@ -101,17 +123,28 @@ if [[ "$OS" == "Linux" ]]; then
   run_install
   test -f "$SENTINEL"
   grep -q "legacy-123" "$SENTINEL"
+  test -f "$PROD_ENTRY"
+  test -f "$PROD_STORAGE"
+  test ! -e "$MOCK_XDG/dev.yuler.ear/updates"
   test -x "$MOCK_XDG/ear-app/Ear"
   test -L "$MOCK_HOME/.local/bin/ear"
   test -x "$MOCK_HOME/.local/bin/Ear"
+  test -f "$MOCK_XDG/icons/hicolor/512x512/apps/dev.yuler.ear.png"
+  test ! -e "$STALE_SVG"
+  grep -qx "Icon=${MOCK_HOME}/.local/share/ear-app/dev.yuler.ear.png" "$MOCK_XDG/applications/dev.yuler.ear.desktop"
 
-  # 2. Reinstall (must still preserve legacy sentinel library)
+  # 2. Reinstall (must preserve user data and clear newly created stale OTA updates)
+  mkdir -p "$MOCK_XDG/dev.yuler.ear/updates"
+  echo 'stale-ota-2' > "$STALE_OTA"
   run_install
   test -f "$SENTINEL"
   grep -q "legacy-123" "$SENTINEL"
+  test -f "$PROD_ENTRY"
+  test -f "$PROD_STORAGE"
+  test ! -e "$MOCK_XDG/dev.yuler.ear/updates"
   test -x "$MOCK_XDG/ear-app/Ear"
 
-  echo "PASS: install-prod.test.sh preserved legacy library across install and reinstall"
+  echo "PASS: install-prod.test.sh preserved user data, cleared stale OTA updates, and installed packaged PNG icon"
 else
   run_install
   APP_DST="$MOCK_HOME/Applications/Ear.app"
@@ -121,11 +154,17 @@ else
   test "$(readlink "$MOCK_HOME/.local/bin/ear")" = "$APP_DST/Contents/Helpers/ear"
   test "$("$APP_DST/Contents/MacOS/Ear")" = "Ear GUI"
   test "$("$MOCK_HOME/.local/bin/ear" --version)" = "ear 0.0.99 (schema v1)"
+  test -f "$PROD_ENTRY"
+  test ! -e "$MOCK_HOME/Library/Application Support/dev.yuler.ear/updates"
 
-  # Reinstall keeps symlink and distinct binaries intact
+  # Reinstall keeps symlink, preserves library, and clears stale OTA updates
+  mkdir -p "$MOCK_HOME/Library/Application Support/dev.yuler.ear/updates"
+  echo 'stale-ota-2' > "$STALE_OTA"
   run_install
   test "$(readlink "$MOCK_HOME/.local/bin/ear")" = "$APP_DST/Contents/Helpers/ear"
   test "$("$APP_DST/Contents/MacOS/Ear")" = "Ear GUI"
+  test -f "$PROD_ENTRY"
+  test ! -e "$MOCK_HOME/Library/Application Support/dev.yuler.ear/updates"
 
-  echo "PASS: install-prod.test.sh installed Ear.app and symlinked ~/.local/bin/ear to Contents/Helpers/ear"
+  echo "PASS: install-prod.test.sh installed Ear.app, symlinked CLI, and cleared stale OTA updates"
 fi
