@@ -56,6 +56,13 @@ export interface MobileCopy {
   appearanceSystem: string;
   appearanceLight: string;
   appearanceDark: string;
+  accentLabel: string;
+  accentBlue: string;
+  accentGreen: string;
+  accentOrange: string;
+  accentPurple: string;
+  accentRed: string;
+  versionLabel: string;
   languageLabel: string;
   syncSection: string;
   backgroundSyncLabel: string;
@@ -122,7 +129,7 @@ export const COPY: Record<Locale, MobileCopy> = {
     quickTitle: "连接电脑",
     quickDesc: "将电脑上已下载的视频和字幕自动镜像到这台 iPhone，离线随时精听。",
     quickBtn: "配对电脑",
-    quickQrTip: "也可以直接用 iPhone 系统相机扫描电脑「设置 → 手机镜像」中的二维码。",
+    quickQrTip: "用 iPhone 自带相机扫描电脑「设置 → 手机镜像」里的二维码，系统会打开 Ear 并停在确认页。",
     emptyPairedTitle: "等待电脑上的视频",
     emptyPairedDesc: "在已配对的电脑上下载视频后，同一 Wi-Fi 下会自动镜像到这里。",
 
@@ -160,6 +167,13 @@ export const COPY: Record<Locale, MobileCopy> = {
     appearanceSystem: "跟随系统",
     appearanceLight: "浅色",
     appearanceDark: "深色",
+    accentLabel: "主颜色",
+    accentBlue: "蓝",
+    accentGreen: "绿",
+    accentOrange: "橙",
+    accentPurple: "紫",
+    accentRed: "红",
+    versionLabel: "版本",
     languageLabel: "语言",
     syncSection: "镜像同步",
     backgroundSyncLabel: "后台同步",
@@ -179,14 +193,14 @@ export const COPY: Record<Locale, MobileCopy> = {
     pairModeLink: "二维码 / 链接",
     pairModeManual: "手动配对码",
     pairScanGuideTitle: "用 iPhone 相机扫码最快",
-    pairScanGuideDesc: "打开电脑端 Ear 的「设置 → 手机镜像」，用 iPhone 系统相机扫描屏幕二维码即可自动打开 Ear 完成配对，或粘贴配对链接。",
+    pairScanGuideDesc: "打开电脑 Ear 的「设置 → 手机镜像」，用 iPhone 自带相机扫描二维码。系统会打开 Ear 并停在确认页，核对电脑名和地址后再配对。也可以把配对链接粘贴到下面。",
     pasteFromClipboard: "从剪贴板粘贴配对链接",
-    pairUrlPlaceholder: "ear://pair?transport=lan&host=192.168.1.42&port=7890&code=1234",
+    pairUrlPlaceholder: "ear://pair?transport=lan&host=192.168.1.42&port=32783&code=1234",
     pairConfirmTitle: "请核对电脑地址后确认配对",
     pairConfirmDesc: (target) => `目标电脑：${target}。请确认这是你局域网内信任的电脑，再点击下方按钮完成配对。`,
     connectNow: "立即配对",
     hostLabel: "电脑局域网地址",
-    hostPlaceholder: "192.168.1.42:7890",
+    hostPlaceholder: "192.168.1.42:32783",
     codeLabel: "4 位配对码",
     codeHint: "输入电脑屏幕上显示的 4 位一次性配对码，输满后自动配对。",
     pairingProgress: "正在验证配对码并连接电脑…",
@@ -194,7 +208,7 @@ export const COPY: Record<Locale, MobileCopy> = {
     pairAlreadyPairedTitle: (name) => `已连接「${name}」`,
     pairSuccessSub: "即将返回媒体库并自动开始镜像",
     errInvalidUrl: "配对链接格式不正确，请确认以 ear://pair? 开头。",
-    errInvalidHost: "请输入有效的局域网地址，例如 192.168.1.42:7890。",
+    errInvalidHost: "请输入有效的局域网地址，例如 192.168.1.42:32783。",
     errWrongCode: "配对码不正确，请核对电脑屏幕上的 4 位数字。",
     errExpiredCode: "配对码已过期，请看电脑上新刷新的 4 位配对码。",
     errPairLocked: "错误次数过多，电脑端已临时锁定配对。请在电脑上点击「重新开启配对」后重试。",
@@ -222,7 +236,7 @@ export const COPY: Record<Locale, MobileCopy> = {
     quickTitle: "Connect a Computer",
     quickDesc: "Automatically mirror downloaded videos and captions from Ear on your Mac or PC over Wi-Fi.",
     quickBtn: "Pair Computer",
-    quickQrTip: "You can also scan the QR code in Ear Desktop (Settings → Phone Mirror) with the iPhone Camera app.",
+    quickQrTip: "Scan the QR code in Ear Desktop (Settings → Phone Mirror) with the iPhone Camera app. Ear opens on the confirm step.",
     emptyPairedTitle: "Waiting for Videos",
     emptyPairedDesc: "Download videos on a paired computer and they will mirror here automatically on the same Wi-Fi.",
 
@@ -260,6 +274,13 @@ export const COPY: Record<Locale, MobileCopy> = {
     appearanceSystem: "System",
     appearanceLight: "Light",
     appearanceDark: "Dark",
+    accentLabel: "Accent",
+    accentBlue: "Blue",
+    accentGreen: "Green",
+    accentOrange: "Orange",
+    accentPurple: "Purple",
+    accentRed: "Red",
+    versionLabel: "Version",
     languageLabel: "Language",
     syncSection: "Mirroring",
     backgroundSyncLabel: "Background Sync",
@@ -279,14 +300,14 @@ export const COPY: Record<Locale, MobileCopy> = {
     pairModeLink: "QR / Pair Link",
     pairModeManual: "4-Digit Code",
     pairScanGuideTitle: "Scan with iPhone Camera",
-    pairScanGuideDesc: "Open Settings → Phone Mirror in Ear on your computer and scan the QR code with the system Camera app, or paste the pairing link below.",
+    pairScanGuideDesc: "Open Settings → Phone Mirror in Ear on your computer and scan the QR code with the iPhone Camera app. iOS opens Ear on the confirm step so you can check the computer name and address. You can also paste the pairing link below.",
     pasteFromClipboard: "Paste Pair Link from Clipboard",
-    pairUrlPlaceholder: "ear://pair?transport=lan&host=192.168.1.42&port=7890&code=1234",
+    pairUrlPlaceholder: "ear://pair?transport=lan&host=192.168.1.42&port=32783&code=1234",
     pairConfirmTitle: "Verify Computer Before Pairing",
     pairConfirmDesc: (target) => `Target: ${target}. Confirm this is your trusted computer on the local network before pairing.`,
     connectNow: "Pair Now",
     hostLabel: "Computer LAN Address",
-    hostPlaceholder: "192.168.1.42:7890",
+    hostPlaceholder: "192.168.1.42:32783",
     codeLabel: "4-Digit Pairing Code",
     codeHint: "Enter the one-time 4-digit code shown on your computer screen.",
     pairingProgress: "Verifying code and connecting…",
@@ -294,7 +315,7 @@ export const COPY: Record<Locale, MobileCopy> = {
     pairAlreadyPairedTitle: (name) => `Connected to "${name}"`,
     pairSuccessSub: "Returning to your library…",
     errInvalidUrl: "Invalid pairing link. Expected an ear://pair? URL.",
-    errInvalidHost: "Enter a valid LAN address such as 192.168.1.42:7890.",
+    errInvalidHost: "Enter a valid LAN address such as 192.168.1.42:32783.",
     errWrongCode: "Incorrect pairing code. Check the 4 digits shown on your computer.",
     errExpiredCode: "Pairing code expired. Enter the refreshed 4-digit code.",
     errPairLocked: "Too many failed attempts. Reopen pairing on your computer and try again.",

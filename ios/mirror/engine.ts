@@ -1,5 +1,6 @@
 // Projection helpers live in ./selectors.ts; chunked transfer in ./transfer.ts; retry backoff in ./backoff.ts; file-op serialization in ./fileOps.ts.
 import { setColorScheme, signal, type Signal } from "nsh";
+import { applyAccentTheme } from "./accent";
 import {
   MAX_CONSECUTIVE_TRANSFER_FAILURES,
   RETRY_BASE_DELAY_MS,
@@ -59,6 +60,7 @@ export interface MirrorEngineDeps {
   chunkBytes?: number;
   deviceName?: string;
   applyColorScheme?: (scheme: MirrorSettings["appearance"]) => void;
+  applyAccent?: (accent: MirrorSettings["accent"]) => void;
   now?: () => number;
   scheduleRetry?: (fn: () => void, delayMs: number) => ReturnType<typeof setTimeout>;
   cancelRetry?: (handle: ReturnType<typeof setTimeout>) => void;
@@ -125,6 +127,7 @@ export function createMirrorEngine(deps: MirrorEngineDeps): MirrorEngine {
         // ignore outside native host
       }
     });
+  const applyAccent = deps.applyAccent ?? applyAccentTheme;
 
   const settings = signal<MirrorSettings>({ ...DEFAULT_MOBILE_SETTINGS });
   const macs = signal<PairedMac[]>([]);
@@ -401,12 +404,14 @@ export function createMirrorEngine(deps: MirrorEngineDeps): MirrorEngine {
     localItems.set(data.localItems);
     catalogs.set(data.catalogs);
     applyScheme(data.settings.appearance);
+    applyAccent(data.settings.accent);
   }
 
   function updateSettings(patch: Partial<MirrorSettings>): void {
     const next = { ...settings(), ...patch };
     settings.set(next);
     if (patch.appearance) applyScheme(patch.appearance);
+    if (patch.accent) applyAccent(patch.accent);
     persistNow();
     if (pausedInBackground()) stopAllTransfers();
     else scheduleTransfers();

@@ -2,7 +2,13 @@ import { exists, mkdir, readdir, readFile, rmdir, unlink, writeFile } from "fs/p
 import { join } from "path";
 import process from "process";
 import { Storage } from "nsh";
-import type { LocalItemRecord, MirrorSettings, PersistedMobileData, RemoteCatalogItem } from "./types";
+import type {
+  AccentColor,
+  LocalItemRecord,
+  MirrorSettings,
+  PersistedMobileData,
+  RemoteCatalogItem,
+} from "./types";
 import { isSafeMediaExt, isSafeVideoId } from "./validation";
 
 const STATE_KEY = "ear.ios.mirror.v1";
@@ -13,9 +19,16 @@ export const SINGLE_FILE_MAX_BYTES = 8 * 1024 * 1024;
 
 export const DEFAULT_MOBILE_SETTINGS: MirrorSettings = {
   appearance: "system",
+  accent: "blue",
   language: "zh",
   backgroundSync: true,
 };
+
+function sanitizeAccent(value: unknown): AccentColor {
+  return value === "green" || value === "orange" || value === "purple" || value === "red"
+    ? value
+    : "blue";
+}
 
 export function emptyPersistedData(): PersistedMobileData {
   return {
@@ -60,6 +73,7 @@ export async function loadPersistedData(): Promise<PersistedMobileData> {
           s?.appearance === "light" || s?.appearance === "dark" || s?.appearance === "system"
             ? s.appearance
             : "system",
+        accent: sanitizeAccent(s?.accent),
         language: s?.language === "en" ? "en" : "zh",
         backgroundSync: typeof s?.backgroundSync === "boolean" ? s.backgroundSync : true,
       },

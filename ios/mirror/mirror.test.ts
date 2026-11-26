@@ -171,7 +171,7 @@ test("parsePairUrl and parseHostAndPort parse valid LAN targets and reject inval
   expect(parsePairUrl("https://example.com")).toBe(null);
   expect(parsePairUrl("ear://pair?host=192.168.1.42&code=abc")).toBe(null);
 
-  expect(parseHostAndPort("192.168.1.42")).toEqual({ host: "192.168.1.42", port: 7890 });
+  expect(parseHostAndPort("192.168.1.42")).toEqual({ host: "192.168.1.42", port: 32783 });
   expect(parseHostAndPort("http://10.0.8.15:9000/")).toEqual({ host: "10.0.8.15", port: 9000 });
   expect(parseHostAndPort("192.168.1.42:99999")).toBe(null);
 
@@ -342,7 +342,7 @@ test("backgroundSync=false pauses transfers when entering background", async () 
     files: env.files,
     loadState: async () => ({
       ...emptyPersistedData(),
-      settings: { appearance: "system", language: "zh", backgroundSync: false },
+      settings: { appearance: "system", accent: "blue", language: "zh", backgroundSync: false },
       macs: [mac],
     }),
     saveState: env.saveState,

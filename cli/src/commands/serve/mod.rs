@@ -2,17 +2,18 @@
 pub mod catalog;
 pub mod crypto;
 pub mod http;
+pub mod port;
 pub mod state;
 #[cfg(test)]
 mod tests;
 
 use crate::emit::emit_json;
 use catalog::MediaCatalog;
+use port::{bind_mirror_port, remembered_port};
 use serde::Deserialize;
 use serde_json::json;
-use state::{default_library_dir, detect_lan_ip, MirrorState, ServerSnapshot, DEFAULT_PORT};
+use state::{default_library_dir, detect_lan_ip, MirrorState, ServerSnapshot};
 use std::io::{self, BufRead};
-use std::net::TcpListener;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
@@ -23,7 +24,8 @@ const MAX_CONCURRENT_CONNECTIONS: usize = 64;
 
 #[derive(Debug, Default)]
 struct ServeOptions {
-    port: u16,
+    /// Set only when the user passed `--port`. Absent means probe the window.
+    port: Option<u16>,
     host: Option<String>,
     name: Option<String>,
     library_dir: Option<PathBuf>,
@@ -77,12 +79,12 @@ pub fn run(args: &[String]) -> Result<(), String> {
             .join("mirror-state.json")
     });
 
-    let listener = TcpListener::bind(("0.0.0.0", opts.port))
-        .map_err(|e| format!("Failed to bind mirror server on port {}: {e}", opts.port))?;
-    let actual_port = listener
-        .local_addr()
-        .map_err(|e| format!("Failed to read bound port: {e}"))?
-        .port();
+    let remembered = if opts.port.is_none() {
+        remembered_port(&state_file)
+    } else {
+        None
+    };
+    let (listener, actual_port) = bind_mirror_port(opts.port, remembered)?;
     let advertised_host = opts.host.unwrap_or_else(detect_lan_ip);
 
     let catalog = Arc::new(MediaCatalog::new(library_dir));
@@ -228,16 +230,13 @@ pub fn run(args: &[String]) -> Result<(), String> {
 }
 
 fn parse_args(args: &[String]) -> Result<ServeOptions, String> {
-    let mut opts = ServeOptions {
-        port: DEFAULT_PORT,
-        ..Default::default()
-    };
+    let mut opts = ServeOptions::default();
     let mut i = 0;
     while i < args.len() {
         match args[i].as_str() {
             "--port" => {
                 let raw = args.get(i + 1).ok_or("--port requires a value")?;
-                opts.port = raw.parse::<u16>().map_err(|_| format!("Invalid port: {raw}"))?;
+                opts.port = Some(raw.parse::<u16>().map_err(|_| format!("Invalid port: {raw}"))?);
                 i += 2;
             }
             "--host" => {
