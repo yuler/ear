@@ -11,11 +11,6 @@ on:
         description: 'Git commit SHA or ref to build'
         required: true
         type: string
-      distribute_external:
-        description: 'Wait for processing and add build to External TestFlight group'
-        required: false
-        type: boolean
-        default: true
   push:
     tags:
       - 'v*'
@@ -26,11 +21,6 @@ on:
         required: false
         type: string
         default: ''
-      distribute_external:
-        description: 'Wait for processing and add build to External TestFlight group'
-        required: false
-        type: boolean
-        default: true
 
 permissions:
   contents: read
@@ -42,7 +32,7 @@ concurrency:
 jobs:
   testflight:
     runs-on: macos-latest
-    timeout-minutes: 60
+    timeout-minutes: 30
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -326,66 +316,6 @@ jobs:
             --ipa "$RUNNER_TEMP/ios-out/Ear.ipa" \
             --version "$APP_VERSION" \
             --build-number "$APP_BUILD"
-
-      - name: Distribute to TestFlight External group
-        shell: bash
-        env:
-          ASC_APP_ID: ${{ vars.ASC_APP_ID }}
-          EXTERNAL_GROUP: ${{ vars.TESTFLIGHT_EXTERNAL_GROUP || 'External' }}
-          DISTRIBUTE_EXTERNAL: ${{ inputs.distribute_external }}
-          APP_VERSION: ${{ steps.version.outputs.version }}
-          APP_BUILD: ${{ steps.version.outputs.build }}
-        run: |
-          set -euo pipefail
-
-          if [ "$DISTRIBUTE_EXTERNAL" = "false" ]; then
-            echo "::notice::External TestFlight distribution disabled via input; build $APP_VERSION ($APP_BUILD) was uploaded."
-            exit 0
-          fi
-
-          if [ -z "$ASC_APP_ID" ]; then
-            echo "::notice::Repository variable ASC_APP_ID is not configured; skipping automatic External group assignment. Set ASC_APP_ID to enable."
-            exit 0
-          fi
-
-          echo "Waiting for Ear $APP_VERSION ($APP_BUILD) to finish processing..."
-          asc builds wait \
-            --app "$ASC_APP_ID" \
-            --build-number "$APP_BUILD" \
-            --platform IOS \
-            --version "$APP_VERSION" \
-            --timeout 45m \
-            --poll-interval 30s
-
-          BUILD_ID="$(asc builds info \
-            --app "$ASC_APP_ID" \
-            --build-number "$APP_BUILD" \
-            --platform IOS \
-            --version "$APP_VERSION" \
-            --output json | python3 -c 'import json,sys; d=json.load(sys.stdin)["data"]; print((d[0] if isinstance(d, list) else d)["id"])')"
-          STATE="$(asc testflight distribution view \
-            --build-id "$BUILD_ID" \
-            --output json | python3 -c 'import json,sys; d=json.load(sys.stdin)["data"]; print((d[0] if isinstance(d, list) else d)["attributes"]["externalBuildState"])')"
-          echo "Build $BUILD_ID external state: $STATE"
-
-          case "$STATE" in
-            READY_FOR_BETA_SUBMISSION)
-              asc builds add-groups \
-                --build-id "$BUILD_ID" \
-                --group "$EXTERNAL_GROUP" \
-                --submit \
-                --confirm
-              ;;
-            WAITING_FOR_BETA_REVIEW|IN_BETA_REVIEW|IN_BETA_TESTING|BETA_APPROVED)
-              asc builds add-groups \
-                --build-id "$BUILD_ID" \
-                --group "$EXTERNAL_GROUP"
-              ;;
-            *)
-              echo "::error::Build $BUILD_ID is not ready for external testing (state: $STATE)"
-              exit 1
-              ;;
-          esac
 
       - name: Clean up signing materials
         if: always()
