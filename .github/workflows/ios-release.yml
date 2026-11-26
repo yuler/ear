@@ -323,12 +323,24 @@ jobs:
           APP_BUILD: ${{ steps.version.outputs.build }}
         run: |
           set -euo pipefail
+          IPA_PATH="$RUNNER_TEMP/ios-out/Ear.ipa"
           TARGET_APP="${ASC_APP_ID:-dev.yuler.ear}"
-          asc builds upload \
-            --app "$TARGET_APP" \
-            --ipa "$RUNNER_TEMP/ios-out/Ear.ipa" \
-            --version "$APP_VERSION" \
-            --build-number "$APP_BUILD"
+          for attempt in 1 2 3; do
+            if asc builds upload \
+              --app "$TARGET_APP" \
+              --ipa "$IPA_PATH" \
+              --version "$APP_VERSION" \
+              --build-number "$APP_BUILD" \
+              --platform IOS; then
+              exit 0
+            fi
+            if [ "$attempt" -eq 3 ]; then
+              echo "::error::Failed to upload $IPA_PATH to App Store Connect after 3 attempts"
+              exit 1
+            fi
+            echo "::warning::asc builds upload attempt ${attempt}/3 failed; retrying in 15s..."
+            sleep 15
+          done
 
       - name: Clean up signing materials
         if: always()
