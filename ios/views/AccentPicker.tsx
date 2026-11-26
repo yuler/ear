@@ -14,10 +14,10 @@ export function AccentPicker(props: {
     <View class="flex-row gap-1.5">
       {ACCENT_COLORS.map((accent) => {
         const selected = () => props.value() === accent;
-        const label = props.labelFor(accent);
+        const label = () => props.labelFor(accent);
         return (
           <Button
-            accessibilityLabel={label}
+            accessibilityLabel={label()}
             onPress={() => {
               if (selected()) return;
               Haptics.selection();
@@ -31,7 +31,7 @@ export function AccentPicker(props: {
               style={{ backgroundColor: accentSwatch(accent) }}
               class="h-7 w-7 rounded-full"
             />
-            <Text class="text-[11px] font-medium text-foreground">{label}</Text>
+            <Text class="text-[11px] font-medium text-foreground">{label()}</Text>
           </Button>
         );
       })}

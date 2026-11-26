@@ -57,9 +57,13 @@ pub fn bind_mirror_port(
 }
 
 fn bind_one(port: u16) -> Result<(TcpListener, u16), String> {
-    TcpListener::bind(("0.0.0.0", port))
-        .map(|listener| (listener, port))
-        .map_err(|err| format!("Failed to bind mirror server on port {port}: {err}"))
+    let listener = TcpListener::bind(("0.0.0.0", port))
+        .map_err(|err| format!("Failed to bind mirror server on port {port}: {err}"))?;
+    let bound_port = listener
+        .local_addr()
+        .map_err(|err| format!("Failed to inspect bound mirror port {port}: {err}"))?
+        .port();
+    Ok((listener, bound_port))
 }
 
 #[cfg(test)]
@@ -107,5 +111,12 @@ mod tests {
         assert_eq!(remembered_port(&path), None);
 
         let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn bind_explicit_zero_returns_ephemeral_port() {
+        let (listener, port) = bind_mirror_port(Some(0), None).unwrap();
+        assert_ne!(port, 0);
+        assert_eq!(port, listener.local_addr().unwrap().port());
     }
 }

@@ -30,6 +30,9 @@ test("renders iOS onboarding home state and opens Pair and Settings sheets", asy
   await app.press("English");
   await app.waitFor("APPEARANCE & LANGUAGE");
   expect(app.texts().some((t) => t.includes("Background Sync"))).toBe(true);
+  for (const label of ["Blue", "Green", "Orange", "Purple", "Red"]) {
+    expect(app.texts().includes(label)).toBe(true);
+  }
 
   await app.press("Done");
   await app.waitFor("Connect a Computer");
