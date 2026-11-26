@@ -1,10 +1,12 @@
 import type { Locale } from "../i18n";
 
 export type Appearance = "system" | "light" | "dark";
+export type AccentColor = "blue" | "green" | "orange" | "purple" | "red";
 export type TransportKind = "lan" | "relay";
 
 export interface MirrorSettings {
   appearance: Appearance;
+  accent: AccentColor;
   language: Locale;
   backgroundSync: boolean;
 }

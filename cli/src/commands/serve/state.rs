@@ -14,7 +14,7 @@ use std::path::PathBuf;
 
 pub const PAIR_TTL_SECS: u64 = 120;
 pub const PAIR_MAX_FAILED_ATTEMPTS: u32 = 5;
-pub const DEFAULT_PORT: u16 = 7890;
+pub use crate::commands::serve::port::MIRROR_PORT_START as DEFAULT_PORT;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PairError {
@@ -66,6 +66,9 @@ pub struct PersistedMirrorState {
     pub server_id: String,
     pub server_name: String,
     pub devices: Vec<PairedDevice>,
+    /// Last port that actually bound. `0` on files written before the window existed.
+    #[serde(default)]
+    pub port: u16,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -407,6 +410,7 @@ impl MirrorState {
             server_id: self.server_id.clone(),
             server_name: self.server_name.clone(),
             devices: self.devices.clone(),
+            port: self.port,
         };
         let body = serde_json::to_string_pretty(&persisted)
             .map_err(|e| format!("serialize mirror state: {e}"))?;

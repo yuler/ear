@@ -1,7 +1,7 @@
 import type { PairPayload, TransportKind } from "./types";
 import { isValidLanHost } from "./validation";
 
-export const DEFAULT_MIRROR_PORT = 7890;
+export const DEFAULT_MIRROR_PORT = 32783;
 
 export interface Transport {
   readonly kind: TransportKind;
@@ -109,7 +109,7 @@ export function parsePairUrl(raw: string): PairPayload | null {
   };
 }
 
-/** Parse manual address input like "192.168.1.42", "192.168.1.42:7890", or "http://192.168.1.42:7890". */
+/** Parse manual address input like "192.168.1.42", "192.168.1.42:32783", or "http://192.168.1.42:32783". */
 export function parseHostAndPort(input: string): { host: string; port: number } | null {
   let clean = input.trim();
   if (!clean) return null;

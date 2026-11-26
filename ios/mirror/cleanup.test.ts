@@ -298,7 +298,7 @@ test("delayed incompatible-partial cleanup serializes across background/foregrou
 
   let persisted: PersistedMobileData = {
     ...emptyPersistedData(),
-    settings: { appearance: "system", language: "zh", backgroundSync: false },
+    settings: { appearance: "system", accent: "blue", language: "zh", backgroundSync: false },
     macs: [mac],
     localItems: {
       "vid-incompat": {
@@ -436,7 +436,7 @@ test("cancelling incompatible-partial cleanup clears stale checkpoint even if or
 
   let persisted: PersistedMobileData = {
     ...emptyPersistedData(),
-    settings: { appearance: "system", language: "zh", backgroundSync: false },
+    settings: { appearance: "system", accent: "blue", language: "zh", backgroundSync: false },
     macs: [macA, macB],
     localItems: {
       "vid-revert": {
@@ -568,7 +568,7 @@ test("cancelled transfer mid-writeChunk cannot publish stale checkpoint or race 
 
   let persisted: PersistedMobileData = {
     ...emptyPersistedData(),
-    settings: { appearance: "system", language: "zh", backgroundSync: false },
+    settings: { appearance: "system", accent: "blue", language: "zh", backgroundSync: false },
     macs: [mac],
   };
 

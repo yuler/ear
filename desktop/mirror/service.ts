@@ -74,7 +74,8 @@ function sendControlCommand(payload: Record<string, unknown>): void {
   }
 }
 
-export function startMirrorServer(port = 7890): void {
+/** Start `ear serve` without `--port` so the CLI probes 32783–32798 and remembers the bind. */
+export function startMirrorServer(): void {
   if (mirrorRunning() || mirrorStarting()) return;
   if (!isNativeHost() || typeof process.spawn !== "function") {
     mirrorError.set("LAN mirror service is only available in the native desktop app.");
@@ -91,7 +92,7 @@ export function startMirrorServer(port = 7890): void {
     libDir = null;
   }
 
-  const args = ["serve", "--control-stdin", "--port", String(port)];
+  const args = ["serve", "--control-stdin"];
   if (libDir) {
     args.push("--library-dir", libDir);
   }

@@ -22,12 +22,17 @@ test("renders iOS onboarding home state and opens Pair and Settings sheets", asy
   // Open Settings sheet and toggle language zh -> English
   await app.press("⚙");
   await app.waitFor("外观与语言");
+  await app.waitFor("主颜色");
+  await app.waitFor("版本 v0.0.0");
   expect(app.texts().some((t) => t.includes("后台同步"))).toBe(true);
   expect(app.texts().some((t) => t.includes("已配对的电脑"))).toBe(true);
 
   await app.press("English");
   await app.waitFor("APPEARANCE & LANGUAGE");
   expect(app.texts().some((t) => t.includes("Background Sync"))).toBe(true);
+  for (const label of ["Blue", "Green", "Orange", "Purple", "Red"]) {
+    expect(app.texts().includes(label)).toBe(true);
+  }
 
   await app.press("Done");
   await app.waitFor("Connect a Computer");

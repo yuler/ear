@@ -71,7 +71,7 @@ fn end_to_end_pair_catalog_range_and_revoke() {
     )
     .unwrap();
 
-    let listener = TcpListener::bind(("127.0.0.1", 0)).unwrap();
+    let listener = std::net::TcpListener::bind(("127.0.0.1", 0)).unwrap();
     let port = listener.local_addr().unwrap().port();
     let state_path = tmp.join("mirror-state.json");
     let cat = Arc::new(MediaCatalog::new(lib_dir));

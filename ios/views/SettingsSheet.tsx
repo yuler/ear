@@ -1,9 +1,10 @@
-import { Scroll, Text, View } from "nsh";
+import { appInfo, Scroll, Text, View } from "nsh";
 import { AlertDialog, Button, Dialog, Switch } from "nsh/base";
 import { Haptics } from "nsh/mobile";
 import { copyFor, type Locale } from "../i18n";
 import type { MirrorEngine } from "../mirror/engine";
-import type { Appearance, PairedMac } from "../mirror/types";
+import type { AccentColor, Appearance, PairedMac } from "../mirror/types";
+import { AccentPicker } from "./AccentPicker";
 import {
   IosGroupedRow,
   IosGroupedSection,
@@ -84,6 +85,20 @@ export function SettingsSheet(props: {
     { value: "en", label: "English" },
   ];
 
+  const accentLabel = (accent: AccentColor): string => {
+    const copy = c();
+    if (accent === "green") return copy.accentGreen;
+    if (accent === "orange") return copy.accentOrange;
+    if (accent === "purple") return copy.accentPurple;
+    if (accent === "red") return copy.accentRed;
+    return copy.accentBlue;
+  };
+
+  const versionText = () => {
+    const version = appInfo().version;
+    return version ? `v${version}` : "v0.0.0";
+  };
+
   const confirmDisconnect = async (mac: PairedMac) => {
     Haptics.impact("medium");
     try {
@@ -150,6 +165,17 @@ export function SettingsSheet(props: {
                   onChange={(appearance) =>
                     props.engine.updateSettings({ appearance })
                   }
+                />
+              </View>
+              <View class="ml-4 h-[1px] bg-line/60" />
+              <View class="flex-col gap-2.5 px-4 py-3">
+                <Text class="text-[15px] font-medium text-foreground">
+                  {c().accentLabel}
+                </Text>
+                <AccentPicker
+                  value={() => props.engine.settings().accent}
+                  labelFor={accentLabel}
+                  onChange={(accent) => props.engine.updateSettings({ accent })}
                 />
               </View>
               <View class="ml-4 h-[1px] bg-line/60" />
@@ -226,6 +252,10 @@ export function SettingsSheet(props: {
                 </Text>
               </Button>
             </IosGroupedSection>
+
+            <Text class="pt-2 text-center text-xs text-muted-foreground">
+              {`${c().versionLabel} ${versionText()}`}
+            </Text>
           </View>
         </Scroll>
       </View>
