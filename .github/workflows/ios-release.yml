@@ -110,6 +110,16 @@ jobs:
           echo "build=$APP_BUILD" >> "$GITHUB_OUTPUT"
           echo "Building Ear iOS version: $APP_VERSION (build $APP_BUILD)"
 
+      - name: Setup Rust toolchain (aarch64-apple-ios)
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-ios
+
+      - name: Rust Cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: ios/ext/ear-scanner -> target
+
       - name: Install mise + nsh
         uses: jdx/mise-action@v5
         with:
@@ -123,6 +133,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          cargo test --manifest-path ios/ext/ear-scanner/Cargo.toml
           nsh check ios
           nsh test ios
 

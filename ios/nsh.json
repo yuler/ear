@@ -6,10 +6,13 @@
   "icon": "icon.png",
   "appearance": "system",
   "theme": "theme.json",
-  "schemes": ["ear"],
+  "schemes": [
+    "ear"
+  ],
   "ios": {
     "infoPlist": {
       "ITSAppUsesNonExemptEncryption": false,
+      "NSCameraUsageDescription": "Ear uses the camera to scan the pairing QR code displayed on Ear Desktop.",
       "NSLocalNetworkUsageDescription": "Ear connects to Ear on your Mac or PC over the same Wi-Fi to mirror downloaded videos and captions for offline listening.",
       "NSAppTransportSecurity": {
         "NSAllowsLocalNetworking": true
@@ -17,14 +20,26 @@
     }
   },
   "capabilities": {
+    "application": true,
     "statusBar": true,
     "clipboard": true,
     "network": {
-      "hosts": ["*"]
+      "hosts": [
+        "*"
+      ]
     },
     "fs": {
-      "read": ["${dataDir}"],
-      "write": ["${dataDir}"]
+      "read": [
+        "${dataDir}"
+      ],
+      "write": [
+        "${dataDir}"
+      ]
+    }
+  },
+  "dependencies": {
+    "ear-scanner": {
+      "path": "ext/ear-scanner"
     }
   }
 }

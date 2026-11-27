@@ -1,0 +1,42 @@
+[package]
+name = "ear-scanner"
+version = "0.1.0"
+edition = "2024"
+description = "Native iOS AVFoundation QR code scanner module for Ear."
+keywords = ["nshm"]
+
+[dependencies]
+nsh-core = "=0.7.1"
+log = "0.4"
+tokio = { version = "1", features = ["sync"] }
+
+[target.'cfg(target_os = "ios")'.dependencies]
+nsh-platform-ios = { version = "=0.7.1", default-features = false }
+block2 = "0.6.2"
+dispatch2 = "0.3.1"
+objc2 = "0.6.5"
+objc2-core-foundation = { version = "0.3.2", default-features = false, features = ["std", "CFCGTypes"] }
+objc2-foundation = { version = "0.3.2", default-features = false, features = [
+  "std",
+  "block2",
+  "NSArray",
+  "NSBundle",
+  "NSError",
+  "NSObject",
+  "NSString",
+  "NSThread",
+] }
+objc2-ui-kit = { version = "0.3.2", default-features = false, features = [
+  "std",
+  "block2",
+  "objc2-core-foundation",
+  "UIGeometry",
+  "UIResponder",
+  "UIView",
+  "UIViewController",
+  "UIViewControllerTransitionCoordinator",
+  "UIWindow",
+] }
+
+[package.metadata.nsh.ios.infoPlist]
+NSCameraUsageDescription = "Ear uses the camera to scan the pairing QR code displayed on Ear Desktop."

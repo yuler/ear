@@ -21,6 +21,8 @@ export interface MobileCopy {
   // Sync status banner
   offlineTitle: string;
   offlineDesc: string;
+  offlineLocalNetworkHint: string;
+  openSystemSettings: string;
   syncingTitle: (ready: number, reachableTotal: number, active: number) => string;
   syncingFrom: (names: string) => string;
   syncedTitle: (names: string) => string;
@@ -78,10 +80,19 @@ export interface MobileCopy {
   pairNewComputer: string;
   multiMacFooter: string;
 
-  // Pairing modal
+  // Pairing modal & scanner
   pairTitle: string;
   pairModeLink: string;
   pairModeManual: string;
+  scannerTitle: string;
+  scannerHint: string;
+  scannerManualBtn: string;
+  openScannerBtn: string;
+  rescanBtn: string;
+  cameraDeniedTitle: string;
+  cameraDeniedDesc: string;
+  localNetworkHelpHint: string;
+  errInvalidQr: string;
   pairScanGuideTitle: string;
   pairScanGuideDesc: string;
   pasteFromClipboard: string;
@@ -128,13 +139,15 @@ export const COPY: Record<Locale, MobileCopy> = {
 
     quickTitle: "连接电脑",
     quickDesc: "将电脑上已下载的视频和字幕自动镜像到这台 iPhone，离线随时精听。",
-    quickBtn: "配对电脑",
-    quickQrTip: "用 iPhone 自带相机扫描电脑「设置 → 手机镜像」里的二维码，系统会打开 Ear 并停在确认页。",
+    quickBtn: "扫码配对",
+    quickQrTip: "打开电脑 Ear「设置 → 手机镜像」，对准屏幕上的二维码即可自动完成配对。",
     emptyPairedTitle: "等待电脑上的视频",
     emptyPairedDesc: "在已配对的电脑上下载视频后，同一 Wi-Fi 下会自动镜像到这里。",
 
     offlineTitle: "未连接到已配对的电脑",
     offlineDesc: "请确保手机与电脑处于同一 Wi-Fi，且电脑端已开启「手机镜像」。",
+    offlineLocalNetworkHint: "若确认在同一 Wi-Fi 仍无法连接，请检查系统设置中是否已允许 Ear 访问「本地网络」。",
+    openSystemSettings: "去设置开启",
     syncingTitle: (ready, total, active) => `镜像中 ${ready}/${total} · 同时 ${active} 个`,
     syncingFrom: (names) => `正在从 ${names} 拉取`,
     syncedTitle: (names) => `已与 ${names} 同步`,
@@ -192,7 +205,16 @@ export const COPY: Record<Locale, MobileCopy> = {
     pairTitle: "配对电脑",
     pairModeLink: "二维码 / 链接",
     pairModeManual: "手动配对码",
-    pairScanGuideTitle: "用 iPhone 相机扫码最快",
+    scannerTitle: "扫码配对",
+    scannerHint: "对准电脑 Ear「设置 → 手机镜像」里的二维码",
+    scannerManualBtn: "无法扫码？手动输入配对码",
+    openScannerBtn: "打开相机扫码",
+    rescanBtn: "重新扫码",
+    cameraDeniedTitle: "需要相机权限才能扫码",
+    cameraDeniedDesc: "请在系统设置中允许 Ear 使用相机，以便扫描电脑上的配对二维码；也可以改用手动输入配对码。",
+    localNetworkHelpHint: "若已确认在同一 Wi-Fi，请检查 iPhone「设置 → Ear → 本地网络」权限是否已开启。",
+    errInvalidQr: "这不是有效的 Ear 配对二维码，请扫描电脑「设置 → 手机镜像」中的二维码。",
+    pairScanGuideTitle: "扫描电脑上的配对二维码",
     pairScanGuideDesc: "打开电脑 Ear 的「设置 → 手机镜像」，用 iPhone 自带相机扫描二维码。系统会打开 Ear 并停在确认页，核对电脑名和地址后再配对。也可以把配对链接粘贴到下面。",
     pasteFromClipboard: "从剪贴板粘贴配对链接",
     pairUrlPlaceholder: "ear://pair?transport=lan&host=192.168.1.42&port=32783&code=1234",
@@ -235,13 +257,15 @@ export const COPY: Record<Locale, MobileCopy> = {
 
     quickTitle: "Connect a Computer",
     quickDesc: "Automatically mirror downloaded videos and captions from Ear on your Mac or PC over Wi-Fi.",
-    quickBtn: "Pair Computer",
-    quickQrTip: "Scan the QR code in Ear Desktop (Settings → Phone Mirror) with the iPhone Camera app. Ear opens on the confirm step.",
+    quickBtn: "Scan QR to Pair",
+    quickQrTip: "Open Settings → Phone Mirror in Ear Desktop and point your camera at the QR code to pair automatically.",
     emptyPairedTitle: "Waiting for Videos",
     emptyPairedDesc: "Download videos on a paired computer and they will mirror here automatically on the same Wi-Fi.",
 
     offlineTitle: "No Paired Computer Reachable",
     offlineDesc: "Make sure your iPhone is on the same Wi-Fi and Phone Mirror is enabled on your computer.",
+    offlineLocalNetworkHint: "If both devices are on the same Wi-Fi, make sure Local Network access is enabled for Ear in Settings.",
+    openSystemSettings: "Open Settings",
     syncingTitle: (ready, total, active) => `Mirroring ${ready}/${total} · ${active} active`,
     syncingFrom: (names) => `Pulling from ${names}`,
     syncedTitle: (names) => `Synced with ${names}`,
@@ -299,7 +323,16 @@ export const COPY: Record<Locale, MobileCopy> = {
     pairTitle: "Pair Computer",
     pairModeLink: "QR / Pair Link",
     pairModeManual: "4-Digit Code",
-    pairScanGuideTitle: "Scan with iPhone Camera",
+    scannerTitle: "Scan QR Code",
+    scannerHint: "Point at the QR code in Ear Desktop (Settings → Phone Mirror)",
+    scannerManualBtn: "Can't scan? Enter 4-digit code",
+    openScannerBtn: "Scan with Camera",
+    rescanBtn: "Scan Again",
+    cameraDeniedTitle: "Camera Access Required",
+    cameraDeniedDesc: "Allow Ear to use the camera in iOS Settings to scan the pairing QR code, or enter the 4-digit pairing code manually.",
+    localNetworkHelpHint: "If you are on the same Wi-Fi, check that Local Network access is enabled in iOS Settings → Ear.",
+    errInvalidQr: "That QR code is not a valid Ear pairing code. Scan the QR code shown in Ear Desktop Settings → Phone Mirror.",
+    pairScanGuideTitle: "Scan Pairing QR Code",
     pairScanGuideDesc: "Open Settings → Phone Mirror in Ear on your computer and scan the QR code with the iPhone Camera app. iOS opens Ear on the confirm step so you can check the computer name and address. You can also paste the pairing link below.",
     pasteFromClipboard: "Paste Pair Link from Clipboard",
     pairUrlPlaceholder: "ear://pair?transport=lan&host=192.168.1.42&port=32783&code=1234",

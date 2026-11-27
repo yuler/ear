@@ -13,6 +13,8 @@ import {
 function SyncStatusBanner(props: {
   engine: MirrorEngine;
   locale: () => Locale;
+  canOpenSettings: () => boolean;
+  onOpenSystemSettings: () => void;
 }) {
   const c = () => copyFor(props.locale());
   const stats = () => props.engine.stats();
@@ -115,6 +117,27 @@ function SyncStatusBanner(props: {
           <Text class="text-xs font-semibold text-tint">{c().refreshNow}</Text>
         </Button>
       </View>
+
+      {isOffline() ? (
+        <View class="flex-row items-center justify-between gap-3 border-t border-line/60 pt-2.5">
+          <Text class="min-w-0 flex-1 text-xs leading-relaxed text-muted-foreground">
+            {c().offlineLocalNetworkHint}
+          </Text>
+          {props.canOpenSettings() ? (
+            <Button
+              onPress={() => {
+                Haptics.selection();
+                props.onOpenSystemSettings();
+              }}
+              class="shrink-0 rounded-full bg-tint-soft px-3 py-1.5 active:opacity-70"
+            >
+              <Text class="text-xs font-semibold text-tint">
+                {c().openSystemSettings}
+              </Text>
+            </Button>
+          ) : null}
+        </View>
+      ) : null}
 
       {isSyncing() ? (
         <Progress
@@ -264,7 +287,9 @@ function LibraryRow(props: {
 /** Primary iOS Library screen showing auto-mirrored videos, sync status, and quick pairing. */
 export function LibraryScreen(props: {
   engine: MirrorEngine;
+  canOpenSettings: () => boolean;
   onOpenSettings: () => void;
+  onOpenSystemSettings: () => void;
   onOpenPair: () => void;
   onSelectReady: (item: MirrorItemView) => void;
   onDeleteItem: (item: MirrorItemView) => void;
@@ -276,12 +301,18 @@ export function LibraryScreen(props: {
   const kept = () => lib().filter((x) => x.status !== "removed");
   const removed = () => lib().filter((x) => x.status === "removed");
 
-  const headerRightBtn = (
+  const openSettings = () => {
+    Haptics.selection();
+    props.onOpenSettings();
+  };
+
+  // Create distinct button instances per slot: NSH JSX elements are live native
+  // views, so reusing one element in both `headerRight` and `header` reparents
+  // it away from iOS's navigation bar.
+  const renderSettingsButton = (testID: string) => (
     <Button
-      onPress={() => {
-        Haptics.selection();
-        props.onOpenSettings();
-      }}
+      testID={testID}
+      onPress={openSettings}
       accessibilityLabel={c().settings}
       class="min-h-[36px] min-w-[36px] items-center justify-center rounded-full px-2 active:opacity-60"
     >
@@ -292,14 +323,23 @@ export function LibraryScreen(props: {
   return (
     <NavPage
       title={c().appTitle}
-      headerRight={headerRightBtn}
-      ios={{ headerRightSymbol: "gearshape" }}
+      headerRight={renderSettingsButton("header-settings")}
+      ios={{
+        headerRightItems: [
+          {
+            key: "settings",
+            symbol: "gearshape",
+            label: c().settings,
+            onPress: openSettings,
+          },
+        ],
+      }}
       header={
         <View class="flex-row items-center justify-between border-b border-line/60 bg-card px-4 py-3">
           <Text class="text-[22px] font-bold tracking-tight text-foreground">
             {c().appTitle}
           </Text>
-          {headerRightBtn}
+          {renderSettingsButton("desktop-settings")}
         </View>
       }
       class="flex-1 bg-background"
@@ -309,7 +349,12 @@ export function LibraryScreen(props: {
           style={{ paddingBottom: Math.max(32, safeArea().bottom + 72) }}
           class="flex-col gap-4 p-4"
         >
-          <SyncStatusBanner engine={props.engine} locale={locale} />
+          <SyncStatusBanner
+            engine={props.engine}
+            locale={locale}
+            canOpenSettings={props.canOpenSettings}
+            onOpenSystemSettings={props.onOpenSystemSettings}
+          />
 
           {/* Case 1: No paired computers yet -> Clean iOS onboarding card */}
           {props.engine.macs().length === 0 && lib().length === 0 ? (
