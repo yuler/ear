@@ -26,8 +26,8 @@ depends = ["cli:dev"]
 run = 'PATH="$PWD/cli/target/debug:$PATH" nsh run desktop'
 
 [tasks.dev]
-description = "Run all *:dev tasks in parallel (cli + desktop + web)"
-depends = ["*:dev"]
+description = "Run all active dev tasks in parallel (cli + desktop + web)"
+depends = ["cli:dev", "desktop:dev", "web:dev"]
 
 [tasks."desktop:check"]
 description = "Run TypeScript and styling checks on Native Shell desktop app"
@@ -38,17 +38,17 @@ run = "nsh check desktop"
 description = "Run tests on Native Shell desktop app"
 run = "nsh test desktop"
 
-[tasks."ios:dev"]
-description = "Run Ear iOS mobile app in development host (use --target ios on macOS)"
-run = "nsh run ios --target ios"
+[tasks."ios:legacy:dev"]
+description = "Run archived Native Shell iOS app in development host (use --target ios on macOS)"
+run = "nsh run ios-legacy --target ios"
 
-[tasks."ios:check"]
-description = "Run TypeScript and styling checks on Native Shell iOS app"
-run = "nsh check ios"
+[tasks."ios:legacy:check"]
+description = "Run TypeScript and styling checks on archived Native Shell iOS app"
+run = "nsh check ios-legacy"
 
-[tasks."ios:test"]
-description = "Run headless tests on Native Shell iOS app"
-run = "nsh test ios"
+[tasks."ios:legacy:test"]
+description = "Run headless tests on archived Native Shell iOS app"
+run = "nsh test ios-legacy"
 
 [tasks."web:dev"]
 description = "Start Cloudflare Worker & static site preview locally via Wrangler"
@@ -63,8 +63,8 @@ dir = "web"
 run = "wrangler deploy"
 
 [tasks.test]
-description = "Run all tests across subprojects (CLI + Desktop + iOS)"
-depends = ["cli:test", "desktop:test", "ios:test"]
+description = "Run all tests across active subprojects (CLI + Desktop)"
+depends = ["cli:test", "desktop:test"]
 
 [tasks.doctor]
 description = "Check system dependencies (WebKitGTK, GStreamer, ffmpeg)"
