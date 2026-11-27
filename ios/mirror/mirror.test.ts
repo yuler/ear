@@ -155,6 +155,14 @@ function makeFakeEnv(options?: {
 
 const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
+async function waitUntil(pred: () => boolean, timeoutMs = 5_000): Promise<void> {
+  const start = Date.now();
+  while (!pred()) {
+    if (Date.now() - start > timeoutMs) return;
+    await wait(10);
+  }
+}
+
 test("parsePairUrl and parseHostAndPort parse valid LAN targets and reject invalid inputs", () => {
   const url = buildPairUrl({
     transport: "lan",
@@ -207,7 +215,7 @@ test("pairs multiple Macs, deduplicates by videoId, and caps parallel transfers 
 
   await engine.pairManual("192.168.1.42:7890", "1234");
   await engine.pairManual("10.0.8.15:7890", "1234");
-  await wait(180);
+  await waitUntil(() => engine.stats().ready === 5 && engine.stats().complete);
 
   const lib = engine.library();
   expect(lib.length).toBe(5);
