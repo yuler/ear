@@ -1,11 +1,15 @@
-import { appInfo, Scroll, Text, View } from "nsh";
+import { appInfo, Clipboard, Scroll, signal, Text, View } from "nsh";
 import { AlertDialog, Button, NavPage, Switch } from "nsh/base";
 import { Haptics } from "nsh/mobile";
 import { copyFor, type Locale } from "../i18n";
 import type { MirrorEngine } from "../mirror/engine";
+import { computeOfflineStorageSummary } from "../mirror/selectors";
+import { formatStorageDisplayPath, mirrorRootDir } from "../mirror/storage";
 import type { AccentColor, Appearance, PairedMac } from "../mirror/types";
+import { playerCopyFor } from "../player/playerI18n";
 import { AccentPicker } from "./AccentPicker";
 import {
+  formatBytesShort,
   IosGroupedRow,
   IosGroupedSection,
   IosSegmented,
@@ -72,6 +76,26 @@ export function SettingsSheet(props: {
 }) {
   const locale = () => props.engine.settings().language;
   const c = () => copyFor(locale());
+  const pc = () => playerCopyFor(locale());
+  const copiedStoragePath = signal(false);
+
+  const storageSummary = () => computeOfflineStorageSummary(props.engine.localItems());
+  const storageRoot = () => mirrorRootDir();
+  const storageDisplay = () =>
+    storageRoot() ? formatStorageDisplayPath(storageRoot()) : pc().storageUnavailable;
+
+  const handleCopyStoragePath = async () => {
+    const root = storageRoot();
+    if (!root) return;
+    Haptics.selection();
+    try {
+      await Clipboard.writeText(root);
+      copiedStoragePath.set(true);
+      setTimeout(() => copiedStoragePath.set(false), 1800);
+    } catch {
+      // ignore clipboard errors in headless tests
+    }
+  };
 
   const appearanceOptions = (): { value: Appearance; label: string }[] => [
     { value: "system", label: c().appearanceSystem },
@@ -197,6 +221,52 @@ export function SettingsSheet(props: {
                   />
                 }
               />
+            </IosGroupedSection>
+
+            {/* Offline Local Storage */}
+            <IosGroupedSection
+              title={pc().storageSection}
+              footer={pc().storageFooter}
+            >
+              <IosGroupedRow
+                title={pc().storageUsedLabel}
+                subtitle={
+                  storageSummary().chunkedCount > 0
+                    ? pc().storageChunkedPending(storageSummary().chunkedCount)
+                    : undefined
+                }
+                showDivider
+                trailing={
+                  <Text class="font-mono text-sm text-muted-foreground">
+                    {`${pc().storageVideoCount(storageSummary().readyCount)} · ${formatBytesShort(storageSummary().totalBytes)}`}
+                  </Text>
+                }
+              />
+              <View class="flex-col gap-2 px-4 py-3">
+                <View class="flex-row items-center justify-between gap-3">
+                  <Text class="text-[15px] font-medium text-foreground">
+                    {pc().storageLocationLabel}
+                  </Text>
+                  {storageRoot() ? (
+                    <Button
+                      onPress={() => void handleCopyStoragePath()}
+                      class="rounded-full bg-tint-soft px-3 py-1 active:opacity-70"
+                    >
+                      <Text class="text-xs font-semibold text-tint">
+                        {copiedStoragePath() ? pc().storageCopiedPath : pc().storageCopyPath}
+                      </Text>
+                    </Button>
+                  ) : null}
+                </View>
+                <Text class="font-mono text-xs text-muted-foreground">
+                  {storageDisplay()}
+                </Text>
+                {storageRoot() ? (
+                  <Text class="font-mono text-[11px] leading-relaxed text-dim">
+                    {storageRoot()}
+                  </Text>
+                ) : null}
+              </View>
             </IosGroupedSection>
 
             {/* Paired Computers */}

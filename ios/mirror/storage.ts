@@ -1,6 +1,7 @@
 import { exists, mkdir, readdir, readFile, rmdir, unlink, writeFile } from "fs/promises";
 import { join } from "path";
 import process from "process";
+import { MediaFiles } from "ear-scanner";
 import { Storage } from "nsh";
 import type {
   AccentColor,
@@ -97,15 +98,32 @@ export async function savePersistedData(data: PersistedMobileData): Promise<void
 export interface MirrorFileStore {
   writeChunk(videoId: string, chunkIndex: number, bytes: Uint8Array): Promise<string>;
   readChunk?(videoId: string, chunkIndex: number): Promise<Uint8Array | null>;
+  assembleChunks?(videoId: string, ext: string, chunkCount: number): Promise<string>;
   writeDirectMedia(videoId: string, ext: string, bytes: Uint8Array): Promise<string>;
   writeCaptions(videoId: string, captionsJson: string): Promise<string>;
   removeVideoFiles(videoId: string): Promise<void>;
 }
 
-function mirrorRootDir(): string | null {
+export function mirrorRootDir(): string | null {
   const dir = process.dataDir;
   if (!dir) return null;
   return join(dir, "mirror");
+}
+
+/** Shorten an absolute sandbox path for readable display while preserving the relative tail. */
+export function formatStorageDisplayPath(fullPath: string | null | undefined): string {
+  if (!fullPath) return "";
+  const root = mirrorRootDir();
+  if (root) {
+    const normRoot = root.replace(/\/+$/, "");
+    if (fullPath === normRoot) return "Sandbox/mirror";
+    if (fullPath.startsWith(`${normRoot}/`)) {
+      return `Sandbox/mirror/${fullPath.slice(normRoot.length + 1)}`;
+    }
+  }
+  const idx = fullPath.indexOf("/mirror/");
+  if (idx >= 0) return `Sandbox${fullPath.slice(idx)}`;
+  return fullPath;
 }
 
 function assertSafeVideoId(videoId: string): void {
@@ -186,6 +204,26 @@ export function createDiskFileStore(): MirrorFileStore {
       } catch {
         return null;
       }
+    },
+
+    async assembleChunks(videoId, ext, chunkCount) {
+      assertSafeVideoId(videoId);
+      const safeExt = assertSafeMediaExt(ext);
+      if (!Number.isInteger(chunkCount) || chunkCount <= 0) {
+        throw new Error(`Invalid chunkCount: ${chunkCount}`);
+      }
+      const root = mirrorRootDir();
+      if (!root) {
+        return `memory://mirror/${videoId}/media.${safeExt}`;
+      }
+      const dir = safeVideoDir(root, videoId);
+      const chunksDir = join(dir, "chunks");
+      const outputPath = join(dir, `media.${safeExt}`);
+      const res = await MediaFiles.assembleChunks(chunksDir, chunkCount, outputPath);
+      if (!res.ok) {
+        throw new Error(res.error ?? "Failed to assemble media chunks");
+      }
+      return res.path || outputPath;
     },
 
     async writeDirectMedia(videoId, ext, bytes) {

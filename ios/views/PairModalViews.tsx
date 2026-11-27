@@ -70,28 +70,48 @@ export function CameraDeniedCard(props: {
   );
 }
 
-/** Inline error banner with optional Local Network Settings & Re-scan actions. */
+/** Inline error banner with optional diagnostic details, Local Network Settings & Re-scan actions. */
 export function PairErrorBanner(props: {
   copy: () => MobileCopy;
   errorText: () => string;
+  errorDetail?: () => string | null;
   isUnreachable: () => boolean;
   canOpenSettings: () => boolean;
   scannerAvailable: () => boolean;
   onOpenSystemSettings: () => void;
   onRescan: () => void;
+  onSwitchManual?: () => void;
 }) {
   const c = props.copy;
   return (
-    <View class="flex-col gap-2.5 rounded-2xl bg-danger-soft px-4 py-3">
-      <Text class="text-[13px] font-medium leading-relaxed text-destructive">
+    <View class="flex-col gap-2.5 rounded-2xl border border-destructive/25 bg-danger-soft px-4 py-3.5">
+      <Text class="text-[14px] font-semibold leading-snug text-destructive">
         {props.errorText()}
       </Text>
       {props.isUnreachable() ? (
-        <Text class="text-xs leading-relaxed text-destructive/80">
+        <Text class="text-xs leading-relaxed text-destructive/85">
           {c().localNetworkHelpHint}
         </Text>
       ) : null}
-      <View class="flex-row flex-wrap gap-2">
+      {props.errorDetail?.() ? (
+        <Text class="font-mono text-[11px] text-destructive/75">
+          {props.errorDetail()}
+        </Text>
+      ) : null}
+      <View class="flex-row flex-wrap gap-2 pt-0.5">
+        {props.scannerAvailable() ? (
+          <Button
+            onPress={() => {
+              Haptics.selection();
+              props.onRescan();
+            }}
+            class="rounded-full bg-primary px-3.5 py-1.5 active:opacity-80"
+          >
+            <Text class="text-xs font-semibold text-primary-foreground">
+              {c().rescanBtn}
+            </Text>
+          </Button>
+        ) : null}
         {props.isUnreachable() && props.canOpenSettings() ? (
           <Button
             onPress={() => {
@@ -105,16 +125,16 @@ export function PairErrorBanner(props: {
             </Text>
           </Button>
         ) : null}
-        {props.scannerAvailable() ? (
+        {props.onSwitchManual ? (
           <Button
             onPress={() => {
               Haptics.selection();
-              props.onRescan();
+              props.onSwitchManual?.();
             }}
             class="rounded-full bg-card px-3.5 py-1.5 active:opacity-70"
           >
-            <Text class="text-xs font-semibold text-tint">
-              {c().rescanBtn}
+            <Text class="text-xs font-semibold text-foreground">
+              {c().pairModeManual}
             </Text>
           </Button>
         ) : null}

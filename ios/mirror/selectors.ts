@@ -19,6 +19,32 @@ export interface LibraryProjectionInput {
   priorityQueue: string[];
 }
 
+export function isChunkedLocalPath(path: string | null | undefined): boolean {
+  if (!path) return false;
+  return path.includes("/chunks/") || path.endsWith(".part");
+}
+
+export interface OfflineStorageSummary {
+  readyCount: number;
+  totalBytes: number;
+  chunkedCount: number;
+}
+
+export function computeOfflineStorageSummary(
+  localItems: Record<string, LocalItemRecord>,
+): OfflineStorageSummary {
+  let readyCount = 0;
+  let totalBytes = 0;
+  let chunkedCount = 0;
+  for (const rec of Object.values(localItems)) {
+    if (rec.state !== "ready") continue;
+    readyCount += 1;
+    totalBytes += Math.max(0, rec.sizeBytes || rec.downloadedBytes || 0);
+    if (isChunkedLocalPath(rec.localPath)) chunkedCount += 1;
+  }
+  return { readyCount, totalBytes, chunkedCount };
+}
+
 export function sourcesForVideo(
   videoId: string,
   macs: PairedMac[],
@@ -117,12 +143,19 @@ export function buildLibraryView(input: LibraryProjectionInput): MirrorItemView[
       thumbnailUrl: remote?.thumbnailUrl ?? rec?.thumbnailUrl ?? "",
       durationMs: remote?.durationMs ?? rec?.durationMs ?? null,
       sizeBytes,
+      contentSha256: rec?.contentSha256 ?? remote?.contentSha256,
       downloadedBytes,
       progress,
       status,
       priority: prioSet.has(videoId),
       hasCaptions: remote?.hasCaptions ?? rec?.hasCaptions ?? false,
       mediaExt: remote?.mediaExt ?? rec?.mediaExt ?? "mp4",
+      mimeType: rec?.mimeType ?? remote?.mimeType ?? "video/mp4",
+      localPath: rec?.localPath ?? null,
+      captionsPath: rec?.captionsPath ?? null,
+      completedChunks: rec?.completedChunks ?? 0,
+      totalChunks: rec?.totalChunks ?? 0,
+      isChunkedUnmerged: status === "ready" && isChunkedLocalPath(rec?.localPath),
       sources,
       fallbackSourceShortName: rec?.sourceShortName ?? sources[0]?.shortName ?? null,
       updatedAt: remote?.updatedAt ?? rec?.updatedAt ?? 0,

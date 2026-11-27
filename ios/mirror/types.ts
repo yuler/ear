@@ -84,6 +84,12 @@ export interface MirrorItemView {
   priority: boolean;
   hasCaptions: boolean;
   mediaExt: string;
+  mimeType: string;
+  localPath: string | null;
+  captionsPath: string | null;
+  completedChunks: number;
+  totalChunks: number;
+  isChunkedUnmerged: boolean;
   sources: MirrorSourceRef[];
   fallbackSourceShortName: string | null;
   updatedAt: number;

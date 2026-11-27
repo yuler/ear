@@ -6,6 +6,7 @@
 //! Elsewhere (desktops, simulators, headless tests) reports unavailable so the
 //! TSX layer cleanly falls back to manual pairing.
 
+mod file_ops;
 #[cfg(target_os = "ios")]
 mod ios;
 #[cfg(target_os = "ios")]
@@ -15,6 +16,7 @@ mod ios_overlay;
 
 use nsh_core::prelude::*;
 
+use self::file_ops::MediaFiles;
 #[cfg(target_os = "ios")]
 use self::ios as platform;
 
@@ -122,6 +124,7 @@ impl QrScanner {
 #[native_module("ear-scanner")]
 fn native(registry: &mut Registry) {
     registry.module::<QrScanner>();
+    registry.module::<MediaFiles>();
 }
 
 #[cfg(test)]
