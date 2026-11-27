@@ -28,8 +28,7 @@ export function EarMobileApp(props?: {
 }) {
   const engine = props?.engine ?? mirrorEngine;
   const permissions = props?.permissions ?? defaultPermissionsBridge;
-  const nav = createNavStack(["library"] as const);
-  const settingsOpen = signal(false);
+  const nav = createNavStack(["library"] as ("library" | "settings")[]);
   const pairOpen = signal(false);
   const pairIntent = signal<PairModalIntent>({ kind: "link" });
   const scannerAvailable = signal(false);
@@ -73,10 +72,16 @@ export function EarMobileApp(props?: {
     }
   };
 
+  const settingsIsOpen = () => nav.routes().at(-1) === "settings";
+
+  const closeSettings = () => {
+    if (settingsIsOpen()) nav.pop();
+  };
+
   const handleOpenPairUrl = (url: string | null) => {
     if (!url || !parsePairUrl(url)) return;
-    const wasSettingsOpen = settingsOpen();
-    settingsOpen.set(false);
+    const wasSettingsOpen = settingsIsOpen();
+    closeSettings();
     openPairModal({ kind: "deepLink", url }, wasSettingsOpen);
   };
 
@@ -213,18 +218,29 @@ export function EarMobileApp(props?: {
   return (
     <View class="relative flex-1 bg-background">
       <NavStack state={nav} class="flex-1">
-        {() => (
-          <LibraryScreen
-            engine={engine}
-            canOpenSettings={() => canOpenSettings()}
-            onOpenSettings={() => settingsOpen.set(true)}
-            onOpenSystemSettings={() => void permissions.openAppSettings()}
-            onOpenPair={() => void startPairingFlow(false)}
-            onSelectReady={(item) => previewItem.set(item)}
-            onDeleteItem={handleDeleteItem}
-            onTapNotReady={handleTapNotReady}
-          />
-        )}
+        {(route) =>
+          route === "settings" ? (
+            <SettingsSheet
+              engine={engine}
+              onClose={closeSettings}
+              onOpenPair={() => {
+                closeSettings();
+                void startPairingFlow(true);
+              }}
+            />
+          ) : (
+            <LibraryScreen
+              engine={engine}
+              canOpenSettings={() => canOpenSettings()}
+              onOpenSettings={() => nav.push("settings")}
+              onOpenSystemSettings={() => void permissions.openAppSettings()}
+              onOpenPair={() => void startPairingFlow(false)}
+              onSelectReady={(item) => previewItem.set(item)}
+              onDeleteItem={handleDeleteItem}
+              onTapNotReady={handleTapNotReady}
+            />
+          )
+        }
       </NavStack>
 
       {/* Floating iOS Undo / Info Toast */}
@@ -250,13 +266,6 @@ export function EarMobileApp(props?: {
           ) : null}
         </View>
       ) : null}
-
-      <SettingsSheet
-        open={() => settingsOpen()}
-        engine={engine}
-        onClose={() => settingsOpen.set(false)}
-        onOpenPair={() => void startPairingFlow(true)}
-      />
 
       <PairModal
         open={() => pairOpen()}
