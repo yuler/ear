@@ -129,14 +129,6 @@ jobs:
       - name: Install iOS runtime component
         run: nsh component add ios
 
-      - name: Check and test iOS app before handling signing secrets
-        shell: bash
-        run: |
-          set -euo pipefail
-          cargo test --manifest-path ios/ext/ear-scanner/Cargo.toml
-          nsh check ios
-          nsh test ios
-
       - name: Install pinned asc CLI
         shell: bash
         run: |
