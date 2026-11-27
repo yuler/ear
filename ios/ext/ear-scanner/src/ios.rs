@@ -12,7 +12,7 @@ use block2::RcBlock;
 use dispatch2::{DispatchQueue, DispatchTime, MainThreadBound};
 use nsh_core::prelude::*;
 use objc2::{
-    DefinedClass, MainThreadMarker, msg_send,
+    MainThreadMarker, msg_send,
     rc::Retained,
     runtime::{AnyClass, AnyObject, Bool, ProtocolObject},
 };

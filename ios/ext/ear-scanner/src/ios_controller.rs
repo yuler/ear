@@ -28,6 +28,12 @@ const UI_STATUS_BAR_STYLE_LIGHT: isize = 1;
 /// Wrapper allowing an `AVCaptureSession` to be started/stopped on a dedicated serial queue.
 struct SendObj(Retained<AnyObject>);
 
+impl SendObj {
+    fn as_obj(&self) -> &AnyObject {
+        &self.0
+    }
+}
+
 // SAFETY: `AVCaptureSession` is explicitly designed by Apple to be started and stopped
 // from a dedicated serial session queue off the main thread.
 unsafe impl Send for SendObj {}
@@ -207,7 +213,7 @@ impl QrScannerViewController {
             self.ivars().session_queue.exec_async(move || {
                 // SAFETY: `AVCaptureSession.stopRunning` runs on our serial session queue.
                 unsafe {
-                    let _: () = msg_send![&*send.0, stopRunning];
+                    let _: () = msg_send![send.as_obj(), stopRunning];
                 }
             });
         }
@@ -340,7 +346,7 @@ impl QrScannerViewController {
 
             let send = SendObj(session);
             self.ivars().session_queue.exec_async(move || {
-                let _: () = msg_send![&*send.0, startRunning];
+                let _: () = msg_send![send.as_obj(), startRunning];
             });
         }
 
