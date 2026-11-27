@@ -227,7 +227,7 @@ impl QrScannerViewController {
             };
             let target = ACTIVE.with_borrow(|slot| {
                 slot.as_ref()
-                    .filter(|vc| (&**vc as *const QrScannerViewController as usize) == self_ptr)
+                    .filter(|vc| (Retained::as_ptr(*vc) as usize) == self_ptr)
                     .cloned()
             });
             if let Some(vc) = target {
