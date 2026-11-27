@@ -1,3 +1,4 @@
+// Camera-denied recovery card and error banner live in ./PairModalViews.tsx.
 import { Clipboard, effect, Scroll, signal, Text, View } from "nsh";
 import { Button, Dialog, Input, OtpInput } from "nsh/base";
 import { Haptics } from "nsh/mobile";
@@ -6,26 +7,42 @@ import { MirrorApiError } from "../mirror/client";
 import type { MirrorEngine } from "../mirror/engine";
 import { parseHostAndPort, parsePairUrl } from "../mirror/transport";
 import { IosGroupedSection, IosSegmented } from "../ui/IosPrimitives";
+import { CameraDeniedCard, PairErrorBanner } from "./PairModalViews";
+
+export type PairModalIntent =
+  | { kind: "link" }
+  | { kind: "manual" }
+  | { kind: "cameraDenied" }
+  | { kind: "deepLink"; url: string }
+  | { kind: "scanned"; raw: string };
 
 type PairMode = "link" | "manual";
 type PairPhase = "idle" | "connecting" | "done" | "error";
 
-/** iOS page-sheet modal for pairing via ear://pair QR link or manual LAN host + 4-digit code. */
+/** iOS page-sheet modal for QR scan results, camera permission recovery, deep links, or manual code. */
 export function PairModal(props: {
   open: () => boolean;
+  intent: () => PairModalIntent;
   engine: MirrorEngine;
-  initialUrl?: () => string | null;
+  scannerAvailable: () => boolean;
+  canOpenSettings: () => boolean;
+  onRequestScan: () => void;
+  onOpenSystemSettings: () => void;
   onClose: () => void;
   onPaired?: (macName: string) => void;
 }) {
   const mode = signal<PairMode>("link");
+  const showCameraDenied = signal(false);
   const phase = signal<PairPhase>("idle");
   const pairUrlInput = signal("");
   const hostInput = signal("");
   const codeInput = signal("");
   const errorText = signal<string | null>(null);
+  const errorIsUnreachable = signal(false);
   const pairedName = signal("");
   const pairedAgain = signal(false);
+
+  let handledIntent: PairModalIntent | null = null;
 
   const locale = () => props.engine.settings().language;
   const c = () => copyFor(locale());
@@ -33,25 +50,30 @@ export function PairModal(props: {
   const resetForm = () => {
     phase.set("idle");
     errorText.set(null);
+    errorIsUnreachable.set(false);
     codeInput.set("");
     pairedName.set("");
     pairedAgain.set(false);
+    showCameraDenied.set(false);
+    handledIntent = null;
   };
 
-  const describeError = (err: unknown, hostLabel: string): string => {
+  const describeError = (err: unknown, hostLabel: string): { text: string; unreachable: boolean } => {
     if (err instanceof MirrorApiError) {
-      if (err.code === "invalid_code") return c().errWrongCode;
-      if (err.code === "code_expired") return c().errExpiredCode;
-      if (err.code === "pair_locked") return c().errPairLocked;
-      return c().errUnreachable(hostLabel);
+      if (err.code === "invalid_code") return { text: c().errWrongCode, unreachable: false };
+      if (err.code === "code_expired") return { text: c().errExpiredCode, unreachable: false };
+      if (err.code === "pair_locked") return { text: c().errPairLocked, unreachable: false };
+      return { text: c().errUnreachable(hostLabel), unreachable: true };
     }
-    return c().errUnreachable(hostLabel);
+    return { text: c().errUnreachable(hostLabel), unreachable: true };
   };
 
   const finishPair = (macName: string, already: boolean) => {
     pairedName.set(macName);
     pairedAgain.set(already);
     phase.set("done");
+    errorText.set(null);
+    errorIsUnreachable.set(false);
     Haptics.notification("success");
     props.onPaired?.(macName);
     setTimeout(() => {
@@ -62,21 +84,25 @@ export function PairModal(props: {
     }, 1000);
   };
 
-  const submitPairUrl = async (raw: string) => {
+  const submitPairUrl = async (raw: string, invalidMsg?: string) => {
     const payload = parsePairUrl(raw);
     if (!payload) {
-      errorText.set(c().errInvalidUrl);
+      errorText.set(invalidMsg ?? c().errInvalidUrl);
+      errorIsUnreachable.set(false);
       phase.set("error");
       Haptics.notification("error");
       return;
     }
     phase.set("connecting");
     errorText.set(null);
+    errorIsUnreachable.set(false);
     try {
       const res = await props.engine.pairFromPayload(payload);
       finishPair(res.mac.name, res.alreadyPaired);
     } catch (err) {
-      errorText.set(describeError(err, `${payload.host}:${payload.port}`));
+      const info = describeError(err, `${payload.host}:${payload.port}`);
+      errorText.set(info.text);
+      errorIsUnreachable.set(info.unreachable);
       phase.set("error");
       Haptics.notification("error");
     }
@@ -86,6 +112,7 @@ export function PairModal(props: {
     const parsedHost = parseHostAndPort(hostInput());
     if (!parsedHost) {
       errorText.set(c().errInvalidHost);
+      errorIsUnreachable.set(false);
       phase.set("error");
       Haptics.notification("error");
       return;
@@ -93,17 +120,21 @@ export function PairModal(props: {
     const cleanCode = (codeOverride ?? codeInput()).replace(/\D/g, "");
     if (cleanCode.length !== 4) {
       errorText.set(c().errWrongCode);
+      errorIsUnreachable.set(false);
       phase.set("error");
       Haptics.notification("error");
       return;
     }
     phase.set("connecting");
     errorText.set(null);
+    errorIsUnreachable.set(false);
     try {
       const res = await props.engine.pairManual(hostInput(), cleanCode);
       finishPair(res.mac.name, res.alreadyPaired);
     } catch (err) {
-      errorText.set(describeError(err, `${parsedHost.host}:${parsedHost.port}`));
+      const info = describeError(err, `${parsedHost.host}:${parsedHost.port}`);
+      errorText.set(info.text);
+      errorIsUnreachable.set(info.unreachable);
       phase.set("error");
       codeInput.set("");
       Haptics.notification("error");
@@ -115,22 +146,51 @@ export function PairModal(props: {
       const text = await Clipboard.readText();
       if (!text || !parsePairUrl(text)) {
         errorText.set(c().errClipboardEmpty);
+        errorIsUnreachable.set(false);
         return;
       }
       pairUrlInput.set(text.trim());
       errorText.set(null);
+      errorIsUnreachable.set(false);
     } catch {
       errorText.set(c().errClipboardEmpty);
+      errorIsUnreachable.set(false);
     }
   };
 
-  // Pre-fill incoming ear://pair?... deep link for explicit user confirmation — never auto-submit.
+  // Apply modal intent whenever opened:
+  // - `scanned`: auto-pair immediately (user explicitly pointed camera at desktop QR)
+  // - `deepLink`: pre-fill and stop at confirm step (untrusted external ear:// URL)
+  // - `cameraDenied`: show dedicated camera permission recovery view
+  // - `manual` / `link`: open the requested tab cleanly
   effect(() => {
-    const incoming = props.initialUrl?.();
-    if (props.open() && incoming && phase() === "idle" && pairUrlInput() !== incoming) {
+    if (!props.open()) {
+      handledIntent = null;
+      return;
+    }
+    const intent = props.intent();
+    if (intent === handledIntent) return;
+    handledIntent = intent;
+
+    phase.set("idle");
+    errorText.set(null);
+    errorIsUnreachable.set(false);
+    showCameraDenied.set(false);
+
+    if (intent.kind === "cameraDenied") {
+      showCameraDenied.set(true);
       mode.set("link");
-      pairUrlInput.set(incoming);
-      errorText.set(null);
+    } else if (intent.kind === "manual") {
+      mode.set("manual");
+    } else if (intent.kind === "deepLink") {
+      mode.set("link");
+      pairUrlInput.set(intent.url);
+    } else if (intent.kind === "scanned") {
+      mode.set("link");
+      pairUrlInput.set(intent.raw);
+      void submitPairUrl(intent.raw, c().errInvalidQr);
+    } else {
+      mode.set("link");
     }
   });
 
@@ -190,6 +250,26 @@ export function PairModal(props: {
               {c().pairSuccessSub}
             </Text>
           </View>
+        ) : showCameraDenied() ? (
+          <Scroll class="flex-1">
+            <View class="flex-col gap-5 p-4 pb-10">
+              <CameraDeniedCard
+                copy={c}
+                canOpenSettings={props.canOpenSettings}
+                scannerAvailable={props.scannerAvailable}
+                onOpenSystemSettings={props.onOpenSystemSettings}
+                onRescan={() => {
+                  resetForm();
+                  props.onClose();
+                  props.onRequestScan();
+                }}
+                onSwitchManual={() => {
+                  showCameraDenied.set(false);
+                  mode.set("manual");
+                }}
+              />
+            </View>
+          </Scroll>
         ) : (
           <Scroll class="flex-1">
             <View class="flex-col gap-5 p-4 pb-10">
@@ -199,6 +279,7 @@ export function PairModal(props: {
                 onChange={(next) => {
                   mode.set(next);
                   errorText.set(null);
+                  errorIsUnreachable.set(false);
                   if (phase() === "error") phase.set("idle");
                 }}
               />
@@ -213,6 +294,22 @@ export function PairModal(props: {
                       <Text class="text-[13px] leading-relaxed text-muted-foreground">
                         {c().pairScanGuideDesc}
                       </Text>
+                      {props.scannerAvailable() ? (
+                        <Button
+                          disabled={phase() === "connecting"}
+                          onPress={() => {
+                            Haptics.impact("light");
+                            resetForm();
+                            props.onClose();
+                            props.onRequestScan();
+                          }}
+                          class="mt-1 min-h-[48px] items-center justify-center rounded-xl bg-primary px-4 py-3 active:opacity-80 disabled:opacity-40"
+                        >
+                          <Text class="text-[16px] font-semibold text-primary-foreground">
+                            {c().openScannerBtn}
+                          </Text>
+                        </Button>
+                      ) : null}
                       <Button
                         disabled={phase() === "connecting"}
                         onPress={() => void handlePasteClipboard()}
@@ -246,6 +343,7 @@ export function PairModal(props: {
                         onChange={(e) => {
                           pairUrlInput.set(e.value);
                           errorText.set(null);
+                          errorIsUnreachable.set(false);
                         }}
                         placeholder={c().pairUrlPlaceholder}
                         autoCapitalize="none"
@@ -273,6 +371,7 @@ export function PairModal(props: {
                         onChange={(e) => {
                           hostInput.set(e.value);
                           errorText.set(null);
+                          errorIsUnreachable.set(false);
                         }}
                         placeholder={c().hostPlaceholder}
                         autoCapitalize="none"
@@ -292,6 +391,7 @@ export function PairModal(props: {
                           const digits = e.value.replace(/\D/g, "").slice(0, 4);
                           codeInput.set(digits);
                           errorText.set(null);
+                          errorIsUnreachable.set(false);
                           if (digits.length === 4 && hostInput().trim()) {
                             void submitManual(digits);
                           }
@@ -319,11 +419,19 @@ export function PairModal(props: {
               )}
 
               {errorText() ? (
-                <View class="flex-col gap-2 rounded-2xl bg-danger-soft px-4 py-3">
-                  <Text class="text-[13px] font-medium leading-relaxed text-destructive">
-                    {errorText()}
-                  </Text>
-                </View>
+                <PairErrorBanner
+                  copy={c}
+                  errorText={() => errorText()!}
+                  isUnreachable={() => errorIsUnreachable()}
+                  canOpenSettings={props.canOpenSettings}
+                  scannerAvailable={props.scannerAvailable}
+                  onOpenSystemSettings={props.onOpenSystemSettings}
+                  onRescan={() => {
+                    resetForm();
+                    props.onClose();
+                    props.onRequestScan();
+                  }}
+                />
               ) : null}
             </View>
           </Scroll>

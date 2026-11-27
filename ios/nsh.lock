@@ -1,0 +1,11 @@
+{
+  "version": 2,
+  "packages": [
+    {
+      "name": "ear-scanner",
+      "version": "0.1.0",
+      "path": "ext/ear-scanner",
+      "module": "ear-scanner"
+    }
+  ]
+}

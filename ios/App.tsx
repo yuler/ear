@@ -1,13 +1,17 @@
-import { effect, lifecycle, mount, safeArea, signal, Text, UrlScheme, View } from "nsh";
+import { effect, lifecycle, mount, platform, safeArea, signal, Text, UrlScheme, View } from "nsh";
 import { Button, createNavStack, NavStack } from "nsh/base";
 import { Haptics } from "nsh/mobile";
 import { copyFor } from "./i18n";
 import { mirrorEngine, type MirrorEngine } from "./mirror/engine";
+import {
+  defaultPermissionsBridge,
+  type MobilePermissionsBridge,
+} from "./mirror/scanner";
 import { parsePairUrl } from "./mirror/transport";
 import type { MirrorItemView } from "./mirror/types";
 import { LibraryScreen } from "./views/LibraryScreen";
 import { OfflinePreviewSheet } from "./views/OfflinePreviewSheet";
-import { PairModal } from "./views/PairModal";
+import { PairModal, type PairModalIntent } from "./views/PairModal";
 import { SettingsSheet } from "./views/SettingsSheet";
 
 const POLL_INTERVAL_MS = 5000;
@@ -17,16 +21,25 @@ interface ToastState {
   undo?: () => void;
 }
 
-export function EarMobileApp(props?: { engine?: MirrorEngine; disableAutoPoll?: boolean }) {
+export function EarMobileApp(props?: {
+  engine?: MirrorEngine;
+  permissions?: MobilePermissionsBridge;
+  disableAutoPoll?: boolean;
+}) {
   const engine = props?.engine ?? mirrorEngine;
+  const permissions = props?.permissions ?? defaultPermissionsBridge;
   const nav = createNavStack(["library"] as const);
   const settingsOpen = signal(false);
   const pairOpen = signal(false);
-  const incomingPairUrl = signal<string | null>(null);
+  const pairIntent = signal<PairModalIntent>({ kind: "link" });
+  const scannerAvailable = signal(false);
+  const canOpenSettings = signal(false);
   const previewItem = signal<MirrorItemView | null>(null);
   const toast = signal<ToastState | null>(null);
 
   let toastTimer: ReturnType<typeof setTimeout> | null = null;
+  let sheetTransitionTimer: ReturnType<typeof setTimeout> | null = null;
+  let scanning = false;
   const pendingDeleteTimers = new Map<string, ReturnType<typeof setTimeout>>();
 
   const locale = () => engine.settings().language;
@@ -41,20 +54,85 @@ export function EarMobileApp(props?: { engine?: MirrorEngine; disableAutoPoll?: 
     }, undo ? 4000 : 2600);
   };
 
-  const handleOpenPairUrl = (url: string | null) => {
-    if (!url || !parsePairUrl(url)) return;
-    settingsOpen.set(false);
-    incomingPairUrl.set(url);
-    pairOpen.set(true);
+  const openPairModal = (intent: PairModalIntent, waitForSheetDismiss = false) => {
+    if (sheetTransitionTimer) {
+      clearTimeout(sheetTransitionTimer);
+      sheetTransitionTimer = null;
+    }
+    const showNow = () => {
+      pairIntent.set(intent);
+      pairOpen.set(true);
+    };
+    if (waitForSheetDismiss && platform.os === "ios") {
+      sheetTransitionTimer = setTimeout(() => {
+        sheetTransitionTimer = null;
+        showNow();
+      }, 360);
+    } else {
+      showNow();
+    }
   };
 
-  // Initial hydration + URL scheme listener + auto LAN poll.
+  const handleOpenPairUrl = (url: string | null) => {
+    if (!url || !parsePairUrl(url)) return;
+    const wasSettingsOpen = settingsOpen();
+    settingsOpen.set(false);
+    openPairModal({ kind: "deepLink", url }, wasSettingsOpen);
+  };
+
+  const startPairingFlow = async (fromSettingsSheet = false) => {
+    if (scanning) return;
+    scanning = true;
+    try {
+      const canScan = await permissions.scannerAvailable();
+      scannerAvailable.set(canScan);
+      if (!canScan) {
+        openPairModal({ kind: "link" }, fromSettingsSheet);
+        return;
+      }
+
+      const copy = c();
+      const result = await permissions.scanQr({
+        cancelLabel: copy.cancel,
+        manualLabel: copy.scannerManualBtn,
+        titleText: copy.scannerTitle,
+        hintText: copy.scannerHint,
+      });
+
+      if (result.status === "cancelled") {
+        return;
+      }
+      if (result.status === "denied") {
+        openPairModal({ kind: "cameraDenied" }, false);
+        return;
+      }
+      if (result.status === "manual") {
+        openPairModal({ kind: "manual" }, false);
+        return;
+      }
+      if (result.status === "scanned" && result.value) {
+        openPairModal({ kind: "scanned", raw: result.value }, false);
+        return;
+      }
+      openPairModal({ kind: "link" }, false);
+    } finally {
+      scanning = false;
+    }
+  };
+
+  // Initial hydration + capability probes + URL scheme listener + auto LAN poll.
   effect(() => {
     let disposed = false;
     void engine.hydrate().then(() => {
       if (!disposed && !props?.disableAutoPoll) {
         void engine.pollAllMacs();
       }
+    });
+    void permissions.scannerAvailable().then((ok) => {
+      if (!disposed) scannerAvailable.set(ok);
+    });
+    void permissions.appSettingsAvailable().then((ok) => {
+      if (!disposed) canOpenSettings.set(ok);
     });
 
     const initialUrl = UrlScheme.url();
@@ -76,6 +154,7 @@ export function EarMobileApp(props?: { engine?: MirrorEngine; disableAutoPoll?: 
       stopUrl();
       if (timer) clearInterval(timer);
       if (toastTimer) clearTimeout(toastTimer);
+      if (sheetTransitionTimer) clearTimeout(sheetTransitionTimer);
       for (const t of pendingDeleteTimers.values()) clearTimeout(t);
       pendingDeleteTimers.clear();
     };
@@ -137,11 +216,10 @@ export function EarMobileApp(props?: { engine?: MirrorEngine; disableAutoPoll?: 
         {() => (
           <LibraryScreen
             engine={engine}
+            canOpenSettings={() => canOpenSettings()}
             onOpenSettings={() => settingsOpen.set(true)}
-            onOpenPair={() => {
-              incomingPairUrl.set(null);
-              pairOpen.set(true);
-            }}
+            onOpenSystemSettings={() => void permissions.openAppSettings()}
+            onOpenPair={() => void startPairingFlow(false)}
             onSelectReady={(item) => previewItem.set(item)}
             onDeleteItem={handleDeleteItem}
             onTapNotReady={handleTapNotReady}
@@ -177,19 +255,19 @@ export function EarMobileApp(props?: { engine?: MirrorEngine; disableAutoPoll?: 
         open={() => settingsOpen()}
         engine={engine}
         onClose={() => settingsOpen.set(false)}
-        onOpenPair={() => {
-          incomingPairUrl.set(null);
-          pairOpen.set(true);
-        }}
+        onOpenPair={() => void startPairingFlow(true)}
       />
 
       <PairModal
         open={() => pairOpen()}
+        intent={() => pairIntent()}
         engine={engine}
-        initialUrl={() => incomingPairUrl()}
+        scannerAvailable={() => scannerAvailable()}
+        canOpenSettings={() => canOpenSettings()}
+        onRequestScan={() => void startPairingFlow(false)}
+        onOpenSystemSettings={() => void permissions.openAppSettings()}
         onClose={() => {
           pairOpen.set(false);
-          incomingPairUrl.set(null);
         }}
         onPaired={(macName) => showToast(c().toastPaired(macName))}
       />

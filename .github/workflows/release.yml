@@ -112,7 +112,9 @@ jobs:
       - name: Rust Cache
         uses: Swatinem/rust-cache@v2
         with:
-          workspaces: cli -> target
+          workspaces: |
+            cli -> target
+            ios/ext/ear-scanner -> target
 
       - name: Install mise + nsh
         uses: jdx/mise-action@v5
@@ -130,8 +132,10 @@ jobs:
           nsh test desktop
           nsh test ios
 
-      - name: Test CLI
-        run: cargo test --manifest-path cli/Cargo.toml
+      - name: Test CLI & iOS native module
+        run: |
+          cargo test --manifest-path cli/Cargo.toml
+          cargo test --manifest-path ios/ext/ear-scanner/Cargo.toml
 
   build-desktop:
     name: Build Desktop (${{ matrix.platform }})

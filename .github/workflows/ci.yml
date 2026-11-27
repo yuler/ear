@@ -46,6 +46,7 @@ jobs:
               - 'ios/**'
               - 'mise.toml'
               - '.github/workflows/ci.yml'
+              - '.github/workflows/ios-release.yml'
             web:
               - 'web/**'
               - '.github/workflows/ci.yml'
@@ -105,17 +106,50 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Setup Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Rust Cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: ios/ext/ear-scanner -> target
+
       - name: Install mise + nsh
         uses: jdx/mise-action@v5
         with:
           install_args: github:longbridge/nsh
           cache_key_prefix: mise-nsh-v1
 
+      - name: Run ear-scanner Rust unit tests
+        run: cargo test --manifest-path ios/ext/ear-scanner/Cargo.toml
+
       - name: Typecheck
         run: nsh check ios
 
       - name: Run iOS Tests
         run: nsh test ios
+
+  ios-native:
+    name: iOS Native Compile (arm64)
+    needs: detect-changes
+    if: needs.detect-changes.outputs.ios == 'true'
+    runs-on: macos-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Rust toolchain (aarch64-apple-ios)
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-ios
+
+      - name: Rust Cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: ios/ext/ear-scanner -> target
+
+      - name: Check iOS native module compilation
+        run: cargo check --manifest-path ios/ext/ear-scanner/Cargo.toml --target aarch64-apple-ios
 
   web:
     name: Web (Landing & Worker)
@@ -142,7 +176,7 @@ jobs:
 
   ci-status:
     name: Check & Test
-    needs: [detect-changes, cli, desktop, ios, web]
+    needs: [detect-changes, cli, desktop, ios, ios-native, web]
     if: always()
     runs-on: ubuntu-latest
     steps:
@@ -161,6 +195,7 @@ jobs:
           CLI_RES="${{ needs.cli.result }}"
           DESKTOP_RES="${{ needs.desktop.result }}"
           IOS_RES="${{ needs.ios.result }}"
+          IOS_NATIVE_RES="${{ needs.ios-native.result }}"
           WEB_RES="${{ needs.web.result }}"
 
           echo "Change detection result: $DETECT_RES"
@@ -172,9 +207,10 @@ jobs:
           echo "CLI result: $CLI_RES"
           echo "Desktop result: $DESKTOP_RES"
           echo "iOS result: $IOS_RES"
+          echo "iOS Native result: $IOS_NATIVE_RES"
           echo "Web result: $WEB_RES"
 
-          for res in "$CLI_RES" "$DESKTOP_RES" "$IOS_RES" "$WEB_RES"; do
+          for res in "$CLI_RES" "$DESKTOP_RES" "$IOS_RES" "$IOS_NATIVE_RES" "$WEB_RES"; do
             if [ "$res" = "failure" ] || [ "$res" = "cancelled" ]; then
               echo "Error: One or more parallel CI jobs failed." >&2
               exit 1
