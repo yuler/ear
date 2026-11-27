@@ -93,6 +93,13 @@ export interface MobileCopy {
   cameraDeniedDesc: string;
   localNetworkHelpHint: string;
   errInvalidQr: string;
+  errInvalidQrMalformed: string;
+  errScannedCodeMismatch: string;
+  errWrongCodeRemaining: (left: number) => string;
+  errTimeout: (host: string) => string;
+  errServerError: (status: number) => string;
+  errScannerUnavailable: string;
+  errDiagMeta: (target: string, code: string) => string;
   pairScanGuideTitle: string;
   pairScanGuideDesc: string;
   pasteFromClipboard: string;
@@ -214,6 +221,13 @@ export const COPY: Record<Locale, MobileCopy> = {
     cameraDeniedDesc: "请在系统设置中允许 Ear 使用相机，以便扫描电脑上的配对二维码；也可以改用手动输入配对码。",
     localNetworkHelpHint: "若已确认在同一 Wi-Fi，请检查 iPhone「设置 → Ear → 本地网络」权限是否已开启。",
     errInvalidQr: "这不是有效的 Ear 配对二维码，请扫描电脑「设置 → 手机镜像」中的二维码。",
+    errInvalidQrMalformed: "该 Ear 二维码信息不完整或已损坏，请在电脑端点击「刷新配对码」后重新扫码。",
+    errScannedCodeMismatch: "二维码里的配对码已过期或已刷新，请直接重新扫描电脑屏幕上最新的二维码。",
+    errWrongCodeRemaining: (left) => `配对码不正确（剩余 ${left} 次机会），请核对电脑屏幕上的 4 位数字。`,
+    errTimeout: (host) => `连接 ${host} 超时。请检查手机与电脑是否在同一 Wi-Fi（未开启 VPN），且已开启「本地网络」权限。`,
+    errServerError: (status) => `电脑端返回异常（HTTP ${status}），请检查电脑与手机端 Ear 版本是否一致后重试。`,
+    errScannerUnavailable: "当前无法打开相机扫码，请粘贴配对链接或切换到「手动配对码」。",
+    errDiagMeta: (target, code) => (target ? `目标 ${target} · 错误码 ${code}` : `错误码 ${code}`),
     pairScanGuideTitle: "扫描电脑上的配对二维码",
     pairScanGuideDesc: "打开电脑 Ear 的「设置 → 手机镜像」，用 iPhone 自带相机扫描二维码。系统会打开 Ear 并停在确认页，核对电脑名和地址后再配对。也可以把配对链接粘贴到下面。",
     pasteFromClipboard: "从剪贴板粘贴配对链接",
@@ -332,6 +346,13 @@ export const COPY: Record<Locale, MobileCopy> = {
     cameraDeniedDesc: "Allow Ear to use the camera in iOS Settings to scan the pairing QR code, or enter the 4-digit pairing code manually.",
     localNetworkHelpHint: "If you are on the same Wi-Fi, check that Local Network access is enabled in iOS Settings → Ear.",
     errInvalidQr: "That QR code is not a valid Ear pairing code. Scan the QR code shown in Ear Desktop Settings → Phone Mirror.",
+    errInvalidQrMalformed: "This Ear QR code is incomplete or corrupted. Refresh the pairing code on your computer and scan again.",
+    errScannedCodeMismatch: "The QR code's pairing code expired or changed on your computer. Scan the refreshed QR code to pair.",
+    errWrongCodeRemaining: (left) => `Incorrect pairing code (${left} attempts left). Check the 4 digits on your computer.`,
+    errTimeout: (host) => `Connection to ${host} timed out. Check that both devices share the same Wi-Fi (no VPN) and Local Network access is enabled.`,
+    errServerError: (status) => `Computer returned an unexpected error (HTTP ${status}). Verify both apps are up to date and try again.`,
+    errScannerUnavailable: "Camera scanner is unavailable here. Paste the pairing link or switch to 4-Digit Code.",
+    errDiagMeta: (target, code) => (target ? `Target ${target} · Code ${code}` : `Code ${code}`),
     pairScanGuideTitle: "Scan Pairing QR Code",
     pairScanGuideDesc: "Open Settings → Phone Mirror in Ear on your computer and scan the QR code with the iPhone Camera app. iOS opens Ear on the confirm step so you can check the computer name and address. You can also paste the pairing link below.",
     pasteFromClipboard: "Paste Pair Link from Clipboard",

@@ -10,9 +10,9 @@ import {
 import { parsePairUrl } from "./mirror/transport";
 import type { MirrorItemView } from "./mirror/types";
 import { LibraryScreen } from "./views/LibraryScreen";
-import { OfflinePreviewSheet } from "./views/OfflinePreviewSheet";
 import { PairModal, type PairModalIntent } from "./views/PairModal";
 import { SettingsSheet } from "./views/SettingsSheet";
+import { VideoDetailScreen } from "./views/VideoDetailScreen";
 
 const POLL_INTERVAL_MS = 5000;
 
@@ -28,12 +28,12 @@ export function EarMobileApp(props?: {
 }) {
   const engine = props?.engine ?? mirrorEngine;
   const permissions = props?.permissions ?? defaultPermissionsBridge;
-  const nav = createNavStack(["library"] as ("library" | "settings")[]);
+  const nav = createNavStack(["library"] as ("library" | "settings" | "detail")[]);
   const pairOpen = signal(false);
   const pairIntent = signal<PairModalIntent>({ kind: "link" });
   const scannerAvailable = signal(false);
   const canOpenSettings = signal(false);
-  const previewItem = signal<MirrorItemView | null>(null);
+  const activeVideoId = signal<string | null>(null);
   const toast = signal<ToastState | null>(null);
 
   let toastTimer: ReturnType<typeof setTimeout> | null = null;
@@ -73,6 +73,7 @@ export function EarMobileApp(props?: {
   };
 
   const settingsIsOpen = () => nav.routes().at(-1) === "settings";
+  const detailIsOpen = () => nav.routes().at(-1) === "detail";
 
   const openSettings = () => {
     if (!settingsIsOpen()) nav.push("settings");
@@ -80,6 +81,15 @@ export function EarMobileApp(props?: {
 
   const closeSettings = () => {
     if (settingsIsOpen()) nav.pop();
+  };
+
+  const openDetail = (item: MirrorItemView) => {
+    activeVideoId.set(item.videoId);
+    if (!detailIsOpen()) nav.push("detail");
+  };
+
+  const closeDetail = () => {
+    if (detailIsOpen()) nav.pop();
   };
 
   const handleOpenPairUrl = (url: string | null) => {
@@ -121,6 +131,10 @@ export function EarMobileApp(props?: {
       }
       if (result.status === "scanned" && result.value) {
         openPairModal({ kind: "scanned", raw: result.value }, false);
+        return;
+      }
+      if (result.status === "unavailable") {
+        openPairModal({ kind: "scannerUnavailable" }, fromSettingsSheet);
         return;
       }
       openPairModal({ kind: "link" }, fromSettingsSheet);
@@ -232,6 +246,13 @@ export function EarMobileApp(props?: {
                 void startPairingFlow(true);
               }}
             />
+          ) : route === "detail" && activeVideoId() ? (
+            <VideoDetailScreen
+              videoId={() => activeVideoId()!}
+              engine={engine}
+              onClose={closeDetail}
+              onToast={(msg) => showToast(msg)}
+            />
           ) : (
             <LibraryScreen
               engine={engine}
@@ -239,7 +260,7 @@ export function EarMobileApp(props?: {
               onOpenSettings={openSettings}
               onOpenSystemSettings={() => void permissions.openAppSettings()}
               onOpenPair={() => void startPairingFlow(false)}
-              onSelectReady={(item) => previewItem.set(item)}
+              onSelectReady={openDetail}
               onDeleteItem={handleDeleteItem}
               onTapNotReady={handleTapNotReady}
             />
@@ -283,12 +304,6 @@ export function EarMobileApp(props?: {
           pairOpen.set(false);
         }}
         onPaired={(macName) => showToast(c().toastPaired(macName))}
-      />
-
-      <OfflinePreviewSheet
-        item={() => previewItem()}
-        locale={locale}
-        onClose={() => previewItem.set(null)}
       />
     </View>
   );

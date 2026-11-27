@@ -11,6 +11,7 @@ export type MirrorApiErrorCode =
   | "code_expired"
   | "pair_locked"
   | "unpaired"
+  | "timeout"
   | "unreachable"
   | "representation_changed"
   | "invalid_range_response"
@@ -19,12 +20,21 @@ export type MirrorApiErrorCode =
 export class MirrorApiError extends Error {
   readonly code: MirrorApiErrorCode;
   readonly status?: number;
+  readonly attemptsRemaining?: number;
+  readonly detail?: string;
 
-  constructor(code: MirrorApiErrorCode, message: string, status?: number) {
+  constructor(
+    code: MirrorApiErrorCode,
+    message: string,
+    status?: number,
+    extra?: { attemptsRemaining?: number; detail?: string },
+  ) {
     super(message);
     this.name = "MirrorApiError";
     this.code = code;
     this.status = status;
+    this.attemptsRemaining = extra?.attemptsRemaining;
+    this.detail = extra?.detail;
   }
 }
 
@@ -107,7 +117,11 @@ async function fetchWithTimeout(
 ): Promise<Response> {
   const { timeoutMs = 6000, signal: outerSignal, ...rest } = init;
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  let timedOut = false;
+  const timer = setTimeout(() => {
+    timedOut = true;
+    controller.abort();
+  }, timeoutMs);
   const onOuterAbort = () => controller.abort();
   if (outerSignal) {
     if (outerSignal.aborted) controller.abort();
@@ -117,22 +131,33 @@ async function fetchWithTimeout(
     return await fetch(url, { ...rest, signal: controller.signal });
   } catch (err) {
     if (outerSignal?.aborted) throw err;
-    throw new MirrorApiError(
-      "unreachable",
-      err instanceof Error ? err.message : "Network request failed",
-    );
+    const detail = err instanceof Error ? err.message : String(err ?? "Network request failed");
+    if (timedOut) {
+      throw new MirrorApiError("timeout", `Request timed out after ${timeoutMs}ms`, undefined, {
+        detail,
+      });
+    }
+    throw new MirrorApiError("unreachable", detail, undefined, { detail });
   } finally {
     clearTimeout(timer);
     if (outerSignal) outerSignal.removeEventListener("abort", onOuterAbort);
   }
 }
 
-async function parseErrorCode(res: Response): Promise<string | null> {
+async function parseErrorBody(
+  res: Response,
+): Promise<{ error: string | null; attemptsRemaining?: number }> {
   try {
-    const body = (await res.json()) as { error?: string };
-    return typeof body?.error === "string" ? body.error : null;
+    const body = (await res.json()) as { error?: unknown; attemptsRemaining?: unknown };
+    return {
+      error: typeof body?.error === "string" ? body.error : null,
+      attemptsRemaining:
+        typeof body?.attemptsRemaining === "number" && Number.isFinite(body.attemptsRemaining)
+          ? Math.max(0, Math.floor(body.attemptsRemaining))
+          : undefined,
+    };
   } catch {
-    return null;
+    return { error: null };
   }
 }
 
@@ -148,7 +173,7 @@ export function createHttpMirrorClient(): MirrorApiClient {
         timeoutMs: 6000,
       });
       if (!res.ok) {
-        const errCode = await parseErrorCode(res);
+        const { error: errCode, attemptsRemaining } = await parseErrorBody(res);
         if (errCode === "pair_locked" || res.status === 429) {
           throw new MirrorApiError("pair_locked", "Pairing temporarily locked", res.status);
         }
@@ -156,9 +181,13 @@ export function createHttpMirrorClient(): MirrorApiClient {
           throw new MirrorApiError("code_expired", "Pairing code expired", res.status);
         }
         if (errCode === "invalid_code" || res.status === 401) {
-          throw new MirrorApiError("invalid_code", "Invalid pairing code", res.status);
+          throw new MirrorApiError("invalid_code", "Invalid pairing code", res.status, {
+            attemptsRemaining,
+          });
         }
-        throw new MirrorApiError("http_error", `Pair failed (${res.status})`, res.status);
+        throw new MirrorApiError("http_error", `Pair failed (${res.status})`, res.status, {
+          detail: errCode ?? `HTTP ${res.status}`,
+        });
       }
       const parsed = validatePairResponse(await res.json());
       if (!parsed) {

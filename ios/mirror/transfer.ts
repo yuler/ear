@@ -225,6 +225,18 @@ export async function transferVideoToLocal(
         );
       }
     }
+
+    if (totalChunks > 0 && ctx.files.assembleChunks) {
+      if (signal.aborted) return null;
+      try {
+        localPath = await ctx.files.assembleChunks(videoId, remote.mediaExt, totalChunks);
+      } catch (err) {
+        if (signal.aborted) return null;
+        ctx.onStorageError(err instanceof Error ? err.message : "Failed to assemble media file");
+        return null;
+      }
+      if (signal.aborted) return null;
+    }
   }
 
   if (completedChunks !== totalChunks || downloadedBytes !== totalBytes) {

@@ -1,5 +1,5 @@
-// Projection helpers live in ./selectors.ts; chunked transfer in ./transfer.ts; retry backoff in ./backoff.ts; file-op serialization in ./fileOps.ts.
-import { setColorScheme, signal, type Signal } from "nsh";
+// Engine interfaces live in ./engineTypes.ts; projection in ./selectors.ts; chunked transfer in ./transfer.ts; retry backoff in ./backoff.ts; file-op serialization in ./fileOps.ts.
+import { setColorScheme, signal } from "nsh";
 import { applyAccentTheme } from "./accent";
 import {
   MAX_CONSECUTIVE_TRANSFER_FAILURES,
@@ -7,17 +7,15 @@ import {
   RETRY_MAX_DELAY_MS,
   TransferBackoffTracker,
 } from "./backoff";
-import {
-  createHttpMirrorClient,
-  MirrorApiError,
-  type MirrorApiClient,
-} from "./client";
+import { createHttpMirrorClient, MirrorApiError } from "./client";
+import type { EngineNotice, MirrorEngine, MirrorEngineDeps } from "./engineTypes";
 import { VideoFileCoordinator } from "./fileOps";
 import {
   buildLibraryView,
   catalogMetaForVideo,
   computeMacSyncCounts,
   computeSyncStats,
+  isChunkedLocalPath,
   sourcesForVideo,
 } from "./selectors";
 import {
@@ -27,87 +25,26 @@ import {
   loadPersistedData,
   MIRROR_CHUNK_BYTES,
   savePersistedData,
-  type MirrorFileStore,
 } from "./storage";
 import { transferVideoToLocal } from "./transfer";
 import { parseHostAndPort } from "./transport";
 import { hasOwn, isSafeVideoId } from "./validation";
 import type {
   LocalItemRecord,
-  MirrorItemView,
   MirrorSettings,
   PairedMac,
   PairPayload,
-  PersistedMobileData,
   RemoteCatalogItem,
-  SyncStats,
 } from "./types";
 
+export type { EngineNotice, MirrorEngine, MirrorEngineDeps };
 export const MAX_PARALLEL_TRANSFERS = 3;
 export { MAX_CONSECUTIVE_TRANSFER_FAILURES, RETRY_BASE_DELAY_MS, RETRY_MAX_DELAY_MS };
-
-export interface EngineNotice {
-  kind: "removedByPc" | "storageError" | "paired";
-  macName?: string;
-  message?: string;
-}
-
-export interface MirrorEngineDeps {
-  client: MirrorApiClient;
-  files: MirrorFileStore;
-  loadState: () => Promise<PersistedMobileData>;
-  saveState: (data: PersistedMobileData) => Promise<void>;
-  chunkBytes?: number;
-  deviceName?: string;
-  applyColorScheme?: (scheme: MirrorSettings["appearance"]) => void;
-  applyAccent?: (accent: MirrorSettings["accent"]) => void;
-  now?: () => number;
-  scheduleRetry?: (fn: () => void, delayMs: number) => ReturnType<typeof setTimeout>;
-  cancelRetry?: (handle: ReturnType<typeof setTimeout>) => void;
-}
 
 interface ActiveTransfer {
   videoId: string;
   macId: string;
   controller: AbortController;
-}
-
-export interface MirrorEngine {
-  readonly settings: Signal<MirrorSettings>;
-  readonly macs: Signal<PairedMac[]>;
-  readonly onlineMacIds: Signal<string[]>;
-  readonly localItems: Signal<Record<string, LocalItemRecord>>;
-  readonly catalogs: Signal<Record<string, RemoteCatalogItem[]>>;
-  readonly activeVideoIds: Signal<string[]>;
-  readonly priorityQueue: Signal<string[]>;
-  readonly storagePaused: Signal<string | null>;
-  readonly lastNotice: Signal<EngineNotice | null>;
-  readonly polling: Signal<boolean>;
-
-  hydrate(): Promise<void>;
-  updateSettings(patch: Partial<MirrorSettings>): void;
-  setAppLifecycle(state: "active" | "inactive" | "background"): void;
-  clearNotice(): void;
-  resumeAfterStorageError(): void;
-
-  library(): MirrorItemView[];
-  stats(): SyncStats;
-  macSyncCounts(macId: string): { done: number; total: number };
-  isMacOnline(macId: string): boolean;
-
-  pairFromPayload(payload: PairPayload): Promise<{ mac: PairedMac; alreadyPaired: boolean }>;
-  pairManual(hostInput: string, code: string): Promise<{ mac: PairedMac; alreadyPaired: boolean }>;
-  unpairMac(macId: string, byServer?: boolean): Promise<void>;
-
-  pollAllMacs(): Promise<void>;
-  scheduleTransfers(): void;
-
-  deleteLocal(videoId: string): LocalItemRecord | null;
-  commitDeleteFiles(videoId: string): Promise<void>;
-  restoreLocal(videoId: string, before: LocalItemRecord | null): void;
-  mirrorAgain(videoId: string): void;
-  prioritize(videoId: string): void;
-  stopAllTransfers(): void;
 }
 
 export function createMirrorEngine(deps: MirrorEngineDeps): MirrorEngine {
@@ -262,7 +199,7 @@ export function createMirrorEngine(deps: MirrorEngineDeps): MirrorEngine {
         void unpairMac(mac.id, true);
         return;
       }
-      if (err instanceof MirrorApiError && err.code === "unreachable") {
+      if (err instanceof MirrorApiError && (err.code === "unreachable" || err.code === "timeout")) {
         onlineMacIds.set(onlineMacIds().filter((id) => id !== mac.id));
         return;
       }
@@ -397,6 +334,42 @@ export function createMirrorEngine(deps: MirrorEngineDeps): MirrorEngine {
     }
   }
 
+  const pendingMigrations = new Map<string, Promise<string | null>>();
+
+  async function ensurePlayablePath(videoId: string): Promise<string | null> {
+    const rec = getLocalRecord(videoId);
+    if (!rec || rec.state !== "ready") return null;
+    if (rec.localPath && !isChunkedLocalPath(rec.localPath)) {
+      return rec.localPath;
+    }
+    if (!deps.files.assembleChunks || rec.totalChunks <= 0) {
+      return rec.localPath;
+    }
+    const existing = pendingMigrations.get(videoId);
+    if (existing) return existing;
+
+    const task = (async () => {
+      try {
+        const assembledPath = await deps.files.assembleChunks!(
+          videoId,
+          rec.mediaExt,
+          rec.totalChunks,
+        );
+        const latest = getLocalRecord(videoId);
+        if (latest && latest.state === "ready") {
+          updateLocalRecord(videoId, { ...latest, localPath: assembledPath });
+        }
+        return assembledPath;
+      } catch {
+        return rec.localPath;
+      } finally {
+        pendingMigrations.delete(videoId);
+      }
+    })();
+    pendingMigrations.set(videoId, task);
+    return task;
+  }
+
   async function hydrate(): Promise<void> {
     const data = await deps.loadState();
     settings.set(data.settings);
@@ -405,6 +378,12 @@ export function createMirrorEngine(deps: MirrorEngineDeps): MirrorEngine {
     catalogs.set(data.catalogs);
     applyScheme(data.settings.appearance);
     applyAccent(data.settings.accent);
+    // Lazily assemble any legacy chunked ready records into single playable media files.
+    for (const rec of Object.values(data.localItems)) {
+      if (rec.state === "ready" && isChunkedLocalPath(rec.localPath)) {
+        void ensurePlayablePath(rec.videoId);
+      }
+    }
   }
 
   function updateSettings(patch: Partial<MirrorSettings>): void {
@@ -582,6 +561,7 @@ export function createMirrorEngine(deps: MirrorEngineDeps): MirrorEngine {
       priorityQueue.set([videoId, ...priorityQueue().filter((id) => id !== videoId)]);
       scheduleTransfers();
     },
+    ensurePlayablePath,
     stopAllTransfers,
   };
 }

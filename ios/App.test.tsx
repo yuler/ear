@@ -164,3 +164,99 @@ test("ios/nsh.json declares camera + local network permissions, app settings cap
   expect(nshConfig.ios.infoPlist.NSAppTransportSecurity.NSAllowsLocalNetworking).toBe(true);
   expect(nshConfig.dependencies["ear-scanner"].path).toBe("ext/ear-scanner");
 });
+
+test("QR scan failures show clear contextual errors and diagnostic metadata at top of Pair modal", async () => {
+  // 1. Scanning a non-Ear QR code shows invalid QR error
+  const invalidQrApp = await open("./App.tsx", {
+    platform: "ios",
+    modules: {
+      "ear-scanner": {
+        "QrScanner.available": () => true,
+        "QrScanner.permission": () => "authorized",
+        "QrScanner.scan": () => ({ status: "scanned", value: "https://example.com/not-ear" }),
+      },
+    },
+  });
+  await invalidQrApp.press("扫码配对");
+  await invalidQrApp.waitFor("这不是有效的 Ear 配对二维码，请扫描电脑「设置 → 手机镜像」中的二维码。");
+  expect(invalidQrApp.texts().some((t) => t.includes("not_ear_url"))).toBe(true);
+
+  // 2. Scanning an expired/mismatched Ear QR code prompts to re-scan refreshed QR
+  const pairUrl = "ear://pair?transport=lan&host=192.168.1.42&port=32783&code=4821";
+  const expiredQrApp = await open("./App.tsx", {
+    platform: "ios",
+    network: {
+      "POST http://192.168.1.42:32783/v1/pair": {
+        status: 401,
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ error: "code_expired" }),
+      },
+    },
+    modules: {
+      "ear-scanner": {
+        "QrScanner.available": () => true,
+        "QrScanner.permission": () => "authorized",
+        "QrScanner.scan": () => ({ status: "scanned", value: pairUrl }),
+      },
+    },
+  });
+  await expiredQrApp.press("扫码配对");
+  await expiredQrApp.waitFor("二维码里的配对码已过期或已刷新，请直接重新扫描电脑屏幕上最新的二维码。");
+  expect(expiredQrApp.texts().some((t) => t.includes("192.168.1.42:32783"))).toBe(true);
+});
+
+test("Settings shows Offline Storage section and tapping an offline video opens Detail Player + File Info", async () => {
+  const storageState = JSON.stringify({
+    settings: { appearance: "system", accent: "blue", language: "zh", backgroundSync: true },
+    macs: [],
+    catalogs: {},
+    localItems: {
+      "vid-demo": {
+        videoId: "vid-demo",
+        state: "ready",
+        title: "Offline Listening Demo",
+        thumbnailUrl: "",
+        durationMs: 120_000,
+        sizeBytes: 7 * 1024 * 1024,
+        contentSha256: "a".repeat(64),
+        downloadedBytes: 7 * 1024 * 1024,
+        chunkSize: 4 * 1024 * 1024,
+        completedChunks: 2,
+        totalChunks: 2,
+        mediaExt: "mp4",
+        mimeType: "video/mp4",
+        hasCaptions: true,
+        localPath: "/sandbox/mirror/vid-demo/media.mp4",
+        captionsPath: "/sandbox/mirror/vid-demo/captions.json",
+        sourceMacId: "mac-1",
+        sourceShortName: "yule-omarchy",
+        updatedAt: 2000,
+      },
+    },
+  });
+
+  const app = await open("./App.tsx", {
+    platform: "ios",
+    storage: { "ear.ios.mirror.v1": storageState },
+  });
+
+  await app.waitFor("Offline Listening Demo");
+
+  // Open Settings and verify Offline Storage section
+  await app.press("id:header-settings");
+  await app.waitFor("本地离线存储");
+  expect(app.texts().some((t) => t.includes("1 个视频 · 7 MB"))).toBe(true);
+  await app.press("完成");
+  await app.waitFor("Offline Listening Demo");
+
+  // Tap offline video -> opens Detail Player
+  await app.press("Offline Listening Demo");
+  await app.waitFor("单句停");
+  expect(app.texts().some((t) => t.includes("遮挡条"))).toBe(true);
+
+  // Open Video File Info sheet
+  await app.press("id:detail-info");
+  await app.waitFor("视频与文件信息");
+  expect(app.texts().some((t) => t.includes("media.mp4"))).toBe(true);
+  expect(app.texts().some((t) => t.includes("captions.json"))).toBe(true);
+});

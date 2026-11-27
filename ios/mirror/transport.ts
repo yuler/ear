@@ -75,38 +75,65 @@ function parseQueryString(query: string): Record<string, string> {
   return out;
 }
 
-/** Parse an `ear://pair?transport=lan&host=...&port=...&code=...` URL with strict host validation. */
-export function parsePairUrl(raw: string): PairPayload | null {
+export type PairUrlErrorReason =
+  | "not_ear_url"
+  | "unsupported_transport"
+  | "missing_host"
+  | "invalid_host"
+  | "invalid_port"
+  | "invalid_code"
+  | "malformed_query";
+
+export type PairUrlDiagnosis =
+  | { ok: true; payload: PairPayload }
+  | { ok: false; reason: PairUrlErrorReason };
+
+/** Parse and diagnose an `ear://pair?...` URL, returning a specific failure reason for UX. */
+export function diagnosePairUrl(raw: string): PairUrlDiagnosis {
   const trimmed = raw.trim();
   if (!trimmed.toLowerCase().startsWith("ear://pair?")) {
-    return null;
+    return { ok: false, reason: "not_ear_url" };
   }
   const qIndex = trimmed.indexOf("?");
-  if (qIndex === -1) return null;
+  if (qIndex === -1) return { ok: false, reason: "malformed_query" };
   const hashIndex = trimmed.indexOf("#", qIndex);
   const query = hashIndex === -1 ? trimmed.slice(qIndex + 1) : trimmed.slice(qIndex + 1, hashIndex);
   let params: Record<string, string>;
   try {
     params = parseQueryString(query);
   } catch {
-    return null;
+    return { ok: false, reason: "malformed_query" };
   }
-  const transport = params.transport === "relay" ? "relay" : "lan";
+  const rawTransport = (params.transport ?? "lan").trim().toLowerCase();
+  if (rawTransport !== "lan" && rawTransport !== "relay") {
+    return { ok: false, reason: "unsupported_transport" };
+  }
+  const transport: TransportKind = rawTransport === "relay" ? "relay" : "lan";
   const host = (params.host ?? "").trim();
+  if (!host) return { ok: false, reason: "missing_host" };
+  if (!isValidLanHost(host)) return { ok: false, reason: "invalid_host" };
   const portRaw = (params.port ?? String(DEFAULT_MIRROR_PORT)).trim();
-  if (!/^\d{1,5}$/.test(portRaw)) return null;
+  if (!/^\d{1,5}$/.test(portRaw)) return { ok: false, reason: "invalid_port" };
   const port = Number.parseInt(portRaw, 10);
+  if (port <= 0 || port > 65535) return { ok: false, reason: "invalid_port" };
   const code = (params.code ?? "").trim();
-  if (!isValidLanHost(host) || port <= 0 || port > 65535 || !/^\d{4}$/.test(code)) {
-    return null;
-  }
+  if (!/^\d{4}$/.test(code)) return { ok: false, reason: "invalid_code" };
   return {
-    transport,
-    host,
-    port,
-    code,
-    name: params.name?.trim().slice(0, 128) || undefined,
+    ok: true,
+    payload: {
+      transport,
+      host,
+      port,
+      code,
+      name: params.name?.trim().slice(0, 128) || undefined,
+    },
   };
+}
+
+/** Parse an `ear://pair?transport=lan&host=...&port=...&code=...` URL with strict host validation. */
+export function parsePairUrl(raw: string): PairPayload | null {
+  const res = diagnosePairUrl(raw);
+  return res.ok ? res.payload : null;
 }
 
 /** Parse manual address input like "192.168.1.42", "192.168.1.42:32783", or "http://192.168.1.42:32783". */

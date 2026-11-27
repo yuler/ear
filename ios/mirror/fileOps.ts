@@ -57,6 +57,9 @@ export class VideoFileCoordinator {
       readChunk: this.files.readChunk
         ? (vid, idx) => this.files.readChunk!(vid, idx)
         : undefined,
+      assembleChunks: this.files.assembleChunks
+        ? (vid, ext, count) => write(() => this.files.assembleChunks!(vid, ext, count), "")
+        : undefined,
       writeDirectMedia: (vid, ext, bytes) =>
         write(() => this.files.writeDirectMedia(vid, ext, bytes), ""),
       writeCaptions: (vid, json) => write(() => this.files.writeCaptions(vid, json), ""),
