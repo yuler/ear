@@ -1,6 +1,7 @@
 // Integration and security regression tests live in ./tests.rs.
 pub mod catalog;
 pub mod crypto;
+pub mod lan;
 pub mod http;
 pub mod port;
 pub mod state;

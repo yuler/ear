@@ -2,7 +2,6 @@ use crate::commands::serve::crypto::sha256_file;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fs;
-use std::net::UdpSocket;
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -227,19 +226,7 @@ fn mime_for_ext(ext: &str) -> &'static str {
     }
 }
 
-pub fn detect_lan_ip() -> String {
-    if let Ok(sock) = UdpSocket::bind("0.0.0.0:0") {
-        if sock.connect("8.8.8.8:80").is_ok() {
-            if let Ok(addr) = sock.local_addr() {
-                let ip = addr.ip();
-                if !ip.is_loopback() && !ip.is_unspecified() {
-                    return ip.to_string();
-                }
-            }
-        }
-    }
-    "127.0.0.1".to_string()
-}
+pub use super::lan::detect_lan_ip;
 
 pub fn default_computer_name() -> String {
     for key in ["EAR_COMPUTER_NAME", "COMPUTERNAME", "HOSTNAME"] {

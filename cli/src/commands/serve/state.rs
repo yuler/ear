@@ -1,4 +1,5 @@
-// Media catalog scanning, digest caching, and host helpers live in ./catalog.rs.
+// Media catalog scanning and digest caching live in ./catalog.rs.
+// LAN address selection lives in ./lan.rs.
 pub use crate::commands::serve::catalog::{
     default_library_dir, derive_short_name, detect_lan_ip, now_secs, CatalogItem, MediaCatalog,
     ResolvedMedia,
