@@ -1,5 +1,6 @@
 .nsh/
 .worktree/
+.build/
 target/
 node_modules/
 .wrangler/
@@ -8,5 +9,7 @@ package-lock.json
 .env*.local
 *.secret
 keys/*.secret
+ios/Ear.xcodeproj/
+ios/Signing.xcconfig
 
 TODOS.md
