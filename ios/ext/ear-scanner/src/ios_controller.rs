@@ -6,6 +6,7 @@ use std::{
     ptr,
 };
 
+use block2::RcBlock;
 use dispatch2::{DispatchQueue, DispatchQueueAttr, DispatchRetained};
 use objc2::{
     DefinedClass, MainThreadMarker, MainThreadOnly, define_class, msg_send,
@@ -81,6 +82,7 @@ pub(super) struct ScannerVcIvars {
     answer: RefCell<Option<Answer>>,
     options: RefCell<QrScanOptions>,
     waiting: Cell<bool>,
+    dismissing: Cell<bool>,
     session: RefCell<Option<Retained<AnyObject>>>,
     session_queue: DispatchRetained<DispatchQueue>,
     metadata_delegate: RefCell<Option<Retained<QrMetadataDelegate>>>,
@@ -122,7 +124,7 @@ define_class!(
                 let _: () = msg_send![super(self), viewDidDisappear: animated];
             }
             self.stop_session();
-            if self.has_pending_answer() {
+            if !self.ivars().dismissing.get() && self.has_pending_answer() {
                 self.finish(QrScanResult::cancelled());
             }
         }
@@ -154,6 +156,7 @@ pub(super) fn create_scanner_controller(
         answer: RefCell::new(Some(answer)),
         options: RefCell::new(options),
         waiting: Cell::new(true),
+        dismissing: Cell::new(false),
         session: RefCell::new(None),
         session_queue,
         metadata_delegate: RefCell::new(None),
@@ -202,9 +205,37 @@ impl QrScannerViewController {
     }
 
     fn dismiss_with(&self, result: QrScanResult) {
-        self.finish(result);
+        if self.ivars().dismissing.replace(true) || !self.has_pending_answer() {
+            return;
+        }
+        self.stop_session();
+        self.ivars().metadata_delegate.borrow_mut().take();
+
+        // SAFETY: Standard `UIViewController.presentingViewController` read on main thread.
+        let presenting: Option<Retained<UIViewController>> =
+            unsafe { msg_send![self, presentingViewController] };
+        if presenting.is_none() {
+            self.finish(result);
+            return;
+        }
+
+        let self_ptr = self as *const QrScannerViewController as usize;
+        let pending = Cell::new(Some(result));
+        let completion = RcBlock::new(move || {
+            let Some(result) = pending.take() else {
+                return;
+            };
+            let target = ACTIVE.with_borrow(|slot| {
+                slot.as_ref()
+                    .filter(|vc| (&**vc as *const QrScannerViewController as usize) == self_ptr)
+                    .cloned()
+            });
+            if let Some(vc) = target {
+                vc.finish(result);
+            }
+        });
         let vc: &UIViewController = self;
-        vc.dismissViewControllerAnimated_completion(true, None);
+        vc.dismissViewControllerAnimated_completion(true, Some(&completion));
     }
 
     fn stop_session(&self) {
@@ -220,7 +251,7 @@ impl QrScannerViewController {
     }
 
     fn handle_scanned(&self, code: String) {
-        if !self.has_pending_answer() {
+        if self.ivars().dismissing.get() || !self.has_pending_answer() {
             return;
         }
         self.stop_session();

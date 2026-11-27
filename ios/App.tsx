@@ -103,7 +103,7 @@ export function EarMobileApp(props?: {
         return;
       }
       if (result.status === "denied") {
-        openPairModal({ kind: "cameraDenied" }, false);
+        openPairModal({ kind: "cameraDenied" }, fromSettingsSheet);
         return;
       }
       if (result.status === "manual") {
@@ -114,7 +114,7 @@ export function EarMobileApp(props?: {
         openPairModal({ kind: "scanned", raw: result.value }, false);
         return;
       }
-      openPairModal({ kind: "link" }, false);
+      openPairModal({ kind: "link" }, fromSettingsSheet);
     } finally {
       scanning = false;
     }
