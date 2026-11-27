@@ -1,0 +1,392 @@
+name: iOS TestFlight
+
+on:
+  workflow_call:
+    inputs:
+      version:
+        description: 'Release version without leading v (e.g. 0.1.0)'
+        required: true
+        type: string
+      ref:
+        description: 'Git commit SHA or ref to build'
+        required: true
+        type: string
+    secrets:
+      APP_STORE_CONNECT_KEY_ID:
+        required: true
+      APP_STORE_CONNECT_ISSUER_ID:
+        required: true
+      APP_STORE_CONNECT_API_KEY_BASE64:
+        required: true
+      IOS_DEVELOPMENT_TEAM:
+        required: true
+      IOS_DISTRIBUTION_CERT_P12_BASE64:
+        required: true
+      IOS_DISTRIBUTION_CERT_PASSWORD:
+        required: true
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Optional version override (e.g. 0.1.0)'
+        required: false
+        type: string
+        default: ''
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ios-testflight
+  cancel-in-progress: false
+
+jobs:
+  testflight:
+    name: Build & Upload Native iOS to TestFlight
+    runs-on: macos-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref || github.sha }}
+          fetch-depth: 0
+
+      - name: Fetch tags
+        run: git fetch --tags --force
+
+      - name: Install XcodeGen
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fsSL -o "$RUNNER_TEMP/xcodegen.zip" \
+            https://github.com/yonaskolb/XcodeGen/releases/download/2.48.0/xcodegen.zip
+          unzip -q "$RUNNER_TEMP/xcodegen.zip" -d "$RUNNER_TEMP"
+          echo "$RUNNER_TEMP/xcodegen/bin" >> "$GITHUB_PATH"
+
+      - name: Check secrets
+        env:
+          APP_STORE_CONNECT_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
+          APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+          APP_STORE_CONNECT_API_KEY_BASE64: ${{ secrets.APP_STORE_CONNECT_API_KEY_BASE64 }}
+          IOS_DEVELOPMENT_TEAM: ${{ secrets.IOS_DEVELOPMENT_TEAM }}
+          IOS_DISTRIBUTION_CERT_P12_BASE64: ${{ secrets.IOS_DISTRIBUTION_CERT_P12_BASE64 }}
+          IOS_DISTRIBUTION_CERT_PASSWORD: ${{ secrets.IOS_DISTRIBUTION_CERT_PASSWORD }}
+        run: |
+          for name in \
+            APP_STORE_CONNECT_KEY_ID \
+            APP_STORE_CONNECT_ISSUER_ID \
+            APP_STORE_CONNECT_API_KEY_BASE64 \
+            IOS_DEVELOPMENT_TEAM \
+            IOS_DISTRIBUTION_CERT_P12_BASE64 \
+            IOS_DISTRIBUTION_CERT_PASSWORD
+          do
+            if [ -z "${!name}" ]; then
+              echo "::error::Missing required secret: ${name}"
+              exit 1
+            fi
+          done
+
+      - name: Determine version and build number
+        id: version
+        shell: bash
+        env:
+          INPUT_VERSION: ${{ inputs.version || '' }}
+          REF_TYPE: ${{ github.ref_type }}
+          REF_NAME: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          if [ -n "$INPUT_VERSION" ]; then
+            export EAR_VERSION="$INPUT_VERSION"
+          elif [ "$REF_TYPE" = "tag" ]; then
+            export EAR_VERSION="$REF_NAME"
+          else
+            export EAR_VERSION=""
+          fi
+          source ./scripts/ios-lib.sh
+          load_app_version
+          echo "version=$APP_VERSION" >> "$GITHUB_OUTPUT"
+          echo "build=$APP_BUILD" >> "$GITHUB_OUTPUT"
+          echo "Building Ear Native iOS version: $APP_VERSION (build $APP_BUILD)"
+
+      - name: Import signing certificate
+        id: cert
+        shell: bash
+        env:
+          IOS_DISTRIBUTION_CERT_P12_BASE64: ${{ secrets.IOS_DISTRIBUTION_CERT_P12_BASE64 }}
+          IOS_DISTRIBUTION_CERT_PASSWORD: ${{ secrets.IOS_DISTRIBUTION_CERT_PASSWORD }}
+        run: |
+          set -euo pipefail
+          umask 077
+          KEYCHAIN_PATH="$RUNNER_TEMP/app-signing.keychain-db"
+          KEYCHAIN_PASSWORD="$(openssl rand -hex 24)"
+          printf '%s' "$IOS_DISTRIBUTION_CERT_P12_BASE64" | openssl base64 -d -A -out "$RUNNER_TEMP/distribution.p12"
+          chmod 600 "$RUNNER_TEMP/distribution.p12"
+
+          EXPECTED_WWDR_SHA256="dcf21878c77f4198e4b4614f03d696d89c66c66008d4244e1b99161aac91601f"
+          curl -fsSL --proto '=https' --proto-redir '=https' --tlsv1.2 -o "$RUNNER_TEMP/AppleWWDRCAG3.cer" https://www.apple.com/certificateauthority/AppleWWDRCAG3.cer
+          ACTUAL_WWDR_SHA256="$(shasum -a 256 "$RUNNER_TEMP/AppleWWDRCAG3.cer" | awk '{print $1}')"
+          if [ "$ACTUAL_WWDR_SHA256" != "$EXPECTED_WWDR_SHA256" ]; then
+            echo "::error::AppleWWDRCAG3.cer SHA-256 mismatch: expected ${EXPECTED_WWDR_SHA256}, got ${ACTUAL_WWDR_SHA256}"
+            exit 1
+          fi
+
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security import "$RUNNER_TEMP/AppleWWDRCAG3.cer" -k "$KEYCHAIN_PATH" -T /usr/bin/codesign -T /usr/bin/security
+          security import "$RUNNER_TEMP/distribution.p12" -k "$KEYCHAIN_PATH" -P "$IOS_DISTRIBUTION_CERT_PASSWORD" -f pkcs12 -T /usr/bin/codesign -T /usr/bin/security
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          EXISTING_KEYCHAINS=()
+          while IFS= read -r kc; do
+            kc="${kc#"${kc%%[![:space:]]*}"}"
+            kc="${kc#\"}"
+            kc="${kc%\"}"
+            [ -n "$kc" ] && EXISTING_KEYCHAINS+=("$kc")
+          done < <(security list-keychains -d user)
+          security list-keychains -d user -s "$KEYCHAIN_PATH" "${EXISTING_KEYCHAINS[@]}"
+          security default-keychain -s "$KEYCHAIN_PATH"
+
+          SIGN_IDENTITY="$(security find-identity -v -p codesigning "$KEYCHAIN_PATH" | awk -F'"' '/Apple Distribution:|iPhone Distribution:/ { print $2; exit }')"
+          if [ -z "$SIGN_IDENTITY" ]; then
+            echo "::error::No Apple Distribution signing identity found in imported keychain"
+            security find-identity -v -p codesigning "$KEYCHAIN_PATH"
+            exit 1
+          fi
+          CERT_SERIAL="$(security find-certificate -c "$SIGN_IDENTITY" -p "$KEYCHAIN_PATH" | openssl x509 -noout -serial | cut -d= -f2 | tr '[:lower:]' '[:upper:]' | sed 's/^0*//')"
+
+          echo "sign_identity=$SIGN_IDENTITY" >> "$GITHUB_OUTPUT"
+          echo "cert_serial=$CERT_SERIAL" >> "$GITHUB_OUTPUT"
+
+      - name: Install pinned asc CLI and authenticate
+        shell: bash
+        env:
+          APP_STORE_CONNECT_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
+          APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+          APP_STORE_CONNECT_API_KEY_BASE64: ${{ secrets.APP_STORE_CONNECT_API_KEY_BASE64 }}
+        run: |
+          set -euo pipefail
+          umask 077
+          ASC_VERSION="7.5.0"
+          ARCH="$(uname -m)"
+          case "$ARCH" in
+            arm64|aarch64)
+              ASC_ARCH="arm64"
+              EXPECTED_SHA256="1a66c105a360adece05d45db8a9ed6d1f1842a806161ce6cc0f443ffdc6ac493"
+              ;;
+            x86_64|amd64)
+              ASC_ARCH="amd64"
+              EXPECTED_SHA256="356e5a6a39f17df703c3a4533a384f30dcc6b67cf1c340164e2db5d0f1f1e7ce"
+              ;;
+            *)
+              echo "::error::Unsupported macOS architecture: $ARCH"
+              exit 1
+              ;;
+          esac
+          ASSET="asc_${ASC_VERSION}_macOS_${ASC_ARCH}"
+          BIN_URL="https://github.com/rorkai/App-Store-Connect-CLI/releases/download/${ASC_VERSION}/${ASSET}"
+          mkdir -p "$HOME/.local/bin"
+          curl -fsSL --proto '=https' --proto-redir '=https' --tlsv1.2 -o "$RUNNER_TEMP/$ASSET" "$BIN_URL"
+          ACTUAL_SHA256="$(shasum -a 256 "$RUNNER_TEMP/$ASSET" | awk '{print $1}')"
+          if [ "$ACTUAL_SHA256" != "$EXPECTED_SHA256" ]; then
+            echo "::error::asc CLI SHA-256 mismatch: expected ${EXPECTED_SHA256}, got ${ACTUAL_SHA256}"
+            exit 1
+          fi
+          install -m 755 "$RUNNER_TEMP/$ASSET" "$HOME/.local/bin/asc"
+          rm -f "$RUNNER_TEMP/$ASSET"
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+          printf '%s' "$APP_STORE_CONNECT_API_KEY_BASE64" | openssl base64 -d -A -out "$RUNNER_TEMP/AuthKey.p8"
+          chmod 600 "$RUNNER_TEMP/AuthKey.p8"
+
+          "$HOME/.local/bin/asc" auth login --bypass-keychain \
+            --name "Ear CI" \
+            --key-id "$APP_STORE_CONNECT_KEY_ID" \
+            --issuer-id "$APP_STORE_CONNECT_ISSUER_ID" \
+            --private-key "$RUNNER_TEMP/AuthKey.p8"
+
+      - name: Fetch and install App Store provisioning profile
+        id: signing
+        shell: bash
+        env:
+          BUNDLE_ID: dev.yuler.ear
+          CERT_SERIAL: ${{ steps.cert.outputs.cert_serial }}
+        run: |
+          set -euo pipefail
+          PROFILE_ID=""
+          while IFS= read -r pid; do
+            [ -z "$pid" ] && continue
+            MATCH="$(asc profiles view --id "$pid" --include bundleId,certificates --output json | python3 -c '
+          import json, os, sys
+          doc = json.load(sys.stdin)
+          want_bid = os.environ["BUNDLE_ID"]
+          want_serial = os.environ["CERT_SERIAL"].lstrip("0").upper()
+          inc = doc.get("included", [])
+          has_bid = any(i.get("type") == "bundleIds" and i.get("attributes", {}).get("identifier") == want_bid for i in inc)
+          has_cert = any(
+            i.get("type") == "certificates"
+            and i.get("attributes", {}).get("serialNumber", "").lstrip("0").upper() == want_serial
+            for i in inc
+          )
+          print("yes" if (has_bid and has_cert) else "no")
+          ')"
+            if [ "$MATCH" = "yes" ]; then
+              PROFILE_ID="$pid"
+              break
+            fi
+          done < <(asc profiles list --profile-type IOS_APP_STORE --output json | python3 -c '
+          import json, sys
+          for p in json.load(sys.stdin).get("data", []):
+            if p.get("attributes", {}).get("profileState") == "ACTIVE":
+              print(p["id"])
+          ')
+
+          if [ -z "$PROFILE_ID" ]; then
+            BUNDLE_RES_ID="$(asc bundle-ids list --output json | python3 -c '
+          import json, os, sys
+          want = os.environ["BUNDLE_ID"]
+          for b in json.load(sys.stdin).get("data", []):
+            if b.get("attributes", {}).get("identifier") == want:
+              print(b["id"])
+              break
+          ')"
+            CERT_RES_ID="$(asc certificates list --output json | python3 -c '
+          import json, os, sys
+          want = os.environ["CERT_SERIAL"].lstrip("0").upper()
+          for c in json.load(sys.stdin).get("data", []):
+            if c.get("attributes", {}).get("serialNumber", "").lstrip("0").upper() == want:
+              print(c["id"])
+              break
+          ')"
+            if [ -z "$BUNDLE_RES_ID" ] || [ -z "$CERT_RES_ID" ]; then
+              echo "::error::Failed to resolve Bundle ID ($BUNDLE_RES_ID) or Distribution certificate ($CERT_RES_ID)"
+              exit 1
+            fi
+            PROFILE_ID="$(asc profiles create \
+              --name "Ear App Store ${CERT_SERIAL:0:8}" \
+              --profile-type IOS_APP_STORE \
+              --bundle "$BUNDLE_RES_ID" \
+              --certificate "$CERT_RES_ID" \
+              --output json | python3 -c 'import json,sys; d=json.load(sys.stdin)["data"]; print((d[0] if isinstance(d, list) else d)["id"])')"
+          fi
+
+          PROFILE_PATH="$RUNNER_TEMP/AppStore.mobileprovision"
+          asc profiles download --id "$PROFILE_ID" --output "$PROFILE_PATH" --overwrite
+          asc profiles local install --path "$PROFILE_PATH" --force
+
+          PROFILE_INFO="$(asc profiles inspect --path "$PROFILE_PATH" --output json)"
+          PROFILE_UUID="$(printf '%s' "$PROFILE_INFO" | python3 -c 'import json,sys; print(json.load(sys.stdin)["uuid"])')"
+          echo "bundle_id=$BUNDLE_ID" >> "$GITHUB_OUTPUT"
+          echo "profile_uuid=$PROFILE_UUID" >> "$GITHUB_OUTPUT"
+
+      - name: Prepare signing config, generate Xcode project, archive and export IPA
+        shell: bash
+        env:
+          EAR_VERSION: ${{ steps.version.outputs.version }}
+          IOS_DEVELOPMENT_TEAM: ${{ secrets.IOS_DEVELOPMENT_TEAM }}
+          SIGN_IDENTITY: ${{ steps.cert.outputs.sign_identity }}
+          BUNDLE_ID: ${{ steps.signing.outputs.bundle_id }}
+          PROFILE_UUID: ${{ steps.signing.outputs.profile_uuid }}
+        run: |
+          set -euo pipefail
+          cat > ios/Signing.xcconfig <<EOF
+          CODE_SIGN_STYLE = Manual
+          DEVELOPMENT_TEAM = ${IOS_DEVELOPMENT_TEAM}
+          CODE_SIGN_IDENTITY = ${SIGN_IDENTITY}
+          PROVISIONING_PROFILE_SPECIFIER = ${PROFILE_UUID}
+          EOF
+
+          cat > "$RUNNER_TEMP/ExportOptions.plist" <<EOF
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>method</key>
+            <string>app-store-connect</string>
+            <key>destination</key>
+            <string>export</string>
+            <key>signingStyle</key>
+            <string>manual</string>
+            <key>signingCertificate</key>
+            <string>Apple Distribution</string>
+            <key>teamID</key>
+            <string>${IOS_DEVELOPMENT_TEAM}</string>
+            <key>provisioningProfiles</key>
+            <dict>
+              <key>${BUNDLE_ID}</key>
+              <string>${PROFILE_UUID}</string>
+            </dict>
+            <key>manageAppVersionAndBuildNumber</key>
+            <false/>
+            <key>uploadSymbols</key>
+            <true/>
+          </dict>
+          </plist>
+          EOF
+
+          bash ./scripts/ios-xcodegen.sh
+
+          xcodebuild \
+            -project ios/Ear.xcodeproj \
+            -scheme Ear \
+            -configuration Release \
+            -destination 'generic/platform=iOS' \
+            -archivePath "$RUNNER_TEMP/Ear.xcarchive" \
+            COMPILER_INDEX_STORE_ENABLE=NO \
+            DEVELOPMENT_TEAM="$IOS_DEVELOPMENT_TEAM" \
+            CODE_SIGN_STYLE=Manual \
+            CODE_SIGN_IDENTITY="$SIGN_IDENTITY" \
+            PROVISIONING_PROFILE_SPECIFIER="$PROFILE_UUID" \
+            archive
+
+          xcodebuild \
+            -exportArchive \
+            -archivePath "$RUNNER_TEMP/Ear.xcarchive" \
+            -exportPath "$RUNNER_TEMP/export" \
+            -exportOptionsPlist "$RUNNER_TEMP/ExportOptions.plist"
+
+      - name: Upload IPA to App Store Connect
+        shell: bash
+        env:
+          ASC_APP_ID: ${{ vars.ASC_APP_ID }}
+          APP_VERSION: ${{ steps.version.outputs.version }}
+          APP_BUILD: ${{ steps.version.outputs.build }}
+        run: |
+          set -euo pipefail
+          IPA_PATH="$RUNNER_TEMP/export/Ear.ipa"
+          if [ ! -f "$IPA_PATH" ]; then
+            echo "::error::Expected exported IPA at $IPA_PATH"
+            ls -la "$RUNNER_TEMP/export" || true
+            exit 1
+          fi
+          TARGET_APP="${ASC_APP_ID:-dev.yuler.ear}"
+          for attempt in 1 2 3; do
+            if asc builds upload \
+              --app "$TARGET_APP" \
+              --ipa "$IPA_PATH" \
+              --version "$APP_VERSION" \
+              --build-number "$APP_BUILD" \
+              --platform IOS; then
+              exit 0
+            fi
+            if [ "$attempt" -eq 3 ]; then
+              echo "::error::Failed to upload $IPA_PATH to App Store Connect after 3 attempts"
+              exit 1
+            fi
+            echo "::warning::asc builds upload attempt ${attempt}/3 failed; retrying in 15s..."
+            sleep 15
+          done
+
+      - name: Clean up signing materials
+        if: always()
+        shell: bash
+        run: |
+          security delete-keychain "$RUNNER_TEMP/app-signing.keychain-db" 2>/dev/null || true
+          rm -rf \
+            "$RUNNER_TEMP/distribution.p12" \
+            "$RUNNER_TEMP/AuthKey.p8" \
+            "$RUNNER_TEMP/AppleWWDRCAG3.cer" \
+            "$RUNNER_TEMP/AppStore.mobileprovision" \
+            "$HOME/.asc"

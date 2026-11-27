@@ -1,0 +1,51 @@
+name: Ear
+options:
+  bundleIdPrefix: dev.yuler
+  deploymentTarget:
+    iOS: "17.0"
+  createIntermediateGroups: true
+  developmentLanguage: zh-Hans
+  knownRegions:
+    - zh-Hans
+    - en
+configFiles:
+  Debug: Signing.xcconfig
+  Release: Signing.xcconfig
+settings:
+  base:
+    SWIFT_VERSION: "5.9"
+    CODE_SIGN_STYLE: Automatic
+targets:
+  Ear:
+    type: application
+    platform: iOS
+    sources:
+      - path: Ear
+    settings:
+      PRODUCT_BUNDLE_IDENTIFIER: dev.yuler.ear
+      ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+      INFOPLIST_FILE: Ear/Info.plist
+      GENERATE_INFOPLIST_FILE: NO
+      MARKETING_VERSION: "${APP_VERSION}"
+      CURRENT_PROJECT_VERSION: "${APP_BUILD}"
+      TARGETED_DEVICE_FAMILY: "1"
+      IPHONEOS_DEPLOYMENT_TARGET: "17.0"
+  EarTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - path: EarTests
+    dependencies:
+      - target: Ear
+    settings:
+      PRODUCT_BUNDLE_IDENTIFIER: dev.yuler.ear.tests
+      GENERATE_INFOPLIST_FILE: YES
+      IPHONEOS_DEPLOYMENT_TARGET: "17.0"
+schemes:
+  Ear:
+    build:
+      targets:
+        Ear: all
+    test:
+      targets:
+        - EarTests

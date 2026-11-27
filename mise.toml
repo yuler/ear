@@ -1,6 +1,7 @@
 [tools]
 "github:longbridge/nsh" = "0.7.1"
 wrangler = "latest"
+xcodegen = { version = "2.48.0", os = ["macos"] }
 
 [env]
 _.file = ".env"
@@ -37,6 +38,23 @@ run = "nsh check desktop"
 [tasks."desktop:test"]
 description = "Run tests on Native Shell desktop app"
 run = "nsh test desktop"
+
+[tasks."ios:gen"]
+description = "Generate ios/Ear.xcodeproj from ios/project.yml with the resolved version"
+run = "bash scripts/ios-xcodegen.sh"
+
+[tasks."ios:open"]
+description = "Generate ios/Ear.xcodeproj and open it in Xcode"
+depends = ["ios:gen"]
+run = "open ios/Ear.xcodeproj"
+
+[tasks."ios:test"]
+description = "Run native iOS unit tests on an available iPhone Simulator"
+run = "bash scripts/ios-test.sh"
+
+[tasks."ios:testflight:check"]
+description = "Check TestFlight tooling (asc, gh), .env secrets, and ASC_APP_ID"
+run = "bash scripts/setup-testflight.sh check"
 
 [tasks."ios:legacy:dev"]
 description = "Run archived Native Shell iOS app in development host (use --target ios on macOS)"

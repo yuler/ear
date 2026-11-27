@@ -19,6 +19,7 @@ jobs:
     outputs:
       cli: ${{ steps.filter.outputs.cli }}
       desktop: ${{ steps.filter.outputs.desktop }}
+      ios: ${{ steps.filter.outputs.ios }}
       web: ${{ steps.filter.outputs.web }}
     steps:
       - name: Checkout
@@ -41,6 +42,12 @@ jobs:
               - 'mise.toml'
               - 'scripts/**'
               - '.github/workflows/ci.yml'
+            ios:
+              - 'ios/**'
+              - 'scripts/ios-*.sh'
+              - 'scripts/resolve-version.sh'
+              - '.github/workflows/ci.yml'
+              - '.github/workflows/ios-release.yml'
             web:
               - 'web/**'
               - '.github/workflows/ci.yml'
@@ -91,6 +98,33 @@ jobs:
       - name: Run Desktop Tests
         run: nsh test desktop
 
+  ios:
+    name: iOS (Native SwiftUI)
+    needs: detect-changes
+    if: needs.detect-changes.outputs.ios == 'true'
+    runs-on: macos-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Fetch tags
+        run: git fetch --tags --force
+
+      - name: Install XcodeGen
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fsSL -o "$RUNNER_TEMP/xcodegen.zip" \
+            https://github.com/yonaskolb/XcodeGen/releases/download/2.48.0/xcodegen.zip
+          unzip -q "$RUNNER_TEMP/xcodegen.zip" -d "$RUNNER_TEMP"
+          echo "$RUNNER_TEMP/xcodegen/bin" >> "$GITHUB_PATH"
+
+      - name: Run iOS Unit Tests on Simulator
+        run: bash scripts/ios-test.sh
+
   web:
     name: Web (Landing & Worker)
     needs: detect-changes
@@ -116,7 +150,7 @@ jobs:
 
   ci-status:
     name: Check & Test
-    needs: [detect-changes, cli, desktop, web]
+    needs: [detect-changes, cli, desktop, ios, web]
     if: always()
     runs-on: ubuntu-latest
     steps:
@@ -134,6 +168,7 @@ jobs:
           DETECT_RES="${{ needs.detect-changes.result }}"
           CLI_RES="${{ needs.cli.result }}"
           DESKTOP_RES="${{ needs.desktop.result }}"
+          IOS_RES="${{ needs.ios.result }}"
           WEB_RES="${{ needs.web.result }}"
 
           echo "Change detection result: $DETECT_RES"
@@ -144,9 +179,10 @@ jobs:
 
           echo "CLI result: $CLI_RES"
           echo "Desktop result: $DESKTOP_RES"
+          echo "iOS result: $IOS_RES"
           echo "Web result: $WEB_RES"
 
-          for res in "$CLI_RES" "$DESKTOP_RES" "$WEB_RES"; do
+          for res in "$CLI_RES" "$DESKTOP_RES" "$IOS_RES" "$WEB_RES"; do
             if [ "$res" = "failure" ] || [ "$res" = "cancelled" ]; then
               echo "Error: One or more parallel CI jobs failed." >&2
               exit 1
