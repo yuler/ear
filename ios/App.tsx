@@ -74,6 +74,10 @@ export function EarMobileApp(props?: {
 
   const settingsIsOpen = () => nav.routes().at(-1) === "settings";
 
+  const openSettings = () => {
+    if (!settingsIsOpen()) nav.push("settings");
+  };
+
   const closeSettings = () => {
     if (settingsIsOpen()) nav.pop();
   };
@@ -232,7 +236,7 @@ export function EarMobileApp(props?: {
             <LibraryScreen
               engine={engine}
               canOpenSettings={() => canOpenSettings()}
-              onOpenSettings={() => nav.push("settings")}
+              onOpenSettings={openSettings}
               onOpenSystemSettings={() => void permissions.openAppSettings()}
               onOpenPair={() => void startPairingFlow(false)}
               onSelectReady={(item) => previewItem.set(item)}
