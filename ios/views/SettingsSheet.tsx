@@ -1,5 +1,5 @@
 import { appInfo, Scroll, Text, View } from "nsh";
-import { AlertDialog, Button, Dialog, Switch } from "nsh/base";
+import { AlertDialog, Button, NavPage, Switch } from "nsh/base";
 import { Haptics } from "nsh/mobile";
 import { copyFor, type Locale } from "../i18n";
 import type { MirrorEngine } from "../mirror/engine";
@@ -64,9 +64,8 @@ function PairedMacRow(props: {
   );
 }
 
-/** iOS Settings bottom page-sheet: Appearance, Language, Background Sync, Paired Computers. */
+/** Settings page on the native navigation stack: Appearance, Language, Background Sync, Paired Computers. */
 export function SettingsSheet(props: {
-  open: () => boolean;
   engine: MirrorEngine;
   onClose: () => void;
   onOpenPair: () => void;
@@ -120,39 +119,24 @@ export function SettingsSheet(props: {
   };
 
   return (
-    <Dialog
-      open={props.open()}
-      presentation="pageSheet"
-      closeOnSwipe
-      closeOnBackdropPress
-      onOpenChange={(e) => {
-        if (!e.open) props.onClose();
-      }}
-      accessibilityLabel={c().settings}
+    <NavPage
+      title={c().settings}
+      headerRight={
+        <Button
+          testID="settings-done"
+          onPress={() => {
+            Haptics.selection();
+            props.onClose();
+          }}
+          class="min-h-[36px] items-center justify-center px-2 active:opacity-60"
+        >
+          <Text class="text-[16px] font-semibold text-tint">{c().done}</Text>
+        </Button>
+      }
+      class="flex-1 bg-background"
     >
-      <View class="flex-1 flex-col bg-background">
-        {/* Grabber & iOS Sheet Navigation Bar */}
-        <View class="items-center pt-2.5 pb-1">
-          <View class="h-1 w-9 rounded-full bg-dim/50" />
-        </View>
-        <View class="flex-row items-center justify-between px-4 py-3 border-b border-line/60">
-          <View class="w-12" />
-          <Text class="text-[17px] font-semibold text-foreground">
-            {c().settings}
-          </Text>
-          <Button
-            onPress={() => {
-              Haptics.selection();
-              props.onClose();
-            }}
-            class="min-w-[48px] items-end py-1 active:opacity-60"
-          >
-            <Text class="text-[16px] font-semibold text-tint">{c().done}</Text>
-          </Button>
-        </View>
-
-        <Scroll class="flex-1">
-          <View class="flex-col gap-6 p-4 pb-10">
+      <Scroll class="flex-1">
+        <View class="flex-col gap-6 p-4 pb-10">
             {/* Appearance & Language */}
             <IosGroupedSection title={c().appearanceSection}>
               <View class="flex-col gap-2.5 px-4 py-3">
@@ -242,7 +226,6 @@ export function SettingsSheet(props: {
               <Button
                 onPress={() => {
                   Haptics.selection();
-                  props.onClose();
                   props.onOpenPair();
                 }}
                 class="min-h-[48px] w-full flex-row items-center justify-center px-4 py-3 active:bg-accent"
@@ -257,8 +240,7 @@ export function SettingsSheet(props: {
               {`${c().versionLabel} ${versionText()}`}
             </Text>
           </View>
-        </Scroll>
-      </View>
-    </Dialog>
+      </Scroll>
+    </NavPage>
   );
 }
