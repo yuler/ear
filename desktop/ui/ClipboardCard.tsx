@@ -188,15 +188,16 @@ export function ClipboardCard(props: {
         </Button>
       </View>
 
-      {/* 2. Video summary row: Thumbnail + Title/Channel + Download button */}
-      <View class="flex-col gap-3.5 sm:flex-row sm:items-center">
-        <View class="relative h-[88px] w-full shrink-0 overflow-hidden rounded-lg border border-line bg-well sm:w-[156px]">
+      {/* Compact 16:9 poster. The popover is often narrower than the sm
+          breakpoint, so this row is not gated on viewport width. */}
+      <View class="flex-row items-start gap-3">
+        <View class="relative h-[81px] w-[144px] shrink-0 overflow-hidden rounded-lg border border-line bg-well">
           <Image
             src={props.preview().thumbnailUrl}
             class="h-full w-full object-cover"
           />
-          <View class="absolute right-1.5 bottom-1.5 rounded bg-black/80 px-1.5 py-0.5">
-            <Text class="font-mono text-[11px] font-medium tabular-nums text-white">
+          <View class="absolute right-1 bottom-1 rounded bg-black/80 px-1.5 py-0.5">
+            <Text class="font-mono text-[10px] font-medium tabular-nums text-white">
               {props.preview().durationLabel}
             </Text>
           </View>
@@ -235,7 +236,7 @@ export function ClipboardCard(props: {
           </View>
         </View>
 
-        <View class="shrink-0 items-end justify-center gap-1.5 sm:pl-2">
+        <View class="shrink-0 items-end gap-1.5">
           <Button
             onPress={() => props.onDownload(props.preview())}
             class="flex-row items-center gap-1.5 rounded-lg bg-brand px-4 py-2.5 shadow-[0_0_14px_rgba(47,124,246,0.4)] ring-2 ring-brand/60 transition active:opacity-90"
@@ -258,12 +259,12 @@ export function ClipboardCard(props: {
       {/* 3. Resolution / Quality selector + Subtitle selector */}
       <View class="gap-2.5 border-t border-line pt-2.5">
         {/* Quality Row */}
-        <View class="flex-col gap-1.5 sm:flex-row sm:items-center">
-          <Text class="w-20 shrink-0 font-mono text-[11px] uppercase tracking-wider text-dim">
+        <View class="flex-row items-start gap-2">
+          <Text class="w-[5.5rem] shrink-0 pt-1 font-mono text-[11px] uppercase tracking-wider text-dim">
             {shellT().quality}
           </Text>
           <If when={isParsing()}>
-            <View class="flex-row flex-wrap items-center gap-2">
+            <View class="min-w-0 flex-1 flex-row flex-wrap items-center gap-2">
               <View class="flex-row items-center gap-1.5">
                 <View class="h-6 w-14 animate-pulse rounded-md border border-line bg-well/70" />
                 <View class="h-6 w-14 animate-pulse rounded-md border border-line bg-well/70" />
@@ -279,7 +280,7 @@ export function ClipboardCard(props: {
             </View>
           </If>
           <If when={!isParsing()}>
-            <View class="flex-row flex-wrap items-center gap-1.5">
+            <View class="min-w-0 flex-1 flex-row flex-wrap items-center gap-1.5">
               {qualities().map((q) => {
                 const selected = () => props.selectedQualityId() === q.id;
                 const sizeStr = formatBytes(q.sizeBytes);
@@ -312,12 +313,12 @@ export function ClipboardCard(props: {
         </View>
 
         {/* Subtitles Row */}
-        <View class="flex-col gap-1.5 sm:flex-row sm:items-center">
-          <Text class="w-20 shrink-0 font-mono text-[11px] uppercase tracking-wider text-dim">
+        <View class="flex-row items-start gap-2">
+          <Text class="w-[5.5rem] shrink-0 pt-1 font-mono text-[11px] uppercase tracking-wider text-dim">
             {shellT().subtitles}
           </Text>
           <If when={isParsing()}>
-            <View class="flex-row flex-wrap items-center gap-2 pt-0.5">
+            <View class="min-w-0 flex-1 flex-row flex-wrap items-center gap-2 pt-0.5">
               <View class="flex-row items-center gap-1.5">
                 <View class="h-6 w-20 animate-pulse rounded-md border border-line bg-well/70" />
                 <View class="h-6 w-24 animate-pulse rounded-md border border-line bg-well/70" />
