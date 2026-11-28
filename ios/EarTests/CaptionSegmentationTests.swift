@@ -48,11 +48,25 @@ final class CaptionSegmentationTests: XCTestCase {
 
     func testParseCaptionsPayloadSupportsCuesAndFallbackSentences() {
         let json = """
-        {"cues":[{"startMs":500,"endMs":1500,"text":"Good morning."}]}
+        {
+          "videoId": "abc123",
+          "title": "Morning Lesson",
+          "track": {"languageCode": "en", "name": "English (auto-generated)", "kind": "asr", "vssId": "a.en"},
+          "cues": [{"startMs": 500, "endMs": 1500, "text": "Good morning."}]
+        }
         """
         let loaded = CaptionSegmentation.parseCaptionsPayload(Data(json.utf8), mode: .short)
+        XCTAssertEqual(loaded.videoId, "abc123")
+        XCTAssertEqual(loaded.title, "Morning Lesson")
+        XCTAssertEqual(loaded.track, CaptionTrackInfo(lang: "en", name: "English (auto-generated)", isAuto: true))
         XCTAssertEqual(loaded.cues.count, 1)
         XCTAssertEqual(loaded.sentences.count, 1)
         XCTAssertEqual(loaded.sentences[0].text, "Good morning.")
+    }
+
+    func testCaptionTrackInfoDecodesAlternateKeys() throws {
+        let json = #"{"lang":"ja","label":"Japanese","isAuto":false}"#
+        let decoded = try JSONDecoder().decode(CaptionTrackInfo.self, from: Data(json.utf8))
+        XCTAssertEqual(decoded, CaptionTrackInfo(lang: "ja", name: "Japanese", isAuto: false))
     }
 }

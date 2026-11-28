@@ -4,6 +4,7 @@ public enum MirrorConstants {
     public static let defaultPort = 32783
     public static let maxRemoteMediaBytes: Int64 = 16 * 1024 * 1024 * 1024
     public static let maxCaptionsBytes = 4 * 1024 * 1024
+    public static let maxThumbnailBytes = 2 * 1024 * 1024
     public static let rangeChunkBytes: Int64 = 2 * 1024 * 1024
     public static let maxConcurrentTransfers = 3
 }
@@ -299,7 +300,14 @@ public enum MirrorSelectors {
                 videoId: videoId,
                 title: remote?.title ?? rec?.title ?? videoId,
                 thumbnailUrl: remote?.thumbnailUrl ?? rec?.thumbnailUrl ?? "",
+                url: remote?.url ?? rec?.url,
+                site: remote?.site ?? rec?.site,
                 durationMs: remote?.durationMs ?? rec?.durationMs,
+                videoWidth: remote?.videoWidth ?? rec?.videoWidth,
+                videoHeight: remote?.videoHeight ?? rec?.videoHeight,
+                quality: remote?.quality ?? rec?.quality,
+                subtitleLabel: remote?.subtitleLabel ?? rec?.subtitleLabel,
+                subtitleIsAuto: remote?.subtitleIsAuto ?? rec?.subtitleIsAuto,
                 sizeBytes: sizeBytes,
                 contentSha256: rec?.contentSha256 ?? remote?.contentSha256,
                 downloadedBytes: downloadedBytes,
@@ -311,8 +319,10 @@ public enum MirrorSelectors {
                 mimeType: rec?.mimeType ?? remote?.mimeType ?? "video/mp4",
                 localFileName: rec?.localFileName,
                 captionsFileName: rec?.captionsFileName,
+                thumbnailFileName: rec?.thumbnailFileName,
                 sources: sources,
                 fallbackSourceShortName: rec?.sourceShortName ?? sources.first?.shortName,
+                createdAt: remote?.createdAt ?? rec?.createdAt,
                 updatedAt: remote?.updatedAt ?? rec?.updatedAt ?? 0
             ))
         }

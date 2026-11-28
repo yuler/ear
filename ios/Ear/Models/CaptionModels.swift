@@ -84,10 +84,75 @@ public enum ProgressEvaluation: Equatable, Sendable {
     case advance(activeIndex: Int, newClipEndMs: Int? = nil, shouldUpdateClipEnd: Bool = false)
 }
 
+public struct CaptionTrackInfo: Codable, Equatable, Sendable {
+    public let lang: String
+    public let name: String
+    public let isAuto: Bool
+
+    public init(lang: String, name: String, isAuto: Bool = false) {
+        self.lang = lang
+        self.name = name
+        self.isAuto = isAuto
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case lang
+        case languageCode
+        case name
+        case label
+        case isAuto
+        case kind
+        case vssId
+    }
+
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        let lang = try c.decodeIfPresent(String.self, forKey: .languageCode)
+            ?? c.decodeIfPresent(String.self, forKey: .lang)
+            ?? ""
+        let name = try c.decodeIfPresent(String.self, forKey: .name)
+            ?? c.decodeIfPresent(String.self, forKey: .label)
+            ?? lang
+        let explicitAuto = try c.decodeIfPresent(Bool.self, forKey: .isAuto)
+        let kind = try c.decodeIfPresent(String.self, forKey: .kind)
+        let vssId = try c.decodeIfPresent(String.self, forKey: .vssId)
+        let derivedAuto = (kind == "asr") || (vssId?.hasPrefix("a.") == true)
+        self.lang = lang
+        self.name = name
+        self.isAuto = explicitAuto ?? derivedAuto
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(lang, forKey: .languageCode)
+        try c.encode(name, forKey: .name)
+        try c.encode(isAuto, forKey: .isAuto)
+    }
+}
+
 public struct LoadedLocalCaptions: Equatable, Sendable {
+    public let videoId: String?
+    public let title: String?
+    public let track: CaptionTrackInfo?
     public let cues: [CaptionCue]
     public let rawSentences: [Sentence]
     public let sentences: [Sentence]
+
+    public init(
+        videoId: String? = nil,
+        title: String? = nil,
+        track: CaptionTrackInfo? = nil,
+        cues: [CaptionCue] = [],
+        rawSentences: [Sentence] = [],
+        sentences: [Sentence] = []
+    ) {
+        self.videoId = videoId
+        self.title = title
+        self.track = track
+        self.cues = cues
+        self.rawSentences = rawSentences
+        self.sentences = sentences
+    }
 }
 
 public enum CaptionSegmentation {
@@ -384,16 +449,26 @@ public enum CaptionSegmentation {
 
     public static func parseCaptionsPayload(_ data: Data, mode: SentenceLengthMode) -> LoadedLocalCaptions {
         struct RawPayload: Decodable {
+            let videoId: String?
+            let title: String?
+            let track: CaptionTrackInfo?
             let cues: [CaptionCue]?
             let sentences: [Sentence]?
         }
         guard let decoded = try? JSONDecoder().decode(RawPayload.self, from: data) else {
-            return LoadedLocalCaptions(cues: [], rawSentences: [], sentences: [])
+            return LoadedLocalCaptions()
         }
         let cues = (decoded.cues ?? []).filter { !$0.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
         let rawSentences = (decoded.sentences ?? []).filter { !$0.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
         let sentences = resegmentSentences(cues: cues, fallbackSentences: rawSentences, mode: mode)
-        return LoadedLocalCaptions(cues: cues, rawSentences: rawSentences, sentences: sentences)
+        return LoadedLocalCaptions(
+            videoId: decoded.videoId,
+            title: decoded.title,
+            track: decoded.track,
+            cues: cues,
+            rawSentences: rawSentences,
+            sentences: sentences
+        )
     }
 
     public static func findSentenceIndexAtTime(_ sentences: [Sentence], currentTimeSec: Double) -> Int {

@@ -12,13 +12,20 @@ pub struct CatalogItem {
     pub video_id: String,
     pub title: String,
     pub thumbnail_url: String,
+    pub url: Option<String>,
+    pub site: Option<String>,
     pub duration_ms: Option<u64>,
+    pub video_width: Option<u32>,
+    pub video_height: Option<u32>,
     pub size_bytes: u64,
     pub content_sha256: String,
     pub quality: Option<String>,
+    pub subtitle_label: Option<String>,
+    pub subtitle_is_auto: Option<bool>,
     pub media_ext: String,
     pub mime_type: String,
     pub has_captions: bool,
+    pub created_at: Option<u64>,
     pub updated_at: u64,
 }
 
@@ -90,11 +97,39 @@ impl MediaCatalog {
                 .filter(|s| !s.is_empty())
                 .map(ToOwned::to_owned)
                 .unwrap_or_else(|| format!("https://i.ytimg.com/vi/{video_id}/hqdefault.jpg"));
+            let url = val
+                .get("url")
+                .and_then(|v| v.as_str())
+                .filter(|s| !s.is_empty())
+                .map(ToOwned::to_owned);
+            let site = val
+                .get("site")
+                .and_then(|v| v.as_str())
+                .filter(|s| !s.is_empty())
+                .map(ToOwned::to_owned);
             let duration_ms = val.get("durationMs").and_then(|v| v.as_u64());
+            let video_width = val
+                .get("videoWidth")
+                .and_then(|v| v.as_u64())
+                .and_then(|n| u32::try_from(n).ok())
+                .filter(|&n| n > 0);
+            let video_height = val
+                .get("videoHeight")
+                .and_then(|v| v.as_u64())
+                .and_then(|n| u32::try_from(n).ok())
+                .filter(|&n| n > 0);
             let quality = val
                 .get("quality")
                 .and_then(|v| v.as_str())
+                .filter(|s| !s.is_empty())
                 .map(ToOwned::to_owned);
+            let subtitle_label = val
+                .get("subtitleLabel")
+                .and_then(|v| v.as_str())
+                .filter(|s| !s.is_empty())
+                .map(ToOwned::to_owned);
+            let subtitle_is_auto = val.get("subtitleIsAuto").and_then(|v| v.as_bool());
+            let created_at = val.get("createdAt").and_then(|v| v.as_u64());
             let updated_at = val
                 .get("updatedAt")
                 .and_then(|v| v.as_u64())
@@ -105,13 +140,20 @@ impl MediaCatalog {
                 video_id: video_id.to_string(),
                 title,
                 thumbnail_url,
+                url,
+                site,
                 duration_ms,
+                video_width,
+                video_height,
                 size_bytes: media.size_bytes,
                 content_sha256: media.content_sha256,
                 quality,
+                subtitle_label,
+                subtitle_is_auto,
                 media_ext: media.ext,
                 mime_type: media.mime_type,
                 has_captions,
+                created_at,
                 updated_at,
             });
         }

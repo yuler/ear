@@ -2,6 +2,8 @@ import Foundation
 import Observation
 import UIKit
 
+// Transfer scheduling and execution live in MirrorEngine+Transfer.swift.
+
 public enum MirrorNotice: Equatable, Sendable {
     case removedByPC(macName: String)
 }
@@ -11,20 +13,20 @@ public enum MirrorNotice: Equatable, Sendable {
 public final class MirrorEngine {
     public private(set) var settings: MirrorSettings = MirrorSettings()
     public private(set) var macs: [PairedMac] = []
-    public private(set) var onlineMacIds: Set<String> = []
+    public internal(set) var onlineMacIds: Set<String> = []
     public private(set) var catalogs: [String: [RemoteCatalogItem]] = [:]
-    public private(set) var localItems: [String: LocalItemRecord] = [:]
-    public private(set) var activeVideoIds: Set<String> = []
-    public private(set) var priorityQueue: [String] = []
+    public internal(set) var localItems: [String: LocalItemRecord] = [:]
+    public internal(set) var activeVideoIds: Set<String> = []
+    public internal(set) var priorityQueue: [String] = []
     public private(set) var pausedInBackground: Bool = false
     public private(set) var lastNotice: MirrorNotice?
     public private(set) var isHydrated: Bool = false
 
-    private let api: MirrorAPIClientProtocol
-    private let files: MirrorFileStoring
-    private let tokens: TokenStoring
-    private var activeTasks: [String: Task<Void, Never>] = [:]
-    private var activeTransferMacs: [String: String] = [:]
+    let api: MirrorAPIClientProtocol
+    let files: MirrorFileStoring
+    let tokens: TokenStoring
+    var activeTasks: [String: Task<Void, Never>] = [:]
+    var activeTransferMacs: [String: String] = [:]
     private var backgroundTaskId: UIBackgroundTaskIdentifier = .invalid
     private var isPolling = false
 
@@ -111,11 +113,24 @@ public final class MirrorEngine {
         return await files.mediaURL(videoId: item.videoId, fileName: fileName)
     }
 
+    public func thumbnailURL(for item: MirrorItemView) async -> URL? {
+        guard let fileName = item.thumbnailFileName else { return nil }
+        return await files.thumbnailURL(videoId: item.videoId, fileName: fileName)
+    }
+
     public func loadCaptions(for videoId: String, mode: SentenceLengthMode) async -> LoadedLocalCaptions {
         guard let data = await files.readCaptions(videoId: videoId) else {
-            return LoadedLocalCaptions(cues: [], rawSentences: [], sentences: [])
+            return LoadedLocalCaptions()
         }
         return CaptionSegmentation.parseCaptionsPayload(data, mode: mode)
+    }
+
+    public func loadStudyState(for videoId: String) async -> VideoStudyState {
+        await files.loadStudyState(videoId: videoId)
+    }
+
+    public func saveStudyState(_ state: VideoStudyState, for videoId: String) {
+        Task { await files.saveStudyState(videoId: videoId, state: state) }
     }
 
     @discardableResult
@@ -165,7 +180,7 @@ public final class MirrorEngine {
         removeMacLocally(id: id, notifyRemovedByPC: false)
     }
 
-    private func removeMacLocally(id: String, notifyRemovedByPC: Bool) {
+    func removeMacLocally(id: String, notifyRemovedByPC: Bool) {
         let removedName = macs.first(where: { $0.id == id })?.shortName
         tokens.removeToken(forServerId: id)
         macs.removeAll { $0.id == id }
@@ -265,13 +280,21 @@ public final class MirrorEngine {
                 state: .removed,
                 title: item.title,
                 thumbnailUrl: item.thumbnailUrl,
+                url: item.url,
+                site: item.site,
                 durationMs: item.durationMs,
+                videoWidth: item.videoWidth,
+                videoHeight: item.videoHeight,
+                quality: item.quality,
+                subtitleLabel: item.subtitleLabel,
+                subtitleIsAuto: item.subtitleIsAuto,
                 sizeBytes: item.sizeBytes,
                 contentSha256: item.contentSha256,
                 downloadedBytes: 0,
                 mediaExt: item.mediaExt,
                 mimeType: item.mimeType,
                 hasCaptions: item.hasCaptions,
+                createdAt: item.createdAt,
                 updatedAt: item.updatedAt
             )
         }
@@ -280,6 +303,7 @@ public final class MirrorEngine {
             updated.downloadedBytes = 0
             updated.localFileName = nil
             updated.captionsFileName = nil
+            updated.thumbnailFileName = nil
             localItems[videoId] = updated
         }
         persist()
@@ -335,7 +359,7 @@ public final class MirrorEngine {
         }
     }
 
-    private func endBackgroundGraceTask() {
+    func endBackgroundGraceTask() {
         guard backgroundTaskId != .invalid else { return }
         UIApplication.shared.endBackgroundTask(backgroundTaskId)
         backgroundTaskId = .invalid
@@ -346,173 +370,5 @@ public final class MirrorEngine {
         activeTasks.removeAll()
         activeTransferMacs.removeAll()
         activeVideoIds.removeAll()
-    }
-
-    public func scheduleTransfers() {
-        guard !pausedInBackground else { return }
-        let items = library
-        let candidates = items.filter { $0.status == .queued }
-        let ordered = candidates.sorted { lhs, rhs in
-            let lIdx = priorityQueue.firstIndex(of: lhs.videoId)
-            let rIdx = priorityQueue.firstIndex(of: rhs.videoId)
-            switch (lIdx, rIdx) {
-            case let (l?, r?): return l < r
-            case (_?, nil): return true
-            case (nil, _?): return false
-            case (nil, nil): return lhs.updatedAt > rhs.updatedAt
-            }
-        }
-
-        for item in ordered {
-            if activeVideoIds.count >= MirrorConstants.maxConcurrentTransfers { break }
-            guard let source = item.sources.first(where: \.online),
-                  let mac = macs.first(where: { $0.id == source.id }),
-                  let token = tokens.token(forServerId: mac.id),
-                  let remote = (catalogs[mac.id] ?? []).first(where: { $0.videoId == item.videoId }) else {
-                continue
-            }
-            startTransfer(remote: remote, mac: mac, token: token)
-        }
-    }
-
-    private func startTransfer(remote: RemoteCatalogItem, mac: PairedMac, token: String) {
-        let videoId = remote.videoId
-        guard !activeVideoIds.contains(videoId) else { return }
-        activeVideoIds.insert(videoId)
-        activeTransferMacs[videoId] = mac.id
-
-        let task = Task { [weak self] in
-            guard let self else { return }
-            await self.runTransfer(remote: remote, mac: mac, token: token)
-        }
-        activeTasks[videoId] = task
-    }
-
-    private func runTransfer(remote: RemoteCatalogItem, mac: PairedMac, token: String) async {
-        let videoId = remote.videoId
-        defer {
-            activeTasks.removeValue(forKey: videoId)
-            activeTransferMacs.removeValue(forKey: videoId)
-            activeVideoIds.remove(videoId)
-            if activeVideoIds.isEmpty { endBackgroundGraceTask() }
-            scheduleTransfers()
-        }
-
-        do {
-            var offset = await files.partialByteCount(videoId: videoId, ext: remote.mediaExt)
-            // If representation digest changed since partial download started, reset cleanly.
-            if let existing = localItems[videoId],
-               let oldSha = existing.contentSha256,
-               let newSha = remote.contentSha256,
-               oldSha != newSha {
-                await files.removeVideoFiles(videoId: videoId)
-                offset = 0
-            }
-
-            upsertPartialRecord(remote: remote, mac: mac, downloadedBytes: offset)
-
-            while offset < remote.sizeBytes {
-                try Task.checkCancellation()
-                let end = min(remote.sizeBytes - 1, offset + MirrorConstants.rangeChunkBytes - 1)
-                let chunk = try await api.fetchMediaRange(
-                    mac: mac,
-                    token: token,
-                    videoId: videoId,
-                    start: offset,
-                    end: end,
-                    options: MediaRangeOptions(
-                        expectedTotalBytes: remote.sizeBytes,
-                        expectedContentSha256: remote.contentSha256
-                    )
-                )
-                try Task.checkCancellation()
-                offset = try await files.appendMediaChunk(
-                    videoId: videoId,
-                    ext: remote.mediaExt,
-                    data: chunk,
-                    expectedOffset: offset
-                )
-                upsertPartialRecord(remote: remote, mac: mac, downloadedBytes: offset)
-            }
-
-            let finalFileName: String
-            if remote.sizeBytes == 0 {
-                _ = try await files.appendMediaChunk(videoId: videoId, ext: remote.mediaExt, data: Data(), expectedOffset: 0)
-                finalFileName = try await files.finalizeMedia(videoId: videoId, ext: remote.mediaExt, expectedSha256: nil)
-            } else {
-                finalFileName = try await files.finalizeMedia(
-                    videoId: videoId,
-                    ext: remote.mediaExt,
-                    expectedSha256: remote.contentSha256
-                )
-            }
-
-            var captionsFileName: String?
-            if remote.hasCaptions, let capData = try await api.fetchCaptions(mac: mac, token: token, videoId: videoId) {
-                captionsFileName = try await files.writeCaptions(videoId: videoId, data: capData)
-            }
-
-            localItems[videoId] = LocalItemRecord(
-                videoId: videoId,
-                state: .ready,
-                title: remote.title,
-                thumbnailUrl: remote.thumbnailUrl,
-                durationMs: remote.durationMs,
-                sizeBytes: remote.sizeBytes,
-                contentSha256: remote.contentSha256,
-                downloadedBytes: remote.sizeBytes,
-                mediaExt: remote.mediaExt,
-                mimeType: remote.mimeType,
-                hasCaptions: captionsFileName != nil || remote.hasCaptions,
-                localFileName: finalFileName,
-                captionsFileName: captionsFileName,
-                sourceMacId: mac.id,
-                sourceShortName: mac.shortName,
-                updatedAt: remote.updatedAt
-            )
-            priorityQueue.removeAll { $0 == videoId }
-            persist()
-
-            let counts = macSyncCounts(for: mac.id)
-            await api.reportStatus(
-                mac: mac,
-                token: token,
-                syncedCount: counts.done,
-                totalCount: counts.total,
-                background: pausedInBackground
-            )
-        } catch is CancellationError {
-            persist()
-        } catch MirrorAPIError.unpaired {
-            removeMacLocally(id: mac.id, notifyRemovedByPC: true)
-        } catch MirrorAPIError.representationChanged, MirrorFileStoreError.checksumMismatch {
-            await files.removeVideoFiles(videoId: videoId)
-            localItems.removeValue(forKey: videoId)
-            persist()
-        } catch {
-            onlineMacIds.remove(mac.id)
-            persist()
-        }
-    }
-
-    private func upsertPartialRecord(remote: RemoteCatalogItem, mac: PairedMac, downloadedBytes: Int64) {
-        localItems[remote.videoId] = LocalItemRecord(
-            videoId: remote.videoId,
-            state: .partial,
-            title: remote.title,
-            thumbnailUrl: remote.thumbnailUrl,
-            durationMs: remote.durationMs,
-            sizeBytes: remote.sizeBytes,
-            contentSha256: remote.contentSha256,
-            downloadedBytes: downloadedBytes,
-            mediaExt: remote.mediaExt,
-            mimeType: remote.mimeType,
-            hasCaptions: remote.hasCaptions,
-            localFileName: nil,
-            captionsFileName: nil,
-            sourceMacId: mac.id,
-            sourceShortName: mac.shortName,
-            updatedAt: remote.updatedAt
-        )
     }
 }

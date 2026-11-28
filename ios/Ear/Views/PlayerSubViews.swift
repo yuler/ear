@@ -37,88 +37,130 @@ struct FullscreenAVPlayerSheet: UIViewControllerRepresentable {
     }
 }
 
-struct SentenceRowView: View {
+struct NoteEditorSheetView: View {
+    @Environment(\.dismiss) private var dismiss
     let sentence: Sentence
-    let isActive: Bool
-    let isVisible: Bool
-    let tapToRevealLabel: String
-    let onPlay: () -> Void
-    let onToggleReveal: () -> Void
-    let onCopy: () -> Void
+    let initialText: String
+    let copy: AppCopy
+    let onSave: (String) -> Void
+
+    @State private var draft: String
+    @FocusState private var isFocused: Bool
+
+    init(sentence: Sentence, initialText: String, copy: AppCopy, onSave: @escaping (String) -> Void) {
+        self.sentence = sentence
+        self.initialText = initialText
+        self.copy = copy
+        self.onSave = onSave
+        self._draft = State(initialValue: initialText)
+    }
 
     var body: some View {
-        HStack(alignment: .top, spacing: 10) {
-            VStack(alignment: .leading, spacing: 4) {
-                HStack(spacing: 6) {
-                    Text("#\(sentence.index + 1)")
-                        .font(.caption2.weight(.semibold))
-                        .monospacedDigit()
-                        .foregroundStyle(isActive ? Color.accentColor : .secondary)
-
-                    Text(CaptionSegmentation.formatTimeRange(startMs: sentence.startMs, endMs: sentence.endMs))
-                        .font(.caption2)
-                        .monospacedDigit()
+        NavigationStack {
+            VStack(alignment: .leading, spacing: 12) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("#\(sentence.index + 1) · \(CaptionSegmentation.formatTimeRange(startMs: sentence.startMs, endMs: sentence.endMs))")
+                        .font(.system(size: 11, weight: .semibold, design: .monospaced))
                         .foregroundStyle(.secondary)
-
-                    Text("\(sentence.wpm) WPM")
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
-                }
-
-                if isVisible {
                     Text(sentence.text)
-                        .font(.body)
-                        .foregroundStyle(.primary)
-                } else {
-                    Text(tapToRevealLabel)
                         .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 6)
-                        .background(.secondary.opacity(0.12), in: RoundedRectangle(cornerRadius: 8))
-                        .onTapGesture { onToggleReveal() }
+                        .foregroundStyle(.primary)
+                        .lineLimit(3)
+                }
+                .padding(.horizontal, 16)
+                .padding(.top, 8)
+
+                TextEditor(text: $draft)
+                    .focused($isFocused)
+                    .font(.body)
+                    .padding(10)
+                    .scrollContentBackground(.hidden)
+                    .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                    .overlay(alignment: .topLeading) {
+                        if draft.isEmpty {
+                            Text(copy.notePlaceholder)
+                                .font(.body)
+                                .foregroundStyle(.tertiary)
+                                .padding(.horizontal, 15)
+                                .padding(.vertical, 18)
+                                .allowsHitTesting(false)
+                        }
+                    }
+                    .padding(.horizontal, 16)
+
+                if !draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    Button(role: .destructive) {
+                        draft = ""
+                        onSave("")
+                        dismiss()
+                    } label: {
+                        Label(copy.clearNote, systemImage: "trash")
+                            .font(.subheadline)
+                    }
+                    .padding(.horizontal, 16)
+                }
+
+                Spacer(minLength: 0)
+            }
+            .padding(.bottom, 12)
+            .navigationTitle(copy.editNote)
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button(copy.cancel) { dismiss() }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button(copy.save) {
+                        onSave(draft.trimmingCharacters(in: .whitespacesAndNewlines))
+                        dismiss()
+                    }
+                    .fontWeight(.semibold)
                 }
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .contentShape(Rectangle())
-            .onTapGesture { onPlay() }
-
-            Button {
-                onToggleReveal()
-            } label: {
-                Image(systemName: isVisible ? "eye" : "eye.slash")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-            }
-            .buttonStyle(.borderless)
-        }
-        .padding(.vertical, 4)
-        .contextMenu {
-            Button {
-                onCopy()
-            } label: {
-                Label("Copy", systemImage: "doc.on.doc")
-            }
-            Button {
-                onPlay()
-            } label: {
-                Label("Play", systemImage: "play.fill")
+            .onAppear {
+                isFocused = true
             }
         }
+        .presentationDetents([.medium])
     }
 }
 
 struct VideoInfoSheetView: View {
     @Environment(\.dismiss) private var dismiss
     let item: MirrorItemView
+    let captionTrack: CaptionTrackInfo?
     let mediaURL: URL?
     let copy: AppCopy
+
+    private var subtitleDisplay: String? {
+        if let track = captionTrack, !track.name.isEmpty {
+            let suffix = track.isAuto ? " (\(copy.autoGenerated))" : ""
+            return track.lang.isEmpty ? "\(track.name)\(suffix)" : "\(track.name) [\(track.lang)]\(suffix)"
+        }
+        if let label = item.subtitleLabel, !label.isEmpty {
+            let suffix = item.subtitleIsAuto == true ? " (\(copy.autoGenerated))" : ""
+            return "\(label)\(suffix)"
+        }
+        return nil
+    }
 
     var body: some View {
         NavigationStack {
             List {
                 LabeledContent("Title", value: item.title)
                 LabeledContent("Video ID", value: item.videoId)
+                if let site = item.site, !site.isEmpty {
+                    LabeledContent(copy.site, value: site)
+                }
+                if let w = item.videoWidth, let h = item.videoHeight, w > 0, h > 0 {
+                    LabeledContent(copy.resolution, value: "\(w) × \(h)")
+                }
+                if let quality = item.quality, !quality.isEmpty {
+                    LabeledContent(copy.quality, value: quality)
+                }
+                if let subtitleDisplay {
+                    LabeledContent(copy.subtitleTrack, value: subtitleDisplay)
+                }
                 LabeledContent("Format", value: "\(item.mediaExt.uppercased()) · \(item.mimeType)")
                 LabeledContent("Size", value: formatBytes(item.sizeBytes))
                 if let durationMs = item.durationMs {

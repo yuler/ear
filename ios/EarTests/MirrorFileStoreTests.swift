@@ -67,4 +67,87 @@ final class MirrorFileStoreTests: XCTestCase {
             XCTFail("Unexpected error: \(error)")
         }
     }
+
+    func testDesktopAlignedLibraryLayoutAndStudyStateRoundTrip() async throws {
+        let store = DiskMirrorFileStore(rootURL: tempRoot)
+        let record = LocalItemRecord(
+            videoId: "vid_meta_1",
+            state: .ready,
+            title: "Desktop Aligned Video",
+            thumbnailUrl: "https://i.ytimg.com/vi/vid_meta_1/hqdefault.jpg",
+            url: "https://www.youtube.com/watch?v=vid_meta_1",
+            site: "YouTube",
+            durationMs: 95_000,
+            videoWidth: 1920,
+            videoHeight: 1080,
+            quality: "1080p",
+            subtitleLabel: "English · 人工",
+            subtitleIsAuto: false,
+            sizeBytes: 2048,
+            downloadedBytes: 2048,
+            mediaExt: "mp4",
+            mimeType: "video/mp4",
+            hasCaptions: true,
+            localFileName: "media.mp4",
+            captionsFileName: "captions.json",
+            thumbnailFileName: "thumb.jpg",
+            sourceMacId: "mac-1",
+            sourceShortName: "Home",
+            createdAt: 1_700_000_000_000,
+            updatedAt: 1_700_000_005_000
+        )
+        let removedRecord = LocalItemRecord(
+            videoId: "vid_removed",
+            state: .removed,
+            title: "Removed Video",
+            sizeBytes: 512,
+            updatedAt: 1_700_000_001_000
+        )
+
+        let thumbName = try await store.writeThumbnail(videoId: "vid_meta_1", data: Data([0xFF, 0xD8, 0xFF]))
+        XCTAssertEqual(thumbName, "thumb.jpg")
+        let thumbURL = await store.thumbnailURL(videoId: "vid_meta_1", fileName: thumbName)
+        XCTAssertNotNil(thumbURL)
+        XCTAssertEqual(thumbURL?.pathComponents.suffix(3), ["library", "vid_meta_1", "thumb.jpg"])
+
+        let study = VideoStudyState(
+            bookmarkedIndices: [0, 3],
+            starredWords: ["resilient", "cadence"],
+            notes: [3: "Check pronunciation"],
+            blockerEnabled: true,
+            blockerRect: SubtitleBlockerRect(x: -5, y: 80, width: 120, height: 15),
+            sentenceLength: .medium,
+            lastPositionSec: 42.5
+        )
+        await store.saveStudyState(videoId: "vid_meta_1", state: study)
+        let loadedStudy = await store.loadStudyState(videoId: "vid_meta_1")
+        XCTAssertEqual(loadedStudy.bookmarkedIndices, [0, 3])
+        XCTAssertEqual(loadedStudy.starredWords, ["resilient", "cadence"])
+        XCTAssertEqual(loadedStudy.notes[3], "Check pronunciation")
+        XCTAssertTrue(loadedStudy.blockerEnabled)
+        XCTAssertEqual(loadedStudy.blockerRect, SubtitleBlockerRect(x: 0, y: 80, width: 100, height: 15))
+        XCTAssertEqual(loadedStudy.sentenceLength, .medium)
+        XCTAssertEqual(loadedStudy.lastPositionSec, 42.5)
+
+        await store.saveState(PersistedMobileData(
+            settings: MirrorSettings(appearance: .dark, accent: .green, language: .en, backgroundSync: false),
+            macs: [],
+            localItems: ["vid_meta_1": record, "vid_removed": removedRecord],
+            catalogs: [:]
+        ))
+
+        let metaFile = tempRoot.appendingPathComponent("library/vid_meta_1.json")
+        XCTAssertTrue(FileManager.default.fileExists(atPath: metaFile.path))
+        let removedMetaFile = tempRoot.appendingPathComponent("library/vid_removed.json")
+        XCTAssertFalse(FileManager.default.fileExists(atPath: removedMetaFile.path))
+
+        let reloaded = await store.loadState()
+        XCTAssertEqual(reloaded.settings.appearance, .dark)
+        XCTAssertEqual(reloaded.localItems["vid_meta_1"], record)
+        XCTAssertEqual(reloaded.localItems["vid_removed"]?.state, .removed)
+
+        await store.removeVideoFiles(videoId: "vid_meta_1")
+        XCTAssertFalse(FileManager.default.fileExists(atPath: metaFile.path))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: tempRoot.appendingPathComponent("library/vid_meta_1").path))
+    }
 }

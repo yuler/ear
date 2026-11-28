@@ -50,6 +50,7 @@ public protocol MirrorAPIClientProtocol: Sendable {
         options: MediaRangeOptions
     ) async throws -> Data
     func fetchCaptions(mac: PairedMac, token: String, videoId: String) async throws -> Data?
+    func fetchThumbnail(urlString: String) async -> Data?
     func reportStatus(mac: PairedMac, token: String, syncedCount: Int, totalCount: Int, background: Bool) async
     func unpair(mac: PairedMac, token: String) async
 }
@@ -202,6 +203,20 @@ public final class HTTPMirrorAPIClient: MirrorAPIClientProtocol {
         return data
     }
 
+    public func fetchThumbnail(urlString: String) async -> Data? {
+        let sanitized = MirrorValidation.sanitizeThumbnailUrl(urlString)
+        guard !sanitized.isEmpty, let url = URL(string: sanitized) else { return nil }
+        var req = URLRequest(url: url, timeoutInterval: 8)
+        req.httpMethod = "GET"
+        guard let (data, http) = try? await execute(req),
+              (200...299).contains(http.statusCode),
+              !data.isEmpty,
+              data.count <= MirrorConstants.maxThumbnailBytes else {
+            return nil
+        }
+        return data
+    }
+
     public func reportStatus(mac: PairedMac, token: String, syncedCount: Int, totalCount: Int, background: Bool) async {
         guard let base = try? baseURL(host: mac.host, port: mac.port) else { return }
         var req = URLRequest(url: base.appendingPathComponent("v1/device/status"), timeoutInterval: 3)
@@ -259,24 +274,41 @@ public final class HTTPMirrorAPIClient: MirrorAPIClientProtocol {
             guard sizeBytes >= 0, sizeBytes <= MirrorConstants.maxRemoteMediaBytes else { return nil }
 
             let updatedAt = (it["updatedAt"] as? NSNumber)?.int64Value ?? 0
+            let createdAt = (it["createdAt"] as? NSNumber).flatMap { $0.int64Value >= 0 ? $0.int64Value : nil }
             let durationMs = (it["durationMs"] as? NSNumber).flatMap { $0.intValue >= 0 ? $0.intValue : nil }
+            let videoWidth = (it["videoWidth"] as? NSNumber).flatMap { $0.intValue > 0 ? $0.intValue : nil }
+            let videoHeight = (it["videoHeight"] as? NSNumber).flatMap { $0.intValue > 0 ? $0.intValue : nil }
             let rawSha = it["contentSha256"] as? String
             let sha = rawSha.flatMap { MirrorValidation.isSha256Hex($0) ? $0.lowercased() : nil }
             let rawTitle = (it["title"] as? String)?.trimmingCharacters(in: .whitespaces) ?? ""
             let title = rawTitle.isEmpty ? videoId : String(rawTitle.prefix(300))
             let rawMime = (it["mimeType"] as? String)?.trimmingCharacters(in: .whitespaces).lowercased() ?? "video/mp4"
             let quality = (it["quality"] as? String)?.trimmingCharacters(in: .whitespaces)
+            let rawUrl = (it["url"] as? String)?.trimmingCharacters(in: .whitespaces)
+            let url = rawUrl.flatMap { $0.isEmpty ? nil : String($0.prefix(512)) }
+            let rawSite = (it["site"] as? String)?.trimmingCharacters(in: .whitespaces)
+            let site = rawSite.flatMap { $0.isEmpty ? nil : String($0.prefix(64)) }
+            let rawSubLabel = (it["subtitleLabel"] as? String)?.trimmingCharacters(in: .whitespaces)
+            let subtitleLabel = rawSubLabel.flatMap { $0.isEmpty ? nil : String($0.prefix(128)) }
+            let subtitleIsAuto = it["subtitleIsAuto"] as? Bool
             return RemoteCatalogItem(
                 videoId: videoId,
                 title: title,
                 thumbnailUrl: MirrorValidation.sanitizeThumbnailUrl(it["thumbnailUrl"] as? String),
+                url: url,
+                site: site,
                 durationMs: durationMs,
+                videoWidth: videoWidth,
+                videoHeight: videoHeight,
                 sizeBytes: sizeBytes,
                 contentSha256: sha,
-                quality: quality.map { String($0.prefix(32)) },
+                quality: quality.flatMap { $0.isEmpty ? nil : String($0.prefix(32)) },
+                subtitleLabel: subtitleLabel,
+                subtitleIsAuto: subtitleIsAuto,
                 mediaExt: rawExt,
                 mimeType: rawMime.contains("/") ? rawMime : "video/mp4",
                 hasCaptions: (it["hasCaptions"] as? Bool) == true,
+                createdAt: createdAt,
                 updatedAt: max(0, updatedAt)
             )
         }

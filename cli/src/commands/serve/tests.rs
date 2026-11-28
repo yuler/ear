@@ -62,10 +62,19 @@ fn end_to_end_pair_catalog_range_and_revoke() {
         serde_json::to_string(&json!({
             "videoId": "abc12345678",
             "title": "Test Lesson",
+            "url": "https://www.youtube.com/watch?v=abc12345678",
+            "site": "YouTube",
             "state": "ready",
             "videoPath": media_path.to_string_lossy(),
             "captionsPath": cap_path.to_string_lossy(),
-            "durationMs": 60000
+            "durationMs": 60000,
+            "videoWidth": 1920,
+            "videoHeight": 1080,
+            "quality": "1080p",
+            "subtitleLabel": "English · 人工",
+            "subtitleIsAuto": false,
+            "createdAt": 1700000000000u64,
+            "updatedAt": 1700000005000u64
         }))
         .unwrap(),
     )
@@ -182,6 +191,15 @@ fn end_to_end_pair_catalog_range_and_revoke() {
     assert_eq!(lib["items"].as_array().unwrap().len(), 1);
     assert_eq!(lib["items"][0]["videoId"], "abc12345678");
     assert_eq!(lib["items"][0]["sizeBytes"], 20);
+    assert_eq!(lib["items"][0]["url"], "https://www.youtube.com/watch?v=abc12345678");
+    assert_eq!(lib["items"][0]["site"], "YouTube");
+    assert_eq!(lib["items"][0]["videoWidth"], 1920);
+    assert_eq!(lib["items"][0]["videoHeight"], 1080);
+    assert_eq!(lib["items"][0]["quality"], "1080p");
+    assert_eq!(lib["items"][0]["subtitleLabel"], "English · 人工");
+    assert_eq!(lib["items"][0]["subtitleIsAuto"], false);
+    assert_eq!(lib["items"][0]["createdAt"], 1700000000000u64);
+    assert_eq!(lib["items"][0]["updatedAt"], 1700000005000u64);
     let sha = lib["items"][0]["contentSha256"].as_str().unwrap().to_string();
     assert_eq!(sha.len(), 64);
 
@@ -230,6 +248,68 @@ fn end_to_end_pair_catalog_range_and_revoke() {
 
     stop.store(true, Ordering::Relaxed);
     let _ = handle.join();
+    let _ = fs::remove_dir_all(&tmp);
+}
+
+#[test]
+fn catalog_scan_parses_desktop_metadata_fields() {
+    let tmp = std::env::temp_dir().join(format!(
+        "ear-catalog-meta-{}-{}",
+        std::process::id(),
+        state::now_secs()
+    ));
+    let lib_dir = tmp.join("library");
+    let vid_dir = lib_dir.join("meta1234567");
+    fs::create_dir_all(&vid_dir).unwrap();
+
+    let media_path = tmp.join("meta1234567.mp4");
+    fs::write(&media_path, b"video-bytes-here").unwrap();
+    fs::write(
+        lib_dir.join("meta1234567.json"),
+        serde_json::to_string(&json!({
+            "videoId": "meta1234567",
+            "title": "Desktop Meta Video",
+            "url": "https://www.youtube.com/watch?v=meta1234567",
+            "site": "YouTube",
+            "state": "ready",
+            "videoPath": media_path.to_string_lossy(),
+            "durationMs": 45000,
+            "videoWidth": 720,
+            "videoHeight": 1280,
+            "quality": "720p",
+            "subtitleLabel": "English · CC 机翻",
+            "subtitleIsAuto": true,
+            "createdAt": 1700000100000u64,
+            "updatedAt": 1700000200000u64
+        }))
+        .unwrap(),
+    )
+    .unwrap();
+
+    let cat = MediaCatalog::new(lib_dir);
+    let items = cat.scan();
+    assert_eq!(items.len(), 1);
+    let item = &items[0];
+    assert_eq!(item.video_id, "meta1234567");
+    assert_eq!(item.url.as_deref(), Some("https://www.youtube.com/watch?v=meta1234567"));
+    assert_eq!(item.site.as_deref(), Some("YouTube"));
+    assert_eq!(item.video_width, Some(720));
+    assert_eq!(item.video_height, Some(1280));
+    assert_eq!(item.quality.as_deref(), Some("720p"));
+    assert_eq!(item.subtitle_label.as_deref(), Some("English · CC 机翻"));
+    assert_eq!(item.subtitle_is_auto, Some(true));
+    assert_eq!(item.created_at, Some(1700000100000));
+    assert_eq!(item.updated_at, 1700000200000);
+
+    let serialized = serde_json::to_value(item).unwrap();
+    assert_eq!(serialized["url"], "https://www.youtube.com/watch?v=meta1234567");
+    assert_eq!(serialized["site"], "YouTube");
+    assert_eq!(serialized["videoWidth"], 720);
+    assert_eq!(serialized["videoHeight"], 1280);
+    assert_eq!(serialized["subtitleLabel"], "English · CC 机翻");
+    assert_eq!(serialized["subtitleIsAuto"], true);
+    assert_eq!(serialized["createdAt"], 1700000100000u64);
+
     let _ = fs::remove_dir_all(&tmp);
 }
 
