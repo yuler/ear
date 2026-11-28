@@ -113,6 +113,9 @@ function App() {
     }
   };
 
+  let beforeCommitMerge:
+    | ((videoId: string, thumbnailUrl: string) => Promise<void>)
+    | null = null;
   const preview = createPreviewController(url);
   const downloads = createDownloadController({
     savedEntries,
@@ -120,6 +123,8 @@ function App() {
       noteDownloadError(message);
       showToast(message || shellT().downloadFailed, "error");
     },
+    onBeforeCommitMerge: (videoId, thumbnailUrl) =>
+      beforeCommitMerge?.(videoId, thumbnailUrl),
   });
 
   const isLink = () => isLinkText(url());
@@ -423,6 +428,9 @@ function App() {
           onPauseDownload={downloads.pause}
           onResumeDownload={(vid) => void downloads.resume(vid)}
           onCancelDownload={(vid) => void downloads.cancel(vid)}
+          registerBeforeMerge={(fn) => {
+            beforeCommitMerge = fn;
+          }}
         />
       </If>
 

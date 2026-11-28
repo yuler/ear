@@ -9,6 +9,7 @@ import { AppTooltip } from "../ui/AppTooltip";
 import { Icon } from "../ui/Icon";
 import { shellT } from "../ui/shellI18n";
 import { videoPosterUrl } from "../youtube/parse";
+import type { CardMergePhase } from "./downloadMergeTransition";
 import {
   formatDuration,
   formatEntryDescription,
@@ -30,13 +31,23 @@ export const POSTER_GRID_STYLE = {
   gap: 16,
 } as const;
 
-/** Selection is a blue wash. The keyboard cursor is a neutral ring. */
-export function libraryCardChrome(checked: boolean, focused: boolean): string {
+/** Selection is a blue wash. The keyboard cursor is a neutral ring. Landing shows a soft brand glow. */
+export function libraryCardChrome(
+  checked: boolean,
+  focused: boolean,
+  landing = false,
+): string {
   const surface = checked
     ? "bg-brand-soft/70 hover:bg-brand-soft"
-    : "hover:bg-well";
-  const ring = focused ? "ring-2 ring-foreground" : "";
-  return `group relative w-full rounded-lg transition ${surface} ${ring}`.trim();
+    : landing
+      ? "bg-brand-soft/35 hover:bg-well"
+      : "hover:bg-well";
+  const ring = focused
+    ? "ring-2 ring-foreground"
+    : landing
+      ? "ring-2 ring-brand/45"
+      : "";
+  return `group relative w-full rounded-lg transition-all duration-300 ${surface} ${ring}`.trim();
 }
 
 /** A finished Library entry: poster, title and one meta line. */
@@ -45,6 +56,8 @@ export function LibraryCard(props: {
   selected?: boolean;
   selectionMode?: boolean;
   checked?: boolean;
+  mergePhase?: CardMergePhase;
+  onPosterRef?: (node: ViewRef | null) => void;
   onOpen: (entry: LibraryEntry, originRect?: ViewTransitionRect | null) => void;
   onToggleSelect?: (entry: LibraryEntry) => void;
   menuItems?: () => (ContextMenuEntry | null)[];
@@ -73,6 +86,7 @@ export function LibraryCard(props: {
       class={libraryCardChrome(
         Boolean(props.selectionMode && props.checked),
         Boolean(props.selected),
+        props.mergePhase === "landing",
       )}
     >
       <Button
@@ -87,7 +101,9 @@ export function LibraryCard(props: {
         <View
           ref={(node) => {
             posterRef = node;
+            props.onPosterRef?.(node);
           }}
+          style={{ opacity: props.mergePhase === "flying" ? 0 : 1 }}
           class="relative aspect-video w-full overflow-hidden rounded-lg bg-well"
         >
           <Image
@@ -112,7 +128,19 @@ export function LibraryCard(props: {
           </If>
         </View>
 
-        <View class="min-w-0 gap-0.5 px-0.5">
+        <View
+          style={{
+            opacity: props.mergePhase === "flying" ? 0 : 1,
+            transform:
+              props.mergePhase === "flying"
+                ? "translateY(6px)"
+                : "translateY(0px)",
+            transitionProperty: "opacity, transform",
+            transitionDuration: "220ms",
+            transitionTimingFunction: "cubic-bezier(0.22, 1, 0.36, 1)",
+          }}
+          class="min-w-0 gap-0.5 px-0.5"
+        >
           <Text class="line-clamp-2 text-sm font-medium leading-snug text-foreground">
             {entry().title}
           </Text>

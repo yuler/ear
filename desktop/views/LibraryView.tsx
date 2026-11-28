@@ -12,8 +12,12 @@ import {
 } from "./discover/DiscoverCard";
 import type { DiscoverItem } from "./discover/types";
 import { LibraryBatchBar } from "./LibraryBatchBar";
-import { LibraryCard, POSTER_GRID_STYLE } from "./LibraryCards";
+import { LibraryCard, POSTER_GRID_STYLE, POSTER_RADIUS } from "./LibraryCards";
 import { LibraryHeader } from "./LibraryHeader";
+import {
+  createDownloadMergeCoordinator,
+  DownloadMergeOverlay,
+} from "./downloadMergeTransition";
 import {
   buildDiscoverContextMenu,
   buildLibraryContextMenu,
@@ -107,6 +111,9 @@ export function LibraryView(props: {
   onPauseDownload?: (videoId: string) => void;
   onResumeDownload?: (videoId: string) => void;
   onCancelDownload?: (videoId: string) => void;
+  registerBeforeMerge?: (
+    fn: ((videoId: string, thumbnailUrl: string) => Promise<void>) | null,
+  ) => void;
 }) {
   const query = () => (props.searchQuery?.() ?? "").trim();
   const isSearching = () => query().length > 0;
@@ -146,6 +153,12 @@ export function LibraryView(props: {
 
   const focusedIndex = signal<number>(-1);
   const discoverScrollRef = signal<ScrollRef | null>(null);
+  const merge = createDownloadMergeCoordinator({
+    entries,
+    isDisabled: props.disabled,
+    posterRadius: POSTER_RADIUS,
+    registerBeforeMerge: props.registerBeforeMerge,
+  });
 
   const enterSelectionMode = (initialVideoId?: string) => {
     selectionMode.set(true);
@@ -475,6 +488,7 @@ export function LibraryView(props: {
               onPause={props.onPauseDownload}
               onResume={props.onResumeDownload}
               onCancel={props.onCancelDownload}
+              onThumbnailRef={merge.setDownloadThumbRef}
             />
 
             <If when={entries().length > 0}>
@@ -486,6 +500,10 @@ export function LibraryView(props: {
                       selected={focusedIndex() === index()}
                       selectionMode={selectionMode()}
                       checked={selectedIds().has(entry().videoId)}
+                      mergePhase={merge.cardMergePhase(entry().videoId)}
+                      onPosterRef={(node) =>
+                        merge.setCardPosterRef(entry().videoId, node)
+                      }
                       onOpen={props.onOpenEntry}
                       onToggleSelect={toggleEntrySelection}
                       menuItems={() => libraryMenuItems(entry())}
@@ -539,6 +557,8 @@ export function LibraryView(props: {
       </If>
 
       {discoverSection}
+
+      <DownloadMergeOverlay flights={merge.flights} />
 
       <If when={selectionMode()}>
         <LibraryBatchBar

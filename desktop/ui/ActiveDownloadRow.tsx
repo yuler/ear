@@ -1,4 +1,4 @@
-import { createMotion, effect, Image, LayoutAnimation, Text, View } from "nsh";
+import { createMotion, Image, Text, View, type ViewRef } from "nsh";
 import { Button } from "nsh/base";
 import {
   formatEta,
@@ -91,10 +91,11 @@ export function ActiveDownloadRow(props: {
   onPause?: (videoId: string) => void;
   onResume?: (videoId: string) => void;
   onCancel?: (videoId: string) => void;
+  onThumbnailRef?: (node: ViewRef | null) => void;
 }) {
   const slideMotion = createMotion({
     enter: "slideInDown",
-    duration: 380,
+    duration: 320,
   });
 
   const stage = () => props.task().stage;
@@ -103,29 +104,6 @@ export function ActiveDownloadRow(props: {
   const isDone = () => stage() === "done";
   const percent = () => taskPercent(props.task());
   const roundedPercent = () => Math.round(percent());
-
-  effect(() => {
-    if (isDone()) {
-      void slideMotion.play({
-        keyframes: {
-          scale: [1, 0.88],
-          translateX: [0, -20],
-          translateY: [0, 56],
-          opacity: [1, 0.92, 0],
-        },
-        duration: 520,
-        easing: [0.22, 1, 0.36, 1],
-      });
-    }
-  });
-
-  effect(() => {
-    try {
-      LayoutAnimation.easeInEaseOut();
-    } catch {
-      // ignore on test host
-    }
-  });
 
   const sizeStr = () =>
     formatSizeProgress(props.task().downloadedBytes, props.task().totalBytes);
@@ -166,23 +144,30 @@ export function ActiveDownloadRow(props: {
   return (
     <View
       style={{ transformOrigin: "top left", ...slideMotion.style }}
-      class={`relative overflow-hidden rounded-xl border bg-popover p-3 shadow-sm transition ${
+      class={`relative overflow-hidden rounded-xl border bg-popover p-3 shadow-sm transition-all duration-200 ${
         isError()
           ? "border-destructive/50"
-          : "border-line/90 hover:border-brand/50"
+          : isDone()
+            ? "border-brand/55"
+            : "border-line/90 hover:border-brand/50"
       }`}
     >
       {/* Subtle ambient progress wash behind the horizontal block */}
       <View
         style={{ width: `${percent()}%` }}
         class={`pointer-events-none absolute inset-y-0 left-0 transition-all duration-150 ${
-          isError() ? "bg-destructive/5" : "bg-brand/5"
+          isError()
+            ? "bg-destructive/5"
+            : isDone()
+              ? "bg-brand/10"
+              : "bg-brand/5"
         }`}
       />
 
       <View class="relative flex-row items-center gap-4">
         {/* 1. Thumbnail with left-to-right color reveal over grayscale base */}
         <View
+          ref={(node) => props.onThumbnailRef?.(node)}
           style={{ width: THUMBNAIL_WIDTH, height: THUMBNAIL_HEIGHT }}
           class="relative shrink-0 overflow-hidden rounded-lg border border-line/70 bg-black"
         >
@@ -353,6 +338,7 @@ export function ActiveDownloadsSection(props: {
   onPause?: (videoId: string) => void;
   onResume?: (videoId: string) => void;
   onCancel?: (videoId: string) => void;
+  onThumbnailRef?: (videoId: string, node: ViewRef | null) => void;
 }) {
   const summary = () => summarizeDownloads(props.tasks());
 
@@ -427,6 +413,9 @@ export function ActiveDownloadsSection(props: {
                 onPause={props.onPause}
                 onResume={props.onResume}
                 onCancel={props.onCancel}
+                onThumbnailRef={(node) =>
+                  props.onThumbnailRef?.(getTask().videoId, node)
+                }
               />
             )}
           </Each>
