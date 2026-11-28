@@ -25,7 +25,9 @@ import { mediaRoot, openDirectory } from "./library/paths";
 import { backfillVideoDimensions, needsDimensionProbe } from "./library/probe";
 import { queryDiskSpace, type DiskSpaceInfo } from "./library/storage";
 import type { LibraryEntry } from "./library/types";
+import { noteDownloadError, recheckFfmpeg } from "./ffmpeg/notice";
 import { DevRibbon } from "./ui/DevRibbon";
+import { FfmpegBanner } from "./ui/FfmpegNotice";
 import { initSettings, settings } from "./ui/settings";
 import { SettingsModal } from "./ui/SettingsModal";
 import { shellT } from "./ui/shellI18n";
@@ -48,6 +50,7 @@ import type { DiscoverItem } from "./views/discover/types";
 import { LibraryView } from "./views/LibraryView";
 import { VideoDetailView } from "./views/VideoDetailView";
 import type { ViewTransitionRect } from "./views/viewTransition";
+import { isNativeHost } from "./youtube/host";
 import { extractVideoId } from "./youtube/parse";
 
 function App() {
@@ -112,7 +115,10 @@ function App() {
   const preview = createPreviewController(url);
   const downloads = createDownloadController({
     savedEntries,
-    onError: (message) => showToast(message || shellT().downloadFailed, "error"),
+    onError: (message) => {
+      noteDownloadError(message);
+      showToast(message || shellT().downloadFailed, "error");
+    },
   });
 
   const isLink = () => isLinkText(url());
@@ -138,6 +144,7 @@ function App() {
 
   setupWindowChrome();
   void checkUpdateInBackground();
+  if (isNativeHost()) void recheckFfmpeg();
   void loadDiscover();
 
   void initSettings().then((s) => {
@@ -387,6 +394,8 @@ function App() {
         onDownload={(p) => downloadPreview(p)}
         onDismissPreview={preview.dismiss}
       />
+
+      <FfmpegBanner />
 
       <If when={activePage() === "library"}>
         <LibraryView

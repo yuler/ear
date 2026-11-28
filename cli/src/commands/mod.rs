@@ -2,6 +2,7 @@ pub mod captions;
 pub mod discover;
 pub mod doctor;
 pub mod download;
+pub mod ffmpeg_dep;
 pub mod open;
 pub mod parse;
 pub mod probe;

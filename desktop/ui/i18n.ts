@@ -91,6 +91,12 @@ export interface I18nMessages {
   gstreamerMissingDesc: string;
   copyInstallCommand: string;
   copied: string;
+  ffmpegMissingTitle: string;
+  ffmpegMissingDesc: string;
+  ffmpegNeedsHomebrew: string;
+  ffmpegInstall: string;
+  ffmpegRecheck: string;
+  ffmpegDismiss: string;
   playInExternalPlayer: string;
   revealFile: string;
   showOtherDistros: string;
@@ -201,6 +207,13 @@ export const MESSAGES: Record<EarLocale, I18nMessages> = {
       "Playing MP4/H.264/AAC media requires GStreamer demuxer and codec packages (e.g. gst-plugins-good & gst-libav).",
     copyInstallCommand: "Copy Install Command",
     copied: "Copied!",
+    ffmpegMissingTitle: "ffmpeg is required to merge video",
+    ffmpegMissingDesc:
+      "Ear downloads picture and sound separately, then uses ffmpeg to combine them into one file.",
+    ffmpegNeedsHomebrew: "Install Homebrew first, then run this command.",
+    ffmpegInstall: "Install",
+    ffmpegRecheck: "Check again",
+    ffmpegDismiss: "Dismiss",
     playInExternalPlayer: "Play in System Player",
     revealFile: "Reveal File",
     showOtherDistros: "Commands for other distros",
@@ -308,6 +321,12 @@ export const MESSAGES: Record<EarLocale, I18nMessages> = {
       "播放 MP4/H.264/AAC 媒体需要安装 GStreamer 解封装与解码插件（如 gst-plugins-good 与 gst-libav）。",
     copyInstallCommand: "复制安装命令",
     copied: "已复制!",
+    ffmpegMissingTitle: "合并视频需要 ffmpeg",
+    ffmpegMissingDesc: "下载时画面和声音是分开的，需要 ffmpeg 把它们合成一个文件。",
+    ffmpegNeedsHomebrew: "请先安装 Homebrew，再运行这条命令。",
+    ffmpegInstall: "安装",
+    ffmpegRecheck: "重新检测",
+    ffmpegDismiss: "关闭",
     playInExternalPlayer: "使用系统播放器打开",
     revealFile: "打开文件位置",
     showOtherDistros: "查看其他发行版命令",

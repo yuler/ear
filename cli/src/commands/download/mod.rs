@@ -12,6 +12,7 @@ use crate::commands::download::source::{fallback_yt_dlp, refresh_stream_url, res
 use crate::commands::download::transfer::{
     download_stream_parallel, download_stream_sequential, probe_remote_size, StreamDownloadParams,
 };
+use crate::commands::ffmpeg_dep::{resolve_ffmpeg, FFMPEG_NOT_FOUND};
 use crate::commands::probe::probe_video_dimensions;
 use crate::emit::emit_json;
 use crate::youtube::{extract_video_id, is_valid_id};
@@ -113,7 +114,10 @@ pub fn run(args: &[String]) -> Result<(), String> {
             "media"
         };
         let dl_dir = get_default_downloads_dir();
-        output_str = dl_dir.join(format!("{base}.{ext}")).to_string_lossy().to_string();
+        output_str = dl_dir
+            .join(format!("{base}.{ext}"))
+            .to_string_lossy()
+            .to_string();
     }
 
     let output_path = PathBuf::from(&output_str);
@@ -149,8 +153,16 @@ pub fn run(args: &[String]) -> Result<(), String> {
                 &quality,
                 thumbnail_url.clone(),
             );
-            entry.video_path = if is_audio_only { None } else { Some(output_path.to_string_lossy().to_string()) };
-            entry.audio_path = if is_audio_only { Some(output_path.to_string_lossy().to_string()) } else { None };
+            entry.video_path = if is_audio_only {
+                None
+            } else {
+                Some(output_path.to_string_lossy().to_string())
+            };
+            entry.audio_path = if is_audio_only {
+                Some(output_path.to_string_lossy().to_string())
+            } else {
+                None
+            };
             if !is_audio_only {
                 if let Some((w, h)) = resolved_dims {
                     entry.video_width = Some(w);
@@ -244,7 +256,15 @@ pub fn run(args: &[String]) -> Result<(), String> {
 
             if let Some(ref lib) = rep_lib_dir {
                 if !rep_vid.is_empty() {
-                    sync_entry_progress(lib, &rep_vid, cur_bytes, total_bytes, rounded_pct, speed_bps, eta_seconds);
+                    sync_entry_progress(
+                        lib,
+                        &rep_vid,
+                        cur_bytes,
+                        total_bytes,
+                        rounded_pct,
+                        speed_bps,
+                        eta_seconds,
+                    );
                 }
             }
         }
@@ -255,11 +275,12 @@ pub fn run(args: &[String]) -> Result<(), String> {
     // Helper for URL refresh
     let vid_for_refresh = video_id.clone();
     let quality_for_refresh = quality.clone();
-    let make_url_refresher = move |is_video: bool| -> Arc<dyn Fn() -> Option<String> + Send + Sync> {
-        let vid = vid_for_refresh.clone();
-        let qid = quality_for_refresh.clone();
-        Arc::new(move || refresh_stream_url(&vid, &qid, is_video))
-    };
+    let make_url_refresher =
+        move |is_video: bool| -> Arc<dyn Fn() -> Option<String> + Send + Sync> {
+            let vid = vid_for_refresh.clone();
+            let qid = quality_for_refresh.clone();
+            Arc::new(move || refresh_stream_url(&vid, &qid, is_video))
+        };
 
     if let Some(ref vurl) = video_url {
         let url_state = Arc::new(RwLock::new(vurl.clone()));
@@ -363,7 +384,15 @@ pub fn run(args: &[String]) -> Result<(), String> {
                     "speedBps": 0,
                     "etaSeconds": 1
                 }));
-                let st = Command::new("ffmpeg")
+                let Some(ffmpeg_bin) = resolve_ffmpeg() else {
+                    if let Some(ref lib) = library_dir {
+                        if !video_id.is_empty() {
+                            sync_entry_error(lib, &video_id, FFMPEG_NOT_FOUND);
+                        }
+                    }
+                    return Err(FFMPEG_NOT_FOUND.to_string());
+                };
+                let st = Command::new(&ffmpeg_bin)
                     .args([
                         "-y",
                         "-loglevel",
@@ -435,9 +464,8 @@ pub fn run(args: &[String]) -> Result<(), String> {
         let final_dims = if is_audio_only {
             None
         } else {
-            resolved_dims.or_else(|| {
-                probe_video_dimensions(&output_path).map(|d| (d.width, d.height))
-            })
+            resolved_dims
+                .or_else(|| probe_video_dimensions(&output_path).map(|d| (d.width, d.height)))
         };
         if let Some(ref lib) = library_dir {
             if !video_id.is_empty() {
@@ -481,9 +509,8 @@ pub fn run(args: &[String]) -> Result<(), String> {
         let final_dims = if is_audio_only {
             None
         } else {
-            resolved_dims.or_else(|| {
-                probe_video_dimensions(&output_path).map(|d| (d.width, d.height))
-            })
+            resolved_dims
+                .or_else(|| probe_video_dimensions(&output_path).map(|d| (d.width, d.height)))
         };
         if let Some(ref lib) = library_dir {
             sync_entry_ready(

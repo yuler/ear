@@ -448,18 +448,40 @@ public enum CaptionSegmentation {
     }
 
     public static func parseCaptionsPayload(_ data: Data, mode: SentenceLengthMode) -> LoadedLocalCaptions {
+        // Desktop captions.json sentences only carry id/start/end/text. Decoding
+        // them as study `Sentence` values used to reject the whole file.
+        struct LooseFileSentence: Decodable {
+            let startMs: Int
+            let endMs: Int
+            let text: String
+        }
         struct RawPayload: Decodable {
             let videoId: String?
             let title: String?
             let track: CaptionTrackInfo?
             let cues: [CaptionCue]?
-            let sentences: [Sentence]?
+            let sentences: [LooseFileSentence]?
         }
         guard let decoded = try? JSONDecoder().decode(RawPayload.self, from: data) else {
             return LoadedLocalCaptions()
         }
         let cues = (decoded.cues ?? []).filter { !$0.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
-        let rawSentences = (decoded.sentences ?? []).filter { !$0.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+        let rawSentences = (decoded.sentences ?? []).enumerated().compactMap { idx, sentence -> Sentence? in
+            let text = sentence.text.trimmingCharacters(in: .whitespacesAndNewlines)
+            if text.isEmpty { return nil }
+            let wordCount = countWords(text)
+            let duration = max(sentence.endMs - sentence.startMs, 1)
+            let wpm = Double(wordCount) * 60_000.0 / Double(duration)
+            return Sentence(
+                index: idx,
+                startMs: sentence.startMs,
+                endMs: sentence.endMs,
+                text: text,
+                wordCount: wordCount,
+                wpm: Int(wpm.rounded()),
+                difficulty: difficulty(fromWpm: wpm)
+            )
+        }
         let sentences = resegmentSentences(cues: cues, fallbackSentences: rawSentences, mode: mode)
         return LoadedLocalCaptions(
             videoId: decoded.videoId,
