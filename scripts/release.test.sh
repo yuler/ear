@@ -135,4 +135,5 @@ jq -e 'has("updater") | not' desktop/nsh.json >/dev/null
 # An unexpected package emitted by the tool must block a full release.
 if BAD_MANIFEST=true bash "$root/scripts/release-manifest.sh" full 42 >/dev/null 2>&1; then exit 1; fi
 if bash "$root/scripts/release-manifest.sh" invalid 42 >/dev/null 2>&1; then exit 1; fi
+bash "$root/scripts/macos-sign.test.sh"
 printf 'Release policy regressions passed (%s mode cases; signed OTA, full, stale artifact, missing keys, fail-closed manifest).\n' "$count"
