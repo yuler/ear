@@ -45,6 +45,7 @@ import {
   loadDiscover,
 } from "./views/discover/source";
 import type { DiscoverItem } from "./views/discover/types";
+import { startMirrorServer } from "./mirror/service";
 import { LibraryView } from "./views/LibraryView";
 import { VideoDetailView } from "./views/VideoDetailView";
 import type { ViewTransitionRect } from "./views/viewTransition";
@@ -142,6 +143,7 @@ function App() {
 
   void initSettings().then((s) => {
     if (s.clipboardAuto) void preview.checkClipboard();
+    if (s.mirrorEnabled) startMirrorServer();
   });
   void listEntriesSafe().then((entries) => {
     savedEntries.set(entries);

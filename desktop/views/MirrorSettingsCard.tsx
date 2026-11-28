@@ -13,6 +13,7 @@ import {
   type MirrorDevice,
 } from "../mirror/service";
 import { Icon } from "../ui/Icon";
+import { updateSettings } from "../ui/settings";
 
 function formatCountdown(expiresAtSec: number, nowSec: number): string {
   const left = Math.max(0, expiresAtSec - nowSec);
@@ -104,6 +105,7 @@ export function MirrorSettingsCard() {
   });
 
   const handleToggle = (checked: boolean) => {
+    updateSettings({ mirrorEnabled: checked });
     if (checked) startMirrorServer();
     else stopMirrorServer();
   };
