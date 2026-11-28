@@ -15,6 +15,8 @@ import type { Appearance, DefaultQuality, EarLocale } from "../store";
 import { t, type I18nMessages } from "../ui/i18n";
 import { Icon } from "../ui/Icon";
 import { settings, updateSettings } from "../ui/settings";
+import { ffmpegSettingsOpen } from "../ffmpeg/notice";
+import { FfmpegSettingsRow } from "../ui/FfmpegNotice";
 import { MirrorSettingsCard } from "./MirrorSettingsCard";
 
 type Option<T> = { value: T; label: string };
@@ -232,6 +234,10 @@ export function SettingsView(props?: {
       <View class="border-b border-line py-4">
         <MirrorSettingsCard />
       </View>
+
+      <If when={ffmpegSettingsOpen()}>
+        <FfmpegSettingsRow />
+      </If>
 
       <Row
         label={m().settingsVersion}

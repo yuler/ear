@@ -64,6 +64,24 @@ final class CaptionSegmentationTests: XCTestCase {
         XCTAssertEqual(loaded.sentences[0].text, "Good morning.")
     }
 
+    func testParseCaptionsPayloadKeepsCuesWhenDesktopSentencesLackStudyFields() {
+        let json = """
+        {
+          "videoId": "abc123",
+          "title": "Lesson",
+          "track": {"name": "English", "languageCode": "en", "kind": null, "vssId": ".en"},
+          "cues": [{"startMs": 0, "endMs": 1200, "text": "Hello there."}],
+          "sentences": [{"id": "s_1", "startMs": 0, "endMs": 1350, "text": "Hello there."}]
+        }
+        """
+        let loaded = CaptionSegmentation.parseCaptionsPayload(Data(json.utf8), mode: .short)
+        XCTAssertEqual(loaded.videoId, "abc123")
+        XCTAssertEqual(loaded.cues.count, 1)
+        XCTAssertEqual(loaded.cues[0].text, "Hello there.")
+        XCTAssertFalse(loaded.sentences.isEmpty)
+        XCTAssertEqual(loaded.sentences[0].text, "Hello there.")
+    }
+
     func testCaptionTrackInfoDecodesAlternateKeys() throws {
         let json = #"{"lang":"ja","label":"Japanese","isAuto":false}"#
         let decoded = try JSONDecoder().decode(CaptionTrackInfo.self, from: Data(json.utf8))

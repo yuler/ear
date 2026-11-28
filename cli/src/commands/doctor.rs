@@ -1,3 +1,4 @@
+use super::ffmpeg_dep::{ffmpeg_install_command, resolve_ffmpeg};
 use crate::emit::emit_json;
 use serde_json::json;
 use std::env;
@@ -284,7 +285,9 @@ pub fn check_webkitgtk(distro: &LinuxDistro) -> DependencyReport {
             ok: false,
             path: None,
             version: None,
-            details: Some("Required by Native Shell Linux host for rendering web views".to_string()),
+            details: Some(
+                "Required by Native Shell Linux host for rendering web views".to_string(),
+            ),
             install_cmd: Some(distro.webkitgtk_install_cmd()),
         }
     }
@@ -389,31 +392,48 @@ pub fn check_gstreamer(distro: &LinuxDistro) -> DependencyReport {
     }
 }
 
+fn missing_ffmpeg(install: String) -> DependencyReport {
+    DependencyReport {
+        name: "ffmpeg".to_string(),
+        required: false,
+        ok: false,
+        path: None,
+        version: None,
+        details: Some("Required for muxing downloaded video and audio tracks".to_string()),
+        install_cmd: Some(install),
+    }
+}
+
 pub fn check_ffmpeg(distro: &LinuxDistro) -> DependencyReport {
-    let out = Command::new("ffmpeg").arg("-version").output();
-    match out {
-        Ok(o) if o.status.success() => {
-            let text = String::from_utf8_lossy(&o.stdout);
+    let install = ffmpeg_install_command(env::consts::OS, distro);
+    let Some(path) = resolve_ffmpeg() else {
+        return missing_ffmpeg(install);
+    };
+    let version = Command::new(&path)
+        .arg("-version")
+        .output()
+        .ok()
+        .filter(|out| out.status.success())
+        .and_then(|out| {
+            let text = String::from_utf8_lossy(&out.stdout);
             let ver = text.lines().next().unwrap_or("ffmpeg").trim().to_string();
-            DependencyReport {
-                name: "ffmpeg".to_string(),
-                required: false,
-                ok: true,
-                path: None,
-                version: Some(ver),
-                details: Some("Available for audio/video muxing and extraction".to_string()),
-                install_cmd: None,
+            if ver.is_empty() {
+                None
+            } else {
+                Some(ver)
             }
-        }
-        _ => DependencyReport {
-            name: "ffmpeg".to_string(),
-            required: false,
-            ok: false,
-            path: None,
-            version: None,
-            details: Some("Required for muxing downloaded video and audio tracks".to_string()),
-            install_cmd: Some(distro.ffmpeg_install_cmd()),
-        },
+        });
+    let Some(ver) = version else {
+        return missing_ffmpeg(install);
+    };
+    DependencyReport {
+        name: "ffmpeg".to_string(),
+        required: false,
+        ok: true,
+        path: Some(path.display().to_string()),
+        version: Some(ver),
+        details: Some("Available for audio/video muxing and extraction".to_string()),
+        install_cmd: None,
     }
 }
 
