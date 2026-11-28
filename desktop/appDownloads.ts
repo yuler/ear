@@ -1,4 +1,4 @@
-import { LayoutAnimation, signal, type Signal } from "nsh";
+import { signal, type Signal } from "nsh";
 import { pickDefaultTrack } from "./appPreview";
 import { downloadLesson } from "./library/download";
 import {
@@ -10,6 +10,11 @@ import {
 import type { DownloadTaskProgress, LibraryEntry } from "./library/types";
 import { playDingSound } from "./ui/sound";
 import { settings } from "./ui/settings";
+import {
+  configureMergeLayoutAnimation,
+  createStaggerScheduler,
+  MERGE_DONE_HOLD_MS,
+} from "./views/downloadMergeTransition";
 import { hostFetch } from "./youtube/host";
 import {
   captionTrackId,
@@ -68,11 +73,16 @@ function entryAsTask(e: LibraryEntry): DownloadTaskProgress {
 export function createDownloadController(deps: {
   savedEntries: Signal<LibraryEntry[]>;
   onError: (message: string) => void;
+  onBeforeCommitMerge?: (
+    videoId: string,
+    thumbnailUrl: string,
+  ) => void | Promise<void>;
 }) {
   const tasks = signal<Record<string, DownloadTaskProgress>>({});
   const controllers = new Map<string, AbortController>();
   const busy = new Set<string>();
   const cancelled = new Set<string>();
+  const mergeStagger = createStaggerScheduler();
 
   const setTask = (vid: string, task: DownloadTaskProgress | null) => {
     const next = { ...tasks() };
@@ -139,21 +149,21 @@ export function createDownloadController(deps: {
 
     patchTask(vid, { percent: 100, stage: "done" });
     playDingSound();
-    await delay(380);
+    const thumbnailUrl =
+      tasks()[vid]?.thumbnailUrl ||
+      entry.thumbnailUrl ||
+      `https://i.ytimg.com/vi/${vid}/hqdefault.jpg`;
+    // Prefetch refreshed entries during the brief done hold so commit has zero I/O stall.
+    const entriesPromise = listEntriesSafe();
+    const waitMs = MERGE_DONE_HOLD_MS + mergeStagger.reserveDelayMs();
+    await delay(waitMs);
     if (cancelled.has(vid)) return;
-    try {
-      LayoutAnimation.configureNext({
-        duration: 400,
-        create: { type: "easeOut", property: "opacity" },
-        update: { type: "spring", springDamping: 0.85 },
-        delete: { type: "easeOut", property: "opacity" },
-      });
-    } catch {
-      // not on the test host
-    }
-    // Hand the card over to the finished entry in the same tick.
-    const entries = await listEntriesSafe();
+    const entries = await entriesPromise;
     if (cancelled.has(vid)) return;
+    await deps.onBeforeCommitMerge?.(vid, thumbnailUrl);
+    if (cancelled.has(vid)) return;
+    // Configure LayoutAnimation immediately before the synchronous state swap.
+    configureMergeLayoutAnimation();
     setTask(vid, null);
     deps.savedEntries.set(entries);
   };
