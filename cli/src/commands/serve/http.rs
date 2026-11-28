@@ -634,11 +634,12 @@ fn write_bytes(
     content_type: &str,
     bytes: &[u8],
 ) -> std::io::Result<()> {
-    let head = format!(
+    let mut buf = format!(
         "HTTP/1.1 {status} {reason}\r\nContent-Type: {content_type}\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
         bytes.len()
-    );
-    stream.write_all(head.as_bytes())?;
-    stream.write_all(bytes)?;
+    )
+    .into_bytes();
+    buf.extend_from_slice(bytes);
+    stream.write_all(&buf)?;
     stream.flush()
 }

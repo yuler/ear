@@ -11,13 +11,52 @@ public enum MirrorFileStoreError: Error, Equatable, Sendable {
 public protocol MirrorFileStoring: Sendable {
     func loadState() async -> PersistedMobileData
     func saveState(_ data: PersistedMobileData) async
+    func saveLocalItem(_ record: LocalItemRecord) async
     func partialByteCount(videoId: String, ext: String) async -> Int64
     func appendMediaChunk(videoId: String, ext: String, data: Data, expectedOffset: Int64) async throws -> Int64
     func finalizeMedia(videoId: String, ext: String, expectedSha256: String?) async throws -> String
     func writeCaptions(videoId: String, data: Data) async throws -> String
     func readCaptions(videoId: String) async -> Data?
     func mediaURL(videoId: String, fileName: String) async -> URL?
+    func writeThumbnail(videoId: String, data: Data) async throws -> String
+    func thumbnailURL(videoId: String, fileName: String) async -> URL?
+    func loadStudyState(videoId: String) async -> VideoStudyState
+    func saveStudyState(videoId: String, state: VideoStudyState) async
     func removeVideoFiles(videoId: String) async
+}
+
+private struct PersistedAppState: Codable {
+    var settings: MirrorSettings = MirrorSettings()
+    var macs: [PairedMac] = []
+    var catalogs: [String: [RemoteCatalogItem]] = [:]
+    var removedItems: [String: LocalItemRecord] = [:]
+
+    init(
+        settings: MirrorSettings = MirrorSettings(),
+        macs: [PairedMac] = [],
+        catalogs: [String: [RemoteCatalogItem]] = [:],
+        removedItems: [String: LocalItemRecord] = [:]
+    ) {
+        self.settings = settings
+        self.macs = macs
+        self.catalogs = catalogs
+        self.removedItems = removedItems
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case settings
+        case macs
+        case catalogs
+        case removedItems
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        self.settings = try c.decodeIfPresent(MirrorSettings.self, forKey: .settings) ?? MirrorSettings()
+        self.macs = try c.decodeIfPresent([PairedMac].self, forKey: .macs) ?? []
+        self.catalogs = try c.decodeIfPresent([String: [RemoteCatalogItem]].self, forKey: .catalogs) ?? [:]
+        self.removedItems = try c.decodeIfPresent([String: LocalItemRecord].self, forKey: .removedItems) ?? [:]
+    }
 }
 
 public actor DiskMirrorFileStore: MirrorFileStoring {
@@ -44,11 +83,16 @@ public actor DiskMirrorFileStore: MirrorFileStoring {
     }
 
     private var stateURL: URL { rootURL.appendingPathComponent("state.json") }
-    private var mediaRootURL: URL { rootURL.appendingPathComponent("media", isDirectory: true) }
+    private var libraryRootURL: URL { rootURL.appendingPathComponent("library", isDirectory: true) }
 
     private func videoDir(videoId: String) throws -> URL {
         guard MirrorValidation.isSafeVideoId(videoId) else { throw MirrorFileStoreError.unsafeIdentifier }
-        return mediaRootURL.appendingPathComponent(videoId, isDirectory: true)
+        return libraryRootURL.appendingPathComponent(videoId, isDirectory: true)
+    }
+
+    private func videoMetadataURL(videoId: String) throws -> URL {
+        guard MirrorValidation.isSafeVideoId(videoId) else { throw MirrorFileStoreError.unsafeIdentifier }
+        return libraryRootURL.appendingPathComponent("\(videoId).json")
     }
 
     private func sanitizeExt(_ ext: String) throws -> String {
@@ -58,17 +102,75 @@ public actor DiskMirrorFileStore: MirrorFileStoring {
     }
 
     public func loadState() async -> PersistedMobileData {
-        guard let data = try? Data(contentsOf: stateURL),
-              let decoded = try? JSONDecoder().decode(PersistedMobileData.self, from: data) else {
-            return PersistedMobileData()
+        let appState: PersistedAppState
+        if let data = try? Data(contentsOf: stateURL),
+           let decoded = try? JSONDecoder().decode(PersistedAppState.self, from: data) {
+            appState = decoded
+        } else {
+            appState = PersistedAppState()
         }
-        return decoded
+
+        var localItems = appState.removedItems
+        if let entries = try? fm.contentsOfDirectory(at: libraryRootURL, includingPropertiesForKeys: nil) {
+            let decoder = JSONDecoder()
+            for url in entries where url.pathExtension == "json" {
+                let stem = url.deletingPathExtension().lastPathComponent
+                guard MirrorValidation.isSafeVideoId(stem),
+                      let raw = try? Data(contentsOf: url),
+                      let record = try? decoder.decode(LocalItemRecord.self, from: raw),
+                      record.videoId == stem else {
+                    continue
+                }
+                localItems[record.videoId] = record
+            }
+        }
+
+        return PersistedMobileData(
+            settings: appState.settings,
+            macs: appState.macs,
+            localItems: localItems,
+            catalogs: appState.catalogs
+        )
     }
 
     public func saveState(_ data: PersistedMobileData) async {
         Self.ensureRootDirectory(rootURL)
-        guard let encoded = try? JSONEncoder().encode(data) else { return }
+        try? fm.createDirectory(at: libraryRootURL, withIntermediateDirectories: true)
+
+        var removedItems: [String: LocalItemRecord] = [:]
+        let encoder = JSONEncoder()
+        for (videoId, record) in data.localItems {
+            if record.state == .removed {
+                removedItems[videoId] = record
+                if let metaURL = try? videoMetadataURL(videoId: videoId), fm.fileExists(atPath: metaURL.path) {
+                    try? fm.removeItem(at: metaURL)
+                }
+            } else if let metaURL = try? videoMetadataURL(videoId: videoId),
+                      let encoded = try? encoder.encode(record) {
+                try? encoded.write(to: metaURL, options: .atomic)
+            }
+        }
+
+        let appState = PersistedAppState(
+            settings: data.settings,
+            macs: data.macs,
+            catalogs: data.catalogs,
+            removedItems: removedItems
+        )
+        guard let encoded = try? encoder.encode(appState) else { return }
         try? encoded.write(to: stateURL, options: .atomic)
+    }
+
+    public func saveLocalItem(_ record: LocalItemRecord) async {
+        Self.ensureRootDirectory(rootURL)
+        guard let metaURL = try? videoMetadataURL(videoId: record.videoId) else { return }
+        if record.state == .removed {
+            try? fm.removeItem(at: metaURL)
+            return
+        }
+        try? fm.createDirectory(at: libraryRootURL, withIntermediateDirectories: true)
+        guard let encoded = try? JSONEncoder().encode(record) else { return }
+        try? encoded.write(to: metaURL, options: .atomic)
     }
 
     public func partialByteCount(videoId: String, ext: String) async -> Int64 {
@@ -150,9 +252,45 @@ public actor DiskMirrorFileStore: MirrorFileStoring {
         return fm.fileExists(atPath: url.path) ? url : nil
     }
 
-    public func removeVideoFiles(videoId: String) async {
+    public func writeThumbnail(videoId: String, data: Data) async throws -> String {
+        let dir = try videoDir(videoId: videoId)
+        try fm.createDirectory(at: dir, withIntermediateDirectories: true)
+        let fileName = "thumb.jpg"
+        let fileURL = dir.appendingPathComponent(fileName)
+        try data.write(to: fileURL, options: .atomic)
+        return fileName
+    }
+
+    public func thumbnailURL(videoId: String, fileName: String) async -> URL? {
+        guard let dir = try? videoDir(videoId: videoId),
+              !fileName.contains("/"), !fileName.contains("..") else { return nil }
+        let url = dir.appendingPathComponent(fileName)
+        return fm.fileExists(atPath: url.path) ? url : nil
+    }
+
+    public func loadStudyState(videoId: String) async -> VideoStudyState {
+        guard let dir = try? videoDir(videoId: videoId),
+              let data = try? Data(contentsOf: dir.appendingPathComponent("study.json")),
+              let decoded = try? JSONDecoder().decode(VideoStudyState.self, from: data) else {
+            return VideoStudyState()
+        }
+        return decoded
+    }
+
+    public func saveStudyState(videoId: String, state: VideoStudyState) async {
         guard let dir = try? videoDir(videoId: videoId) else { return }
-        try? fm.removeItem(at: dir)
+        try? fm.createDirectory(at: dir, withIntermediateDirectories: true)
+        guard let encoded = try? JSONEncoder().encode(state) else { return }
+        try? encoded.write(to: dir.appendingPathComponent("study.json"), options: .atomic)
+    }
+
+    public func removeVideoFiles(videoId: String) async {
+        if let metaURL = try? videoMetadataURL(videoId: videoId) {
+            try? fm.removeItem(at: metaURL)
+        }
+        if let dir = try? videoDir(videoId: videoId) {
+            try? fm.removeItem(at: dir)
+        }
     }
 
     private static func streamSHA256Hex(of url: URL) throws -> String {

@@ -105,13 +105,20 @@ public struct RemoteCatalogItem: Codable, Equatable, Identifiable, Sendable {
     public let videoId: String
     public let title: String
     public let thumbnailUrl: String
+    public let url: String?
+    public let site: String?
     public let durationMs: Int?
+    public let videoWidth: Int?
+    public let videoHeight: Int?
     public let sizeBytes: Int64
     public let contentSha256: String?
     public let quality: String?
+    public let subtitleLabel: String?
+    public let subtitleIsAuto: Bool?
     public let mediaExt: String
     public let mimeType: String
     public let hasCaptions: Bool
+    public let createdAt: Int64?
     public let updatedAt: Int64
 
     public var id: String { videoId }
@@ -120,25 +127,39 @@ public struct RemoteCatalogItem: Codable, Equatable, Identifiable, Sendable {
         videoId: String,
         title: String,
         thumbnailUrl: String = "",
+        url: String? = nil,
+        site: String? = nil,
         durationMs: Int? = nil,
+        videoWidth: Int? = nil,
+        videoHeight: Int? = nil,
         sizeBytes: Int64,
         contentSha256: String? = nil,
         quality: String? = nil,
+        subtitleLabel: String? = nil,
+        subtitleIsAuto: Bool? = nil,
         mediaExt: String = "mp4",
         mimeType: String = "video/mp4",
         hasCaptions: Bool = false,
+        createdAt: Int64? = nil,
         updatedAt: Int64 = 0
     ) {
         self.videoId = videoId
         self.title = title
         self.thumbnailUrl = thumbnailUrl
+        self.url = url
+        self.site = site
         self.durationMs = durationMs
+        self.videoWidth = videoWidth
+        self.videoHeight = videoHeight
         self.sizeBytes = sizeBytes
         self.contentSha256 = contentSha256
         self.quality = quality
+        self.subtitleLabel = subtitleLabel
+        self.subtitleIsAuto = subtitleIsAuto
         self.mediaExt = mediaExt
         self.mimeType = mimeType
         self.hasCaptions = hasCaptions
+        self.createdAt = createdAt
         self.updatedAt = updatedAt
     }
 }
@@ -154,7 +175,14 @@ public struct LocalItemRecord: Codable, Equatable, Sendable {
     public var state: LocalRecordState
     public var title: String
     public var thumbnailUrl: String
+    public var url: String?
+    public var site: String?
     public var durationMs: Int?
+    public var videoWidth: Int?
+    public var videoHeight: Int?
+    public var quality: String?
+    public var subtitleLabel: String?
+    public var subtitleIsAuto: Bool?
     public var sizeBytes: Int64
     public var contentSha256: String?
     public var downloadedBytes: Int64
@@ -163,8 +191,10 @@ public struct LocalItemRecord: Codable, Equatable, Sendable {
     public var hasCaptions: Bool
     public var localFileName: String?
     public var captionsFileName: String?
+    public var thumbnailFileName: String?
     public var sourceMacId: String?
     public var sourceShortName: String?
+    public var createdAt: Int64?
     public var updatedAt: Int64
 
     public init(
@@ -172,7 +202,14 @@ public struct LocalItemRecord: Codable, Equatable, Sendable {
         state: LocalRecordState,
         title: String,
         thumbnailUrl: String = "",
+        url: String? = nil,
+        site: String? = nil,
         durationMs: Int? = nil,
+        videoWidth: Int? = nil,
+        videoHeight: Int? = nil,
+        quality: String? = nil,
+        subtitleLabel: String? = nil,
+        subtitleIsAuto: Bool? = nil,
         sizeBytes: Int64,
         contentSha256: String? = nil,
         downloadedBytes: Int64 = 0,
@@ -181,15 +218,24 @@ public struct LocalItemRecord: Codable, Equatable, Sendable {
         hasCaptions: Bool = false,
         localFileName: String? = nil,
         captionsFileName: String? = nil,
+        thumbnailFileName: String? = nil,
         sourceMacId: String? = nil,
         sourceShortName: String? = nil,
+        createdAt: Int64? = nil,
         updatedAt: Int64 = 0
     ) {
         self.videoId = videoId
         self.state = state
         self.title = title
         self.thumbnailUrl = thumbnailUrl
+        self.url = url
+        self.site = site
         self.durationMs = durationMs
+        self.videoWidth = videoWidth
+        self.videoHeight = videoHeight
+        self.quality = quality
+        self.subtitleLabel = subtitleLabel
+        self.subtitleIsAuto = subtitleIsAuto
         self.sizeBytes = sizeBytes
         self.contentSha256 = contentSha256
         self.downloadedBytes = downloadedBytes
@@ -198,8 +244,10 @@ public struct LocalItemRecord: Codable, Equatable, Sendable {
         self.hasCaptions = hasCaptions
         self.localFileName = localFileName
         self.captionsFileName = captionsFileName
+        self.thumbnailFileName = thumbnailFileName
         self.sourceMacId = sourceMacId
         self.sourceShortName = sourceShortName
+        self.createdAt = createdAt
         self.updatedAt = updatedAt
     }
 }
@@ -223,7 +271,14 @@ public struct MirrorItemView: Equatable, Identifiable, Sendable {
     public let videoId: String
     public let title: String
     public let thumbnailUrl: String
+    public let url: String?
+    public let site: String?
     public let durationMs: Int?
+    public let videoWidth: Int?
+    public let videoHeight: Int?
+    public let quality: String?
+    public let subtitleLabel: String?
+    public let subtitleIsAuto: Bool?
     public let sizeBytes: Int64
     public let contentSha256: String?
     public let downloadedBytes: Int64
@@ -235,8 +290,10 @@ public struct MirrorItemView: Equatable, Identifiable, Sendable {
     public let mimeType: String
     public let localFileName: String?
     public let captionsFileName: String?
+    public let thumbnailFileName: String?
     public let sources: [MirrorSourceRef]
     public let fallbackSourceShortName: String?
+    public let createdAt: Int64?
     public let updatedAt: Int64
 
     public var id: String { videoId }
@@ -244,6 +301,11 @@ public struct MirrorItemView: Equatable, Identifiable, Sendable {
     public var isAudioOnly: Bool {
         if mimeType.hasPrefix("audio/") { return true }
         return ["m4a", "mp3", "opus", "ogg"].contains(mediaExt.lowercased())
+    }
+
+    public var mediaAspect: Double? {
+        guard let w = videoWidth, let h = videoHeight, w > 0, h > 0 else { return nil }
+        return Double(w) / Double(h)
     }
 }
 

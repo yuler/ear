@@ -152,7 +152,7 @@ struct LibraryView: View {
                     Button {
                         handleTap(item)
                     } label: {
-                        LibraryItemRow(item: item, copy: copy)
+                        LibraryItemRow(item: item, engine: engine, copy: copy)
                     }
                     .buttonStyle(.plain)
                     .swipeActions(edge: .trailing, allowsFullSwipe: true) {
@@ -315,7 +315,10 @@ private struct ToastMessage: Equatable, Identifiable {
 
 private struct LibraryItemRow: View {
     let item: MirrorItemView
+    let engine: MirrorEngine
     let copy: AppCopy
+
+    @State private var localThumbnail: UIImage?
 
     var body: some View {
         HStack(spacing: 12) {
@@ -348,7 +351,11 @@ private struct LibraryItemRow: View {
     private var thumbnail: some View {
         ZStack(alignment: .bottomTrailing) {
             Group {
-                if let url = URL(string: item.thumbnailUrl), !item.thumbnailUrl.isEmpty {
+                if let localThumbnail {
+                    Image(uiImage: localThumbnail)
+                        .resizable()
+                        .scaledToFill()
+                } else if let url = URL(string: item.thumbnailUrl), !item.thumbnailUrl.isEmpty {
                     AsyncImage(url: url) { phase in
                         switch phase {
                         case .success(let image):
@@ -363,6 +370,16 @@ private struct LibraryItemRow: View {
             }
             .frame(width: 96, height: 54)
             .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+            .task(id: "\(item.videoId)-\(item.thumbnailFileName ?? "")") {
+                guard item.thumbnailFileName != nil,
+                      let url = await engine.thumbnailURL(for: item),
+                      let data = try? Data(contentsOf: url),
+                      let uiImage = UIImage(data: data) else {
+                    localThumbnail = nil
+                    return
+                }
+                localThumbnail = uiImage
+            }
 
             if let durationMs = item.durationMs, durationMs > 0 {
                 Text(CaptionSegmentation.formatTime(durationMs))
