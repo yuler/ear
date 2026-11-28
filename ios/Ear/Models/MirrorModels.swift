@@ -27,7 +27,7 @@ public enum AppAccent: String, Codable, CaseIterable, Sendable, Identifiable {
 
     public var color: Color {
         switch self {
-        case .blue: return .blue
+        case .blue: return Color(red: 47 / 255, green: 124 / 255, blue: 246 / 255)
         case .green: return .green
         case .orange: return .orange
         case .purple: return .purple
