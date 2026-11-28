@@ -65,6 +65,7 @@ jobs:
         run: |
           bash scripts/setup.test.sh
           bash scripts/install-prod.test.sh
+          bash scripts/macos-launcher.test.sh
 
       - name: Setup Rust toolchain
         uses: dtolnay/rust-toolchain@stable

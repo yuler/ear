@@ -210,7 +210,11 @@ jobs:
           set -euo pipefail
           mkdir -p .nsh/out/Ear.app/Contents/Helpers
           cp cli/target/release/ear .nsh/out/Ear.app/Contents/Helpers/ear
-          chmod +x .nsh/out/Ear.app/Contents/Helpers/ear
+          mv .nsh/out/Ear.app/Contents/MacOS/Ear .nsh/out/Ear.app/Contents/MacOS/Ear.bin
+          cp scripts/macos-launcher.sh .nsh/out/Ear.app/Contents/MacOS/Ear
+          chmod +x .nsh/out/Ear.app/Contents/MacOS/Ear \
+            .nsh/out/Ear.app/Contents/MacOS/Ear.bin \
+            .nsh/out/Ear.app/Contents/Helpers/ear
           codesign --force --deep --sign - .nsh/out/Ear.app
           codesign --verify --deep --strict .nsh/out/Ear.app
           ditto -c -k --keepParent .nsh/out/Ear.app "Ear-${VERSION}-macos-aarch64.zip"

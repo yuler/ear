@@ -38,6 +38,8 @@ export type EarSettings = {
   subtitleBlockerDefault: SubtitleBlockerRect;
   /** Per-video customized blocker positions. */
   subtitleBlockerVideos: Record<string, SubtitleBlockerRect>;
+  /** Start the LAN mirror service again the next time the app opens. */
+  mirrorEnabled: boolean;
 };
 
 const KEY = "ear.settings";
@@ -53,6 +55,7 @@ export const DEFAULT_SETTINGS: EarSettings = {
   subtitleBlockerEnabled: false,
   subtitleBlockerDefault: { ...DEFAULT_BLOCKER_RECT },
   subtitleBlockerVideos: {},
+  mirrorEnabled: false,
 };
 
 let cachedSettings: EarSettings = { ...DEFAULT_SETTINGS };
@@ -111,6 +114,7 @@ export function normalizeSettings(parsed: Partial<EarSettings>): EarSettings {
       typeof parsed.subtitleBlockerVideos === "object"
         ? normalizeBlockerVideos(parsed.subtitleBlockerVideos)
         : {},
+    mirrorEnabled: parsed.mirrorEnabled === true,
   };
 }
 

@@ -22,6 +22,12 @@ test("Settings store allows toggling preferences and updating settings values", 
   expect(settings().clipboardAuto).toBe(true);
 });
 
+test("normalizeSettings remembers the LAN mirror switch only when it was turned on", () => {
+  expect(normalizeSettings({}).mirrorEnabled).toBe(false);
+  expect(normalizeSettings({ mirrorEnabled: true }).mirrorEnabled).toBe(true);
+  expect(normalizeSettings({ mirrorEnabled: "yes" as never }).mirrorEnabled).toBe(false);
+});
+
 test("normalizeSettings migrates 480p and unknown qualities to 360p", () => {
   expect(normalizeSettings({ defaultQuality: "480p" as any }).defaultQuality).toBe("360p");
   expect(normalizeSettings({ defaultQuality: "4k" as any }).defaultQuality).toBe("360p");
